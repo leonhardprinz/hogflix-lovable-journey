@@ -18,6 +18,9 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				'manrope': ['Manrope', 'sans-serif'],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -25,11 +28,11 @@ export default {
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				primary: {
-					DEFAULT: 'hsl(var(--primary))',
+					DEFAULT: 'hsl(var(--primary))',          /* #E50914 - Netflix Red */
 					foreground: 'hsl(var(--primary-foreground))'
 				},
 				secondary: {
-					DEFAULT: 'hsl(var(--secondary))',
+					DEFAULT: 'hsl(var(--secondary))',        /* Card Background */
 					foreground: 'hsl(var(--secondary-foreground))'
 				},
 				destructive: {
@@ -51,6 +54,12 @@ export default {
 				card: {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
+				},
+				/* Netflix-specific text colors */
+				text: {
+					primary: 'hsl(var(--text-primary))',     /* #FFFFFF */
+					secondary: 'hsl(var(--text-secondary))', /* #E5E5E5 */
+					tertiary: 'hsl(var(--text-tertiary))',   /* #808080 */
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',

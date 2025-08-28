@@ -2,41 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* HogFlix Netflix-Style Design System
+   Project Goal: Netflix clone for PostHog analytics demonstration
+   Core Technologies: React, Vite, Tailwind CSS, Supabase, PostHog
+   All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Netflix-Style Color Palette (Dark Mode) */
+    --background: 0 0% 8%;                    /* #141414 - Background Dark */
+    --foreground: 0 0% 100%;                  /* #FFFFFF - Text Primary */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 12%;                         /* #1F1F1F - Card/Component Background */
+    --card-foreground: 0 0% 100%;             /* #FFFFFF - Text Primary */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 12%;                      /* #1F1F1F - Card Background */
+    --popover-foreground: 0 0% 100%;          /* #FFFFFF - Text Primary */
 
-    --primary: 262 83% 58%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 348 94% 47%;                   /* #E50914 - Primary Red */
+    --primary-foreground: 0 0% 100%;          /* #FFFFFF - Text Primary */
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 9% 46%;
+    --secondary: 0 0% 12%;                    /* #1F1F1F - Card Background */
+    --secondary-foreground: 0 0% 90%;         /* #E5E5E5 - Text Secondary */
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 0 0% 12%;                        /* #1F1F1F - Card Background */
+    --muted-foreground: 0 0% 50%;             /* #808080 - Text Tertiary */
 
-    --accent: 142 76% 36%;
-    --accent-foreground: 355 7% 97%;
+    --accent: 348 94% 47%;                    /* #E50914 - Primary Red */
+    --accent-foreground: 0 0% 100%;           /* #FFFFFF - Text Primary */
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 348 94% 47%;               /* #E50914 - Primary Red */
+    --destructive-foreground: 0 0% 100%;      /* #FFFFFF - Text Primary */
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 0 0% 20%;                       /* Subtle border */
+    --input: 0 0% 12%;                        /* #1F1F1F - Input Background */
+    --ring: 348 94% 47%;                      /* #E50914 - Focus ring */
 
-    --radius: 0.5rem;
+    --radius: 0.25rem;                        /* 4px border-radius */
+
+    /* Text Color Variants */
+    --text-primary: 0 0% 100%;                /* #FFFFFF - Headings, important text */
+    --text-secondary: 0 0% 90%;               /* #E5E5E5 - Body copy, subtitles */
+    --text-tertiary: 0 0% 50%;                /* #808080 - Metadata, disabled text */
 
     --sidebar-background: 0 0% 98%;
 
@@ -56,41 +64,49 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Dark mode already matches Netflix style - keep same values */
+    --background: 0 0% 8%;                    /* #141414 - Background Dark */
+    --foreground: 0 0% 100%;                  /* #FFFFFF - Text Primary */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 12%;                         /* #1F1F1F - Card/Component Background */
+    --card-foreground: 0 0% 100%;             /* #FFFFFF - Text Primary */
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 12%;                      /* #1F1F1F - Card Background */
+    --popover-foreground: 0 0% 100%;          /* #FFFFFF - Text Primary */
 
-    --primary: 262 83% 58%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 348 94% 47%;                   /* #E50914 - Primary Red */
+    --primary-foreground: 0 0% 100%;          /* #FFFFFF - Text Primary */
 
-    --secondary: 240 4% 16%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 0 0% 12%;                    /* #1F1F1F - Card Background */
+    --secondary-foreground: 0 0% 90%;         /* #E5E5E5 - Text Secondary */
 
-    --muted: 240 4% 16%;
-    --muted-foreground: 240 5% 65%;
+    --muted: 0 0% 12%;                        /* #1F1F1F - Card Background */
+    --muted-foreground: 0 0% 50%;             /* #808080 - Text Tertiary */
 
-    --accent: 142 76% 36%;
-    --accent-foreground: 355 7% 97%;
+    --accent: 348 94% 47%;                    /* #E50914 - Primary Red */
+    --accent-foreground: 0 0% 100%;           /* #FFFFFF - Text Primary */
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 348 94% 47%;               /* #E50914 - Primary Red */
+    --destructive-foreground: 0 0% 100%;      /* #FFFFFF - Text Primary */
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 0 0% 20%;                       /* Subtle border */
+    --input: 0 0% 12%;                        /* #1F1F1F - Input Background */
+    --ring: 348 94% 47%;                      /* #E50914 - Focus ring */
+
+    /* Sidebar colors for components */
+    --sidebar-background: 0 0% 8%;            /* Match main background */
+    --sidebar-foreground: 0 0% 90%;           /* Text Secondary */
+    --sidebar-primary: 348 94% 47%;           /* Primary Red */
+    --sidebar-primary-foreground: 0 0% 100%;  /* Text Primary */
+    --sidebar-accent: 0 0% 12%;               /* Card Background */
+    --sidebar-accent-foreground: 0 0% 90%;    /* Text Secondary */
+    --sidebar-border: 0 0% 20%;               /* Subtle border */
+    --sidebar-ring: 348 94% 47%;              /* Primary Red */
+
+    /* Text Color Variants */
+    --text-primary: 0 0% 100%;                /* #FFFFFF - Headings, important text */
+    --text-secondary: 0 0% 90%;               /* #E5E5E5 - Body copy, subtitles */
+    --text-tertiary: 0 0% 50%;                /* #808080 - Metadata, disabled text */
   }
 }
 
@@ -100,6 +116,51 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-manrope;
+    font-family: 'Manrope', sans-serif;
+  }
+
+  /* Typography Styles */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold text-foreground;
+    color: hsl(var(--text-primary));
+  }
+
+  p, span, div {
+    @apply font-normal;
+    color: hsl(var(--text-secondary));
+  }
+
+  /* Button Styles */
+  .btn-primary {
+    @apply bg-primary text-primary-foreground font-medium uppercase tracking-wide;
+    @apply hover:bg-primary/90 transition-colors duration-200;
+  }
+
+  /* Card Styles */
+  .card-hover {
+    @apply transition-transform duration-200 hover:scale-105;
+  }
+
+  /* Input Styles */
+  .input-netflix {
+    @apply bg-input text-foreground border-border;
+    @apply focus:border-primary focus:ring-1 focus:ring-primary;
+    @apply transition-colors duration-200;
+  }
+}
+
+@layer components {
+  /* Netflix-style spacing scale (4px multiples) */
+  .spacing-xs { @apply p-1; }     /* 4px */
+  .spacing-sm { @apply p-2; }     /* 8px */
+  .spacing-md { @apply p-4; }     /* 16px */
+  .spacing-lg { @apply p-6; }     /* 24px */
+  .spacing-xl { @apply p-8; }     /* 32px */
+  .spacing-2xl { @apply p-12; }   /* 48px */
+
+  /* Content containers with horizontal padding */
+  .container-netflix {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
 }
