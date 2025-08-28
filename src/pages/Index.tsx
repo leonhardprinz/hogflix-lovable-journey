@@ -4,8 +4,15 @@ const Index = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+        <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          HogFlix
+        </h1>
+        <p className="text-xl text-muted-foreground mb-4">
+          Your Premium Streaming Experience
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Supabase Connected • Ready for Development
+        </p>
       </div>
     </div>
   );
