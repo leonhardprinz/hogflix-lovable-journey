@@ -5,22 +5,42 @@ import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import { Button } from '@/components/ui/button';
 import { User, Plus } from 'lucide-react';
+import NewProfileModal from '@/components/NewProfileModal';
 
 interface Profile {
   id: string;
   display_name: string | null;
   email: string | null;
   user_id: string;
+  is_kids_profile: boolean;
 }
 
 const Profiles = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [showNewProfileModal, setShowNewProfileModal] = useState(false);
   
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { setSelectedProfile } = useProfile();
+
+  const fetchProfiles = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error fetching profiles:', error);
+      } else {
+        setProfiles(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching profiles:', error);
+    }
+  };
 
   useEffect(() => {
     const checkAuthAndFetchProfiles = async () => {
@@ -33,24 +53,8 @@ const Profiles = () => {
       }
 
       setUser(session.user);
-
-      // Fetch user's profiles
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', session.user.id);
-
-        if (error) {
-          console.error('Error fetching profiles:', error);
-        } else {
-          setProfiles(data || []);
-        }
-      } catch (error) {
-        console.error('Error fetching profiles:', error);
-      } finally {
-        setLoading(false);
-      }
+      await fetchProfiles(session.user.id);
+      setLoading(false);
     };
 
     checkAuthAndFetchProfiles();
@@ -71,9 +75,13 @@ const Profiles = () => {
   };
 
   const handleAddProfile = () => {
-    // For now, just redirect to browse with no selected profile
-    // In a real app, you might show a form to create a new profile
-    navigate('/browse');
+    setShowNewProfileModal(true);
+  };
+
+  const handleProfileCreated = async () => {
+    if (user) {
+      await fetchProfiles(user.id);
+    }
   };
 
   if (loading) {
@@ -103,8 +111,13 @@ const Profiles = () => {
               onClick={() => handleProfileSelect(profile)}
               className="flex flex-col items-center cursor-pointer group"
             >
-              <div className="w-32 h-32 bg-card-background rounded-lg flex items-center justify-center mb-4 card-hover border-2 border-transparent group-hover:border-primary-red transition-all duration-200">
+              <div className="w-32 h-32 bg-card-background rounded-lg flex items-center justify-center mb-4 card-hover border-2 border-transparent group-hover:border-primary-red transition-all duration-200 relative">
                 <User size={48} className="text-text-secondary" />
+                {profile.is_kids_profile && (
+                  <div className="absolute top-2 right-2 bg-primary-red text-white text-xs px-2 py-1 rounded">
+                    KIDS
+                  </div>
+                )}
               </div>
               <span className="text-text-primary font-manrope text-lg group-hover:text-primary-red transition-colors">
                 {profile.display_name || profile.email?.split('@')[0] || 'Profile'}
@@ -135,11 +148,21 @@ const Profiles = () => {
               onClick={handleAddProfile}
               className="btn-primary"
             >
-              Continue
+              Create Your First Profile
             </Button>
           </div>
         )}
       </div>
+
+      {/* New Profile Modal */}
+      {user && (
+        <NewProfileModal
+          isOpen={showNewProfileModal}
+          onClose={() => setShowNewProfileModal(false)}
+          onProfileCreated={handleProfileCreated}
+          userId={user.id}
+        />
+      )}
     </div>
   );
 };
