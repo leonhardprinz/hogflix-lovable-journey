@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -7,10 +7,37 @@ import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Play, Info } from 'lucide-react';
 
+interface Video {
+  id: string;
+  title: string;
+  description: string | null;
+  thumbnail_url: string;
+  video_url: string;
+  duration: number;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  sort_order: number;
+  videos: Video[];
+}
+
 const Browse = () => {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { selectedProfile } = useProfile();
+
+  const formatDuration = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
 
   useEffect(() => {
     const checkAuthAndProfile = async () => {
@@ -33,12 +60,54 @@ const Browse = () => {
         profile_id: selectedProfile.id,
         profile_name: selectedProfile.display_name || selectedProfile.email
       });
+
+      // Fetch categories and videos
+      await fetchCategoriesAndVideos();
     };
 
     checkAuthAndProfile();
   }, [navigate, selectedProfile, posthog]);
 
-  if (!selectedProfile) {
+  const fetchCategoriesAndVideos = async () => {
+    try {
+      // Fetch categories ordered by sort_order
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .order('sort_order');
+
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError);
+        return;
+      }
+
+      // Fetch videos for each category (first 10 per category)
+      const categoriesWithVideos = await Promise.all(
+        categoriesData.map(async (category) => {
+          const { data: videos, error: videosError } = await supabase
+            .from('videos')
+            .select('*')
+            .eq('category_id', category.id)
+            .limit(10);
+
+          if (videosError) {
+            console.error(`Error fetching videos for category ${category.name}:`, videosError);
+            return { ...category, videos: [] };
+          }
+
+          return { ...category, videos: videos || [] };
+        })
+      );
+
+      setCategories(categoriesWithVideos);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!selectedProfile || loading) {
     return (
       <div className="min-h-screen bg-background-dark flex items-center justify-center">
         <div className="text-text-primary">Loading...</div>
@@ -109,49 +178,48 @@ const Browse = () => {
           </h2>
         </div>
 
-        {/* Carousel Sections - Placeholders for now */}
+        {/* Dynamic Categories and Videos */}
         <div className="space-y-16">
-          <div>
-            <h3 className="text-xl font-bold text-text-primary mb-6 font-manrope">Continue Watching</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((item) => (
-                <div 
-                  key={item} 
-                  className="aspect-video bg-card-background rounded card-hover cursor-pointer flex items-center justify-center"
-                >
-                  <span className="text-text-tertiary font-manrope">Content {item}</span>
+          {categories.map((category) => (
+            <div key={category.id}>
+              <h3 className="text-xl font-bold text-text-primary mb-6 font-manrope">
+                {category.name}
+              </h3>
+              
+              {/* Horizontal Scrolling Carousel */}
+              <div className="overflow-x-auto scrollbar-hide">
+                <div className="flex gap-4 pb-4" style={{ width: 'max-content' }}>
+                  {category.videos.map((video) => (
+                    <Link
+                      key={video.id}
+                      to={`/watch/${video.id}`}
+                      className="flex-shrink-0"
+                      data-ph-capture-attribute-video-id={video.id}
+                    >
+                      <div className="w-80 bg-card-background rounded card-hover cursor-pointer group">
+                        <div className="aspect-video bg-gray-700 rounded-t overflow-hidden">
+                          <img
+                            src={video.thumbnail_url}
+                            alt={video.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="p-4">
+                          <h4 className="text-text-primary font-manrope font-medium mb-2 truncate">
+                            {video.title}
+                          </h4>
+                          <p className="text-text-tertiary text-sm font-manrope">
+                            {formatDuration(video.duration)}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-
-          <div>
-            <h3 className="text-xl font-bold text-text-primary mb-6 font-manrope">Trending Now</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((item) => (
-                <div 
-                  key={item} 
-                  className="aspect-video bg-card-background rounded card-hover cursor-pointer flex items-center justify-center"
-                >
-                  <span className="text-text-tertiary font-manrope">Trending {item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-xl font-bold text-text-primary mb-6 font-manrope">Popular on HogFlix</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((item) => (
-                <div 
-                  key={item} 
-                  className="aspect-video bg-card-background rounded card-hover cursor-pointer flex items-center justify-center"
-                >
-                  <span className="text-text-tertiary font-manrope">Popular {item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>
