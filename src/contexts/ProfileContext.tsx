@@ -5,6 +5,7 @@ interface Profile {
   display_name: string | null;
   email: string | null;
   user_id: string;
+  is_kids_profile: boolean;
 }
 
 interface ProfileContextType {
