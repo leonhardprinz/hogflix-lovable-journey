@@ -23,6 +23,9 @@ const VideoPlayer = () => {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [milestone25, setMilestone25] = useState(false);
+  const [milestone50, setMilestone50] = useState(false);
+  const [milestone75, setMilestone75] = useState(false);
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { selectedProfile } = useProfile();
@@ -109,6 +112,43 @@ const VideoPlayer = () => {
     navigate('/browse');
   };
 
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const videoElement = e.currentTarget;
+    const currentTime = videoElement.currentTime;
+    const duration = videoElement.duration;
+    
+    if (duration > 0) {
+      const progressPercent = (currentTime / duration) * 100;
+      
+      // Check for 25% milestone
+      if (progressPercent >= 25 && !milestone25) {
+        setMilestone25(true);
+        posthog.capture('video:progress_report', {
+          video_id: videoId,
+          progress_percent: 25
+        });
+      }
+      
+      // Check for 50% milestone
+      if (progressPercent >= 50 && !milestone50) {
+        setMilestone50(true);
+        posthog.capture('video:progress_report', {
+          video_id: videoId,
+          progress_percent: 50
+        });
+      }
+      
+      // Check for 75% milestone
+      if (progressPercent >= 75 && !milestone75) {
+        setMilestone75(true);
+        posthog.capture('video:progress_report', {
+          video_id: videoId,
+          progress_percent: 75
+        });
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background-dark">
@@ -174,6 +214,7 @@ const VideoPlayer = () => {
                 controls
                 poster={video.thumbnail_url}
                 preload="metadata"
+                onTimeUpdate={handleTimeUpdate}
               >
                 <source src={videoUrl} type="video/mp4" />
                 Your browser does not support the video tag.
