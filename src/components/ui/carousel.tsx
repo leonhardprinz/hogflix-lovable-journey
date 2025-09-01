@@ -3,6 +3,7 @@ import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from "embla-carousel-react"
 import { ArrowLeft, ArrowRight } from "lucide-react"
+import { usePostHog } from "posthog-js/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,8 @@ type CarouselProps = {
   plugins?: CarouselPlugin
   orientation?: "horizontal" | "vertical"
   setApi?: (api: CarouselApi) => void
+  categoryId?: string
+  categoryName?: string
 }
 
 type CarouselContextProps = {
@@ -52,6 +55,8 @@ const Carousel = React.forwardRef<
       plugins,
       className,
       children,
+      categoryId,
+      categoryName,
       ...props
     },
     ref
@@ -65,6 +70,8 @@ const Carousel = React.forwardRef<
     )
     const [canScrollPrev, setCanScrollPrev] = React.useState(false)
     const [canScrollNext, setCanScrollNext] = React.useState(false)
+    const [hasScrolled, setHasScrolled] = React.useState(false)
+    const posthog = usePostHog()
 
     const onSelect = React.useCallback((api: CarouselApi) => {
       if (!api) {
@@ -73,7 +80,16 @@ const Carousel = React.forwardRef<
 
       setCanScrollPrev(api.canScrollPrev())
       setCanScrollNext(api.canScrollNext())
-    }, [])
+      
+      // Track carousel interaction on first scroll
+      if (!hasScrolled && categoryId && categoryName && posthog) {
+        setHasScrolled(true)
+        posthog.capture('content:browsed', {
+          category_id: categoryId,
+          category_name: categoryName
+        })
+      }
+    }, [hasScrolled, categoryId, categoryName, posthog])
 
     const scrollPrev = React.useCallback(() => {
       api?.scrollPrev()

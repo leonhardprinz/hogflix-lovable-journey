@@ -5,6 +5,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
+import { 
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
 import { Play, Info } from 'lucide-react';
 
 interface Video {
@@ -186,38 +193,48 @@ const Browse = () => {
                 {category.name}
               </h3>
               
-              {/* Horizontal Scrolling Carousel */}
-              <div className="overflow-x-auto scrollbar-hide">
-                <div className="flex gap-4 pb-4" style={{ width: 'max-content' }}>
+              {/* Carousel with PostHog Tracking */}
+              <Carousel 
+                className="w-full"
+                categoryId={category.id}
+                categoryName={category.name}
+                opts={{
+                  align: "start",
+                  loop: false,
+                }}
+              >
+                <CarouselContent className="-ml-4">
                   {category.videos.map((video) => (
-                    <Link
-                      key={video.id}
-                      to={`/watch/${video.id}`}
-                      className="flex-shrink-0"
-                      data-ph-capture-attribute-video-id={video.id}
-                    >
-                      <div className="w-80 bg-card-background rounded card-hover cursor-pointer group">
-                        <div className="aspect-video bg-gray-700 rounded-t overflow-hidden">
-                          <img
-                            src={video.thumbnail_url}
-                            alt={video.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            loading="lazy"
-                          />
+                    <CarouselItem key={video.id} className="pl-4 basis-80">
+                      <Link
+                        to={`/watch/${video.id}`}
+                        data-ph-capture-attribute-video-id={video.id}
+                      >
+                        <div className="w-full bg-card-background rounded card-hover cursor-pointer group">
+                          <div className="aspect-video bg-gray-700 rounded-t overflow-hidden">
+                            <img
+                              src={video.thumbnail_url}
+                              alt={video.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              loading="lazy"
+                            />
+                          </div>
+                          <div className="p-4">
+                            <h4 className="text-text-primary font-manrope font-medium mb-2 truncate">
+                              {video.title}
+                            </h4>
+                            <p className="text-text-tertiary text-sm font-manrope">
+                              {formatDuration(video.duration)}
+                            </p>
+                          </div>
                         </div>
-                        <div className="p-4">
-                          <h4 className="text-text-primary font-manrope font-medium mb-2 truncate">
-                            {video.title}
-                          </h4>
-                          <p className="text-text-tertiary text-sm font-manrope">
-                            {formatDuration(video.duration)}
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
+                      </Link>
+                    </CarouselItem>
                   ))}
-                </div>
-              </div>
+                </CarouselContent>
+                <CarouselPrevious className="left-2" />
+                <CarouselNext className="right-2" />
+              </Carousel>
             </div>
           ))}
         </div>
