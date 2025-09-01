@@ -9,6 +9,7 @@ import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import Profiles from "./pages/Profiles";
 import Browse from "./pages/Browse";
+import VideoPlayer from "./pages/VideoPlayer";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/profiles" element={<Profiles />} />
             <Route path="/browse" element={<Browse />} />
+            <Route path="/watch/:videoId" element={<VideoPlayer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
