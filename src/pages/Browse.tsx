@@ -4,6 +4,7 @@ import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
+import Hero from '@/components/Hero';
 import { Button } from '@/components/ui/button';
 import { 
   Carousel,
@@ -145,51 +146,7 @@ const Browse = () => {
       <Header />
       
       {/* Hero Section */}
-      <div className="relative h-[70vh] bg-gradient-to-r from-background-dark via-background-dark/80 to-transparent">
-        {/* Hero Background - Placeholder for now */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-40"
-          style={{
-            backgroundImage: `linear-gradient(45deg, #1a1a1a 25%, transparent 25%), 
-                             linear-gradient(-45deg, #1a1a1a 25%, transparent 25%), 
-                             linear-gradient(45deg, transparent 75%, #1a1a1a 75%), 
-                             linear-gradient(-45deg, transparent 75%, #1a1a1a 75%)`,
-            backgroundSize: '20px 20px',
-            backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px'
-          }}
-        />
-        
-        {/* Hero Content */}
-        <div className="relative container-netflix h-full flex flex-col justify-center">
-          <div className="max-w-2xl">
-            <h1 className="text-5xl lg:text-7xl font-bold text-text-primary mb-4 font-manrope animate-fade-in">
-              Featured Title
-            </h1>
-            <p className="text-lg lg:text-xl text-text-secondary mb-6 font-manrope max-w-lg animate-fade-in" style={{ animationDelay: '0.2s' }}>
-              This is a placeholder for a featured movie or series description. 
-              In a real Netflix clone, this would showcase the current featured content.
-            </p>
-            
-            {/* Action Buttons */}
-            <div className="flex gap-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
-              <Button className="btn-primary text-lg px-8 py-3 flex items-center gap-2">
-                <Play size={20} fill="currentColor" />
-                PLAY
-              </Button>
-              <Button 
-                variant="outline" 
-                className="text-lg px-8 py-3 flex items-center gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20"
-              >
-                <Info size={20} />
-                MORE INFO
-              </Button>
-            </div>
-          </div>
-        </div>
-        
-        {/* Fade gradient at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background-dark to-transparent" />
-      </div>
+      <Hero />
 
       {/* Content Carousels Container */}
       <div className="container-netflix py-12 space-y-12">
