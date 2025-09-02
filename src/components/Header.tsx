@@ -1,16 +1,25 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
+import { useProfile } from '@/contexts/ProfileContext';
 import { Button } from '@/components/ui/button';
-import { User } from '@supabase/supabase-js';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { User, ChevronDown, LogOut } from 'lucide-react';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 const Header = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
   const posthog = usePostHog();
+  const { selectedProfile } = useProfile();
 
   useEffect(() => {
     // Get current session
@@ -42,8 +51,8 @@ const Header = () => {
       // Supabase logout
       await supabase.auth.signOut();
 
-      // Redirect to login
-      navigate('/login');
+      // Redirect to home page
+      navigate('/');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -52,46 +61,77 @@ const Header = () => {
   };
 
   return (
-    <header className="w-full bg-background-dark border-b border-gray-800">
+    <header className="w-full bg-background-dark/95 backdrop-blur-md border-b border-gray-800 sticky top-0 z-50">
       <div className="container-netflix flex items-center justify-between py-4">
-        <h1 
-          onClick={() => navigate('/')}
-          className="text-3xl font-bold text-primary-red cursor-pointer font-manrope"
-        >
-          HogFlix
-        </h1>
+        {/* Logo */}
+        <Link to={user ? '/browse' : '/'}>
+          <h1 className="text-3xl font-bold text-primary-red cursor-pointer font-manrope hover:opacity-80 transition-opacity">
+            HogFlix
+          </h1>
+        </Link>
 
-        <nav className="flex items-center space-x-4">
+        <nav className="flex items-center space-x-6">
           {user ? (
-            <div className="flex items-center space-x-4">
-              <span className="text-text-secondary font-manrope">
-                Welcome, {user.email}
-              </span>
-              <Button
-                onClick={handleLogout}
-                disabled={loading}
-                variant="outline"
-                className="border-primary-red text-primary-red hover:bg-primary-red hover:text-white"
-              >
-                {loading ? 'LOGGING OUT...' : 'LOG OUT'}
-              </Button>
-            </div>
+            <>
+              {/* Navigation Links */}
+              <div className="hidden md:flex items-center space-x-6">
+                <Link 
+                  to="/browse" 
+                  className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                >
+                  Home
+                </Link>
+                <Link 
+                  to="/my-list" 
+                  className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                >
+                  My List
+                </Link>
+              </div>
+
+              {/* Profile Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="flex items-center space-x-2 text-text-primary hover:text-white hover:bg-white/10"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 bg-primary-red rounded flex items-center justify-center">
+                        <User className="h-4 w-4 text-white" />
+                      </div>
+                      <span className="font-manrope hidden sm:block">
+                        {selectedProfile?.display_name || selectedProfile?.email?.split('@')[0] || 'User'}
+                      </span>
+                      <ChevronDown className="h-4 w-4" />
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent 
+                  align="end" 
+                  className="w-56 bg-background-dark border-gray-700 z-50"
+                >
+                  <DropdownMenuItem 
+                    onClick={handleLogout}
+                    disabled={loading}
+                    className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    {loading ? 'Logging out...' : 'Log Out'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           ) : (
-            <div className="flex items-center space-x-4">
-              <Button
-                onClick={() => navigate('/login')}
-                variant="ghost"
-                className="text-text-primary hover:text-primary-red"
+            /* Unauthenticated Navigation */
+            <Link to="/login">
+              <Button 
+                variant="ghost" 
+                className="text-text-primary hover:text-primary-red font-manrope"
               >
-                LOG IN
+                Sign In
               </Button>
-              <Button
-                onClick={() => navigate('/signup')}
-                className="btn-primary"
-              >
-                SIGN UP
-              </Button>
-            </div>
+            </Link>
           )}
         </nav>
       </div>
