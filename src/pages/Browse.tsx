@@ -46,6 +46,24 @@ const Browse = () => {
     return `${minutes}m`;
   };
 
+  // A/B test thumbnail function
+  const getThumbnailUrl = (video: Video) => {
+    // Get the feature flag variant for thumbnail experiment
+    const variant = posthog.getFeatureFlag('thumbnail-experiment');
+    
+    // For testing purposes, we'll use the first video in the first category
+    // In a real scenario, you'd have specific video IDs to test
+    if (categories.length > 0 && categories[0].videos.length > 0 && video.id === categories[0].videos[0]?.id) {
+      if (variant === 'test') {
+        // Alternative thumbnail URL for A/B test
+        return 'https://images.unsplash.com/photo-1489599807473-d2f3ba75b4c1?w=800&h=450&fit=crop&crop=center';
+      }
+    }
+    
+    // Return original thumbnail for control variant or other videos
+    return video.thumbnail_url;
+  };
+
   useEffect(() => {
     const checkAuthAndProfile = async () => {
       // Check if user is authenticated
@@ -213,7 +231,7 @@ const Browse = () => {
                         <div className="w-full bg-card-background rounded card-hover cursor-pointer group">
                           <div className="aspect-video bg-gray-700 rounded-t overflow-hidden">
                             <img
-                              src={video.thumbnail_url}
+                              src={getThumbnailUrl(video)}
                               alt={video.title}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                               loading="lazy"
