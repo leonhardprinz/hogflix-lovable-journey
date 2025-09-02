@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { usePostHog } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, Pause } from 'lucide-react';
 
 interface Video {
   id: string;
@@ -26,9 +26,12 @@ const VideoPlayer = () => {
   const [milestone25, setMilestone25] = useState(false);
   const [milestone50, setMilestone50] = useState(false);
   const [milestone75, setMilestone75] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { selectedProfile } = useProfile();
+  const isNewPlayerUiEnabled = useFeatureFlagEnabled('new-player-ui');
 
   useEffect(() => {
     const checkAuthAndLoadVideo = async () => {
@@ -110,6 +113,24 @@ const VideoPlayer = () => {
 
   const handleBackClick = () => {
     navigate('/browse');
+  };
+
+  const handlePlayPause = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+    }
+  };
+
+  const handleVideoPlay = () => {
+    setIsPlaying(true);
+  };
+
+  const handleVideoPause = () => {
+    setIsPlaying(false);
   };
 
   const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -207,18 +228,41 @@ const VideoPlayer = () => {
 
         {/* Video Player Section */}
         <div className="max-w-6xl mx-auto">
-          <div className="aspect-video bg-black rounded-lg overflow-hidden mb-8">
+          <div className="aspect-video bg-black rounded-lg overflow-hidden mb-8 relative">
             {videoUrl ? (
-              <video
-                className="w-full h-full"
-                controls
-                poster={video.thumbnail_url}
-                preload="metadata"
-                onTimeUpdate={handleTimeUpdate}
-              >
-                <source src={videoUrl} type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
+              <>
+                <video
+                  ref={videoRef}
+                  className="w-full h-full"
+                  controls={!isNewPlayerUiEnabled}
+                  poster={video.thumbnail_url}
+                  preload="metadata"
+                  onTimeUpdate={handleTimeUpdate}
+                  onPlay={handleVideoPlay}
+                  onPause={handleVideoPause}
+                >
+                  <source src={videoUrl} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+                
+                {/* Custom Controls Overlay (only when feature flag is enabled) */}
+                {isNewPlayerUiEnabled && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors group">
+                    <Button
+                      onClick={handlePlayPause}
+                      variant="ghost"
+                      size="lg"
+                      className="bg-white/20 hover:bg-white/30 text-white border-0 h-20 w-20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {isPlaying ? (
+                        <Pause className="h-8 w-8" />
+                      ) : (
+                        <Play className="h-8 w-8 ml-1" />
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="flex items-center gap-3 text-white">
