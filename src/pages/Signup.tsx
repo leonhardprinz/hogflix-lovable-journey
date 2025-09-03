@@ -10,6 +10,7 @@ const Signup = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
@@ -34,18 +35,19 @@ const Signup = () => {
         return;
       }
 
+      // Capture signup event
       if (data.user) {
-        // PostHog analytics integration
-        posthog.identify(data.user.id, {
-          email: data.user.email
-        });
+        posthog.capture('user:signed_up', { signup_method: 'email' });
+      }
 
-        posthog.capture('user:signed_up', {
-          signup_method: 'email'
+      if (data.session?.user) {
+        // Identify and redirect only when session exists (email confirmation disabled)
+        posthog.identify(data.session.user.id, {
+          email: data.session.user.email
         });
-
-        // Redirect to profiles page
         navigate('/profiles');
+      } else {
+        setInfo('Check your email for a confirmation link to activate your account before signing in.');
       }
     } catch (err) {
       setError('An unexpected error occurred');
@@ -91,8 +93,13 @@ const Signup = () => {
           </div>
 
           {error && (
-            <div className="p-3 bg-red-900/20 border border-red-600 rounded text-red-400 text-sm">
+            <div className="p-3 bg-red-900/20 border border-red-600 rounded text-red-400 text-sm" role="alert" aria-live="assertive">
               {error}
+            </div>
+          )}
+          {info && (
+            <div className="p-3 bg-emerald-900/20 border border-emerald-600 rounded text-emerald-400 text-sm" role="status" aria-live="polite">
+              {info}
             </div>
           )}
 

@@ -10,6 +10,8 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [resendMessage, setResendMessage] = useState('');
+  const [resending, setResending] = useState(false);
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
@@ -27,11 +29,15 @@ const Login = () => {
       });
 
       if (loginError) {
-        setError(loginError.message);
+        const userFriendly = loginError.message.includes('Invalid login credentials')
+          ? 'Invalid login credentials. If you just signed up, please confirm your email before logging in.'
+          : loginError.message;
+        setError(userFriendly);
+        setResendMessage('');
         
         // PostHog analytics for failed login
         posthog.capture('user:login_failed', {
-          reason: loginError.message
+          reason: userFriendly
         });
         return;
       }
@@ -56,7 +62,27 @@ const Login = () => {
     }
   };
 
-  return (
+  const handleResend = async () => {
+    if (!email) return;
+    setResendMessage('');
+    setResending(true);
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email });
+      if (error) {
+        setResendMessage(error.message);
+        posthog.capture('user:resend_confirmation_failed', { reason: error.message });
+      } else {
+        setResendMessage('Confirmation email sent. Please check your inbox.');
+        posthog.capture('user:resend_confirmation_sent');
+      }
+    } catch (e) {
+      setResendMessage('Failed to resend confirmation email. Please try again later.');
+    } finally {
+      setResending(false);
+    }
+  };
+ 
+   return (
     <div className="min-h-screen bg-background-dark flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
@@ -93,8 +119,25 @@ const Login = () => {
           </div>
 
           {error && (
-            <div className="p-3 bg-red-900/20 border border-red-600 rounded text-red-400 text-sm">
+            <div className="p-3 bg-red-900/20 border border-red-600 rounded text-red-400 text-sm" role="alert" aria-live="assertive">
               {error}
+              {email && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resending}
+                    className="text-primary-red hover:underline"
+                  >
+                    {resending ? 'Resending...' : 'Resend confirmation email'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {resendMessage && (
+            <div className="p-3 bg-emerald-900/20 border border-emerald-600 rounded text-emerald-400 text-sm" role="status" aria-live="polite">
+              {resendMessage}
             </div>
           )}
 
