@@ -4,13 +4,14 @@ import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { User, ChevronDown, LogOut } from 'lucide-react';
+import { User, ChevronDown, LogOut, Search } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
 const Header = () => {
@@ -74,7 +75,7 @@ const Header = () => {
           {user ? (
             <>
               {/* Navigation Links */}
-              <div className="hidden md:flex items-center space-x-6">
+              <div className="hidden lg:flex items-center space-x-6">
                 <Link 
                   to="/browse" 
                   className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
@@ -87,6 +88,16 @@ const Header = () => {
                 >
                   My List
                 </Link>
+              </div>
+
+              {/* AI Search Input */}
+              <div className="relative flex-1 max-w-md mx-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  type="text"
+                  placeholder="Ask for a movie recommendation..."
+                  className="pl-10 bg-background/20 border-gray-700 text-text-primary placeholder:text-muted-foreground focus:border-primary-red"
+                />
               </div>
 
               {/* Profile Dropdown */}
