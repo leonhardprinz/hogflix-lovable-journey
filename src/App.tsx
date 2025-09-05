@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Profiles from "./pages/Profiles";
 import Browse from "./pages/Browse";
 import VideoPlayer from "./pages/VideoPlayer";
+import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const AppContent = () => {
               <VideoPlayer />
             </ProtectedRoute>
           } />
+          <Route path="/support" element={<Support />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

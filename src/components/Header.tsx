@@ -154,6 +154,12 @@ const Header = () => {
                   >
                     My List
                   </Link>
+                  <Link 
+                    to="/support" 
+                    className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                  >
+                    Support
+                  </Link>
                 </div>
 
                 {/* AI Search Input */}
