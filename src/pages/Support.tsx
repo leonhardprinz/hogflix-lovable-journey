@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { usePostHog } from 'posthog-js/react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,6 +23,7 @@ const Support = () => {
   
   const { toast } = useToast();
   const posthog = usePostHog();
+  const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,13 +40,24 @@ const Support = () => {
     setLoading(true);
 
     try {
-      // Simulate ticket submission (in real app, this would call an API)
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Store the ticket in Supabase
+      const { error } = await supabase
+        .from('support_tickets')
+        .insert({
+          user_id: user?.id,
+          issue_category: issueCategory,
+          description: description.trim(),
+          status: 'open'
+        });
+
+      if (error) {
+        throw error;
+      }
       
       // Track support ticket submission
       posthog.capture('support:ticket_submitted', {
-        issue_category: issueCategory,
-        description_length: description.length
+        source: 'hogflix_support_form',
+        issue_category: issueCategory
       });
 
       toast({
