@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +17,11 @@ import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import { HelpCircle, Send } from 'lucide-react';
 
+const TicketSchema = z.object({
+  issueCategory: z.enum(['billing','technical-issue','content-request']),
+  description: z.string().trim().min(10, 'Please provide at least 10 characters.').max(500, 'Maximum 500 characters.'),
+});
+
 const Support = () => {
   const [issueCategory, setIssueCategory] = useState<string>('');
   const [description, setDescription] = useState('');
@@ -27,11 +33,12 @@ const Support = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!issueCategory || !description.trim()) {
+    const parsed = TicketSchema.safeParse({ issueCategory, description });
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
       toast({
-        title: "Missing Information",
-        description: "Please select an issue category and provide a description.",
+        title: "Invalid input",
+        description: first.message,
         variant: "destructive"
       });
       return;
@@ -69,11 +76,15 @@ const Support = () => {
       setIssueCategory('');
       setDescription('');
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting ticket:', error);
+      const message = String(error?.message ?? '').toLowerCase();
+      const isRateLimit = message.includes('rate limit');
       toast({
-        title: "Submission Failed",
-        description: "There was an error submitting your ticket. Please try again.",
+        title: isRateLimit ? "Too many requests" : "Submission Failed",
+        description: isRateLimit
+          ? "You have reached the limit of support tickets per hour. Please try again later."
+          : "There was an error submitting your ticket. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -136,6 +147,7 @@ const Support = () => {
                   placeholder="Please describe your issue in detail..."
                   className="min-h-32 bg-background/20 border-gray-700 text-text-primary placeholder:text-muted-foreground resize-none"
                   rows={6}
+                  maxLength={500}
                 />
                 <p className="text-text-tertiary text-sm font-manrope">
                   {description.length}/500 characters
