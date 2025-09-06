@@ -17,15 +17,20 @@ import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import { HelpCircle, Send } from 'lucide-react';
 
-const TicketSchema = z.object({
-  issueCategory: z.enum(['billing','technical-issue','content-request']),
-  description: z.string().trim().min(10, 'Please provide at least 10 characters.').max(500, 'Maximum 500 characters.'),
+// Validation schema
+const supportTicketSchema = z.object({
+  issueCategory: z.string().min(1, 'Please select an issue category'),
+  description: z.string()
+    .min(10, 'Description must be at least 10 characters')
+    .max(500, 'Description must not exceed 500 characters')
+    .trim(),
 });
 
 const Support = () => {
   const [issueCategory, setIssueCategory] = useState<string>('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
   
   const { toast } = useToast();
   const posthog = usePostHog();
@@ -33,12 +38,25 @@ const Support = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const parsed = TicketSchema.safeParse({ issueCategory, description });
-    if (!parsed.success) {
-      const first = parsed.error.issues[0];
+    setValidationErrors({});
+    
+    // Validate form data
+    const result = supportTicketSchema.safeParse({
+      issueCategory: issueCategory as any,
+      description: description,
+    });
+
+    if (!result.success) {
+      const errors: { [key: string]: string } = {};
+      result.error.issues.forEach((issue) => {
+        if (issue.path.length > 0) {
+          errors[issue.path[0] as string] = issue.message;
+        }
+      });
+      setValidationErrors(errors);
       toast({
-        title: "Invalid input",
-        description: first.message,
+        title: "Validation Error",
+        description: "Please fix the errors below and try again.",
         variant: "destructive"
       });
       return;
@@ -47,24 +65,32 @@ const Support = () => {
     setLoading(true);
 
     try {
-      // Store the ticket in Supabase
+      // Store the ticket in Supabase (user_id will be auto-populated by trigger)
       const { error } = await supabase
         .from('support_tickets')
         .insert({
-          user_id: user?.id,
-          issue_category: issueCategory,
-          description: description.trim(),
+          issue_category: result.data.issueCategory,
+          description: result.data.description,
           status: 'open'
         });
 
       if (error) {
+        // Handle specific error cases
+        if (error.message.includes('rate limit exceeded')) {
+          toast({
+            title: "Too Many Requests",
+            description: "You've submitted too many tickets recently. Please wait and try again later.",
+            variant: "destructive"
+          });
+          return;
+        }
         throw error;
       }
       
       // Track support ticket submission
       posthog.capture('support:ticket_submitted', {
         source: 'hogflix_support_form',
-        issue_category: issueCategory
+        issue_category: result.data.issueCategory
       });
 
       toast({
@@ -75,16 +101,13 @@ const Support = () => {
       // Reset form
       setIssueCategory('');
       setDescription('');
+      setValidationErrors({});
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error submitting ticket:', error);
-      const message = String(error?.message ?? '').toLowerCase();
-      const isRateLimit = message.includes('rate limit');
       toast({
-        title: isRateLimit ? "Too many requests" : "Submission Failed",
-        description: isRateLimit
-          ? "You have reached the limit of support tickets per hour. Please try again later."
-          : "There was an error submitting your ticket. Please try again.",
+        title: "Submission Failed",
+        description: "There was an error submitting your ticket. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -119,7 +142,7 @@ const Support = () => {
                   Issue Category
                 </Label>
                 <Select value={issueCategory} onValueChange={setIssueCategory}>
-                  <SelectTrigger className="bg-background/20 border-gray-700 text-text-primary">
+                  <SelectTrigger className={`bg-background/20 border-gray-700 text-text-primary ${validationErrors.issueCategory ? 'border-red-500' : ''}`}>
                     <SelectValue placeholder="Select an issue category" />
                   </SelectTrigger>
                   <SelectContent className="bg-background-dark border-gray-700 z-50">
@@ -134,6 +157,9 @@ const Support = () => {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                {validationErrors.issueCategory && (
+                  <p className="text-red-500 text-sm font-manrope">{validationErrors.issueCategory}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -145,19 +171,24 @@ const Support = () => {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Please describe your issue in detail..."
-                  className="min-h-32 bg-background/20 border-gray-700 text-text-primary placeholder:text-muted-foreground resize-none"
+                  className={`min-h-32 bg-background/20 border-gray-700 text-text-primary placeholder:text-muted-foreground resize-none ${validationErrors.description ? 'border-red-500' : ''}`}
                   rows={6}
                   maxLength={500}
                 />
-                <p className="text-text-tertiary text-sm font-manrope">
-                  {description.length}/500 characters
-                </p>
+                <div className="flex justify-between items-center">
+                  <p className="text-text-tertiary text-sm font-manrope">
+                    {description.length}/500 characters
+                  </p>
+                  {validationErrors.description && (
+                    <p className="text-red-500 text-sm font-manrope">{validationErrors.description}</p>
+                  )}
+                </div>
               </div>
 
               <Button 
                 type="submit" 
-                disabled={loading || !issueCategory || !description.trim()}
-                className="w-full bg-primary-red hover:bg-primary-red/90 text-white font-manrope font-medium"
+                disabled={loading}
+                className="w-full bg-primary-red hover:bg-primary-red/90 text-white font-manrope font-medium disabled:opacity-50"
                 size="lg"
               >
                 {loading ? (
