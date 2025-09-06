@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
+import Hls from 'hls.js';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
@@ -21,6 +22,7 @@ const VideoPlayer = () => {
   const { videoId } = useParams<{ videoId: string }>();
   const [video, setVideo] = useState<Video | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [isHLS, setIsHLS] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [milestone25, setMilestone25] = useState(false);
@@ -28,6 +30,7 @@ const VideoPlayer = () => {
   const [milestone75, setMilestone75] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { selectedProfile } = useProfile();
@@ -91,6 +94,7 @@ const VideoPlayer = () => {
       }
 
       setVideoUrl(urlData.signedUrl);
+      setIsHLS(urlData.isHLS || false);
 
       // Fire PostHog analytics for video view
       if (selectedProfile) {
@@ -110,6 +114,64 @@ const VideoPlayer = () => {
       setLoading(false);
     }
   };
+
+  // Setup HLS player when videoUrl and isHLS are available
+  useEffect(() => {
+    if (videoUrl && isHLS && videoRef.current) {
+      if (Hls.isSupported()) {
+        // Cleanup previous HLS instance
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+        }
+
+        const hls = new Hls({
+          enableWorker: false,
+        });
+        
+        hlsRef.current = hls;
+        hls.loadSource(videoUrl);
+        hls.attachMedia(videoRef.current);
+        
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('HLS manifest loaded, levels:', hls.levels);
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error('HLS error:', event, data);
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Fatal network error encountered, trying to recover');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Fatal media error encountered, trying to recover');
+                hls.recoverMediaError();
+                break;
+              default:
+                console.log('Fatal error, cannot recover');
+                hls.destroy();
+                setError('Failed to load video stream');
+                break;
+            }
+          }
+        });
+      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS support
+        videoRef.current.src = videoUrl;
+      } else {
+        setError('HLS not supported in this browser');
+      }
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [videoUrl, isHLS]);
 
   const handleBackClick = () => {
     navigate('/browse');
@@ -237,13 +299,13 @@ const VideoPlayer = () => {
                   controls={!isNewPlayerUiEnabled}
                   poster={video.thumbnail_url}
                   preload="metadata"
-                  onTimeUpdate={handleTimeUpdate}
-                  onPlay={handleVideoPlay}
-                  onPause={handleVideoPause}
-                >
-                  <source src={videoUrl} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
+                   onTimeUpdate={handleTimeUpdate}
+                   onPlay={handleVideoPlay}
+                   onPause={handleVideoPause}
+                 >
+                   {!isHLS && <source src={videoUrl} type="video/mp4" />}
+                   Your browser does not support the video tag.
+                 </video>
                 
                 {/* Custom Controls Overlay (only when feature flag is enabled) */}
                 {isNewPlayerUiEnabled && (

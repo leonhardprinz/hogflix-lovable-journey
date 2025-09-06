@@ -68,6 +68,50 @@ export type Database = {
         }
         Relationships: []
       }
+      subtitles: {
+        Row: {
+          created_at: string
+          format: string
+          id: string
+          label: string | null
+          language_code: string
+          path: string
+          storage_bucket: string
+          updated_at: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          format?: string
+          id?: string
+          label?: string | null
+          language_code: string
+          path: string
+          storage_bucket?: string
+          updated_at?: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          format?: string
+          id?: string
+          label?: string | null
+          language_code?: string
+          path?: string
+          storage_bucket?: string
+          updated_at?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subtitles_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_tickets: {
         Row: {
           created_at: string
@@ -97,6 +141,92 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      video_assets: {
+        Row: {
+          asset_type: Database["public"]["Enums"]["asset_type"]
+          bitrate: number | null
+          codec: string | null
+          created_at: string
+          duration: number | null
+          height: number | null
+          id: string
+          path: string
+          storage_bucket: string
+          updated_at: string
+          video_id: string
+          width: number | null
+        }
+        Insert: {
+          asset_type: Database["public"]["Enums"]["asset_type"]
+          bitrate?: number | null
+          codec?: string | null
+          created_at?: string
+          duration?: number | null
+          height?: number | null
+          id?: string
+          path: string
+          storage_bucket?: string
+          updated_at?: string
+          video_id: string
+          width?: number | null
+        }
+        Update: {
+          asset_type?: Database["public"]["Enums"]["asset_type"]
+          bitrate?: number | null
+          codec?: string | null
+          created_at?: string
+          duration?: number | null
+          height?: number | null
+          id?: string
+          path?: string
+          storage_bucket?: string
+          updated_at?: string
+          video_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_assets_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_categories: {
+        Row: {
+          category_id: string
+          created_at: string
+          video_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          video_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_categories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_categories_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       videos: {
         Row: {
@@ -150,7 +280,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      asset_type: "original" | "hls" | "trailer" | "preview"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -277,6 +407,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      asset_type: ["original", "hls", "trailer", "preview"],
+    },
   },
 } as const

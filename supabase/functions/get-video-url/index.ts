@@ -30,7 +30,33 @@ serve(async (req) => {
 
     console.log('Generating signed URL for video:', videoId);
 
-    // First, verify the video exists and get its video_url (which should be the storage path)
+    // First, check if there's an HLS asset available
+    const { data: hlsAsset, error: hlsError } = await supabase
+      .from('video_assets')
+      .select('storage_bucket, path')
+      .eq('video_id', videoId)
+      .eq('asset_type', 'hls')
+      .maybeSingle();
+
+    if (hlsAsset && !hlsError) {
+      console.log('Found HLS asset, generating signed URL for:', hlsAsset.path);
+      
+      const { data: signedUrl, error: urlError } = await supabase.storage
+        .from(hlsAsset.storage_bucket)
+        .createSignedUrl(hlsAsset.path, 3600);
+
+      if (urlError) {
+        console.error('Error generating HLS signed URL:', urlError);
+      } else {
+        console.log('Successfully generated HLS signed URL');
+        return new Response(
+          JSON.stringify({ signedUrl: signedUrl.signedUrl, isHLS: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Fallback to original video_url from videos table
     const { data: video, error: videoError } = await supabase
       .from('videos')
       .select('video_url')
@@ -61,7 +87,7 @@ serve(async (req) => {
     console.log('Successfully generated signed URL');
 
     return new Response(
-      JSON.stringify({ signedUrl: signedUrl.signedUrl }),
+      JSON.stringify({ signedUrl: signedUrl.signedUrl, isHLS: false }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
