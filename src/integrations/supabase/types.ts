@@ -68,6 +68,38 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles_public: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          is_kids_profile: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at: string
+          display_name?: string | null
+          id: string
+          is_kids_profile?: boolean
+          updated_at: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_kids_profile?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_public_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subtitles: {
         Row: {
           created_at: string
