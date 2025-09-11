@@ -36,6 +36,7 @@ const Header = () => {
   const [searchResults, setSearchResults] = useState<AISearchVideo[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   
   const navigate = useNavigate();
   const posthog = usePostHog();
@@ -106,6 +107,19 @@ const Header = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Fetch role when user changes
+  useEffect(() => {
+    const fetchRole = async () => {
+      if (user) {
+        const { data, error } = await (supabase as any).rpc('get_user_role');
+        if (!error) setRole(data as string);
+      } else {
+        setRole(null);
+      }
+    };
+    fetchRole();
+  }, [user]);
+
   const handleLogout = async () => {
     setLoading(true);
 
@@ -141,26 +155,34 @@ const Header = () => {
             {user ? (
               <>
                 {/* Navigation Links */}
-                <div className="hidden lg:flex items-center space-x-6">
-                  <Link 
-                    to="/browse" 
-                    className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
-                  >
-                    Home
-                  </Link>
-                  <Link 
-                    to="/my-list" 
-                    className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
-                  >
-                    My List
-                  </Link>
-                  <Link 
-                    to="/support" 
-                    className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
-                  >
-                    Support
-                  </Link>
-                </div>
+                  <div className="hidden lg:flex items-center space-x-6">
+                    <Link 
+                      to="/browse" 
+                      className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                    >
+                      Home
+                    </Link>
+                    <Link 
+                      to="/my-list" 
+                      className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                    >
+                      My List
+                    </Link>
+                    <Link 
+                      to="/support" 
+                      className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                    >
+                      Support
+                    </Link>
+                    {(role === 'admin' || role === 'moderator') && (
+                      <Link 
+                        to="/admin" 
+                        className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                      >
+                        Admin
+                      </Link>
+                    )}
+                  </div>
 
                 {/* AI Search Input */}
                 <div className="relative flex-1 max-w-md mx-4">
