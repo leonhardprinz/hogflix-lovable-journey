@@ -309,7 +309,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_my_profiles_public: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          created_at: string
+          display_name: string
+          id: string
+          is_kids_profile: boolean
+          updated_at: string
+        }[]
+      }
     }
     Enums: {
       asset_type: "original" | "hls" | "trailer" | "preview"

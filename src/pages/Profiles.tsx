@@ -27,15 +27,19 @@ const Profiles = () => {
 
   const fetchProfiles = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId);
+      const { data, error } = await supabase.rpc('get_my_profiles_public');
 
       if (error) {
         console.error('Error fetching profiles:', error);
       } else {
-        setProfiles(data || []);
+        const mapped = (data || []).map((row: any) => ({
+          id: row.id,
+          display_name: row.display_name,
+          email: null,
+          user_id: userId,
+          is_kids_profile: row.is_kids_profile,
+        }));
+        setProfiles(mapped);
       }
     } catch (error) {
       console.error('Error fetching profiles:', error);
