@@ -107,14 +107,15 @@ const Browse = () => {
         return;
       }
 
-      // Fetch videos for each category (first 10 per category)
+      // Fetch videos for each category (newest first, up to 20 per category)
       const categoriesWithVideos = await Promise.all(
         categoriesData.map(async (category) => {
           const { data: videos, error: videosError } = await supabase
             .from('videos')
             .select('*')
             .eq('category_id', category.id)
-            .limit(10);
+            .order('created_at', { ascending: false })
+            .limit(20);
 
           if (videosError) {
             console.error(`Error fetching videos for category ${category.name}:`, videosError);
@@ -125,7 +126,9 @@ const Browse = () => {
         })
       );
 
-      setCategories(categoriesWithVideos);
+      // Only show categories with videos
+      const categoriesWithContent = categoriesWithVideos.filter(category => category.videos.length > 0);
+      setCategories(categoriesWithContent);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
