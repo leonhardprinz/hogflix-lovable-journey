@@ -15,6 +15,7 @@ import Browse from "./pages/Browse";
 import VideoPlayer from "./pages/VideoPlayer";
 import Support from "./pages/Support";
 import Admin from "./pages/Admin";
+import SubmitContent from "./pages/SubmitContent";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,11 @@ const AppContent = () => {
             </ProtectedRoute>
           } />
           <Route path="/support" element={<Support />} />
+          <Route path="/submit-content" element={
+            <ProtectedRoute>
+              <SubmitContent />
+            </ProtectedRoute>
+          } />
           <Route path="/admin" element={
             <ProtectedRoute>
               <Admin />

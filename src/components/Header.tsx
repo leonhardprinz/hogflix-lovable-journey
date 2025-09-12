@@ -174,12 +174,18 @@ const Header = () => {
                     >
                       Support
                     </Link>
+                    <Link 
+                      to="/submit-content" 
+                      className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                    >
+                      Submit Content
+                    </Link>
                     {(role === 'admin' || role === 'moderator') && (
                       <Link 
                         to="/admin" 
                         className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
                       >
-                        Admin
+                        Admin Panel
                       </Link>
                     )}
                   </div>
