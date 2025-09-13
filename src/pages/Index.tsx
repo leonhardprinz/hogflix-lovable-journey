@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -8,6 +8,7 @@ import { Play, Star, Users, Clock } from 'lucide-react';
 const Index = () => {
   const navigate = useNavigate();
   const { selectedProfile } = useProfile();
+  const [hasAnimated, setHasAnimated] = useState(false);
 
   useEffect(() => {
     const checkAuthAndRedirect = async () => {
@@ -26,6 +27,10 @@ const Index = () => {
     };
 
     checkAuthAndRedirect();
+    
+    // Set animation flag after a small delay to ensure it only runs once
+    const timer = setTimeout(() => setHasAnimated(true), 100);
+    return () => clearTimeout(timer);
   }, [navigate, selectedProfile]);
 
   return (
@@ -45,26 +50,26 @@ const Index = () => {
         <div className="relative container-netflix h-full flex flex-col justify-center items-center text-center">
           <div className="max-w-4xl">
             {/* Logo */}
-            <h1 className="text-6xl lg:text-8xl font-bold text-primary-red mb-6 font-manrope animate-fade-in">
+            <h1 className={`text-6xl lg:text-8xl font-bold text-primary-red mb-6 font-manrope ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`}>
               HogFlix
             </h1>
             
             {/* Main Headline */}
-            <h2 className="text-4xl lg:text-6xl font-bold text-text-primary mb-8 font-manrope animate-fade-in leading-tight" style={{ animationDelay: '0.2s' }}>
+            <h2 className={`text-4xl lg:text-6xl font-bold text-text-primary mb-8 font-manrope leading-tight ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.2s' : '0' }}>
               Unlimited movies, TV shows, and more
             </h2>
             
             {/* Subheadline */}
-            <p className="text-xl lg:text-2xl text-text-secondary mb-4 font-manrope animate-fade-in max-w-2xl mx-auto" style={{ animationDelay: '0.4s' }}>
+            <p className={`text-xl lg:text-2xl text-text-secondary mb-4 font-manrope max-w-2xl mx-auto ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.4s' : '0' }}>
               Watch anywhere. Cancel anytime.
             </p>
             
-            <p className="text-lg text-text-tertiary mb-12 font-manrope animate-fade-in" style={{ animationDelay: '0.6s' }}>
+            <p className={`text-lg text-text-tertiary mb-12 font-manrope ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.6s' : '0' }}>
               Ready to watch? Enter your email to create or restart your membership.
             </p>
             
             {/* CTA Button */}
-            <div className="animate-fade-in" style={{ animationDelay: '0.8s' }}>
+            <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '0.8s' : '0' }}>
               <Link to="/signup">
                 <Button className="btn-primary text-xl px-12 py-4 text-white hover:bg-primary-red/90 transition-colors">
                   Sign Up Now
@@ -78,7 +83,7 @@ const Index = () => {
         <div className="absolute bottom-20 left-0 right-0">
           <div className="container-netflix">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-              <div className="animate-fade-in" style={{ animationDelay: '1s' }}>
+              <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '1s' : '0' }}>
                 <div className="flex justify-center mb-4">
                   <Play className="h-12 w-12 text-primary-red" />
                 </div>
@@ -90,7 +95,7 @@ const Index = () => {
                 </p>
               </div>
               
-              <div className="animate-fade-in" style={{ animationDelay: '1.2s' }}>
+              <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '1.2s' : '0' }}>
                 <div className="flex justify-center mb-4">
                   <Star className="h-12 w-12 text-primary-red" />
                 </div>
@@ -102,7 +107,7 @@ const Index = () => {
                 </p>
               </div>
               
-              <div className="animate-fade-in" style={{ animationDelay: '1.4s' }}>
+              <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '1.4s' : '0' }}>
                 <div className="flex justify-center mb-4">
                   <Users className="h-12 w-12 text-primary-red" />
                 </div>
