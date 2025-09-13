@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -8,20 +8,36 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 
-interface NewProfileModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onProfileCreated: () => void;
-  userId: string;
+interface Profile {
+  id: string;
+  display_name: string | null;
+  email: string | null;
+  user_id: string;
+  is_kids_profile: boolean;
 }
 
-const NewProfileModal = ({ isOpen, onClose, onProfileCreated, userId }: NewProfileModalProps) => {
+interface EditProfileModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onProfileUpdated: () => void;
+  profile: Profile | null;
+}
+
+const EditProfileModal = ({ isOpen, onClose, onProfileUpdated, profile }: EditProfileModalProps) => {
   const [profileName, setProfileName] = useState('');
   const [isKidsProfile, setIsKidsProfile] = useState(false);
   const [loading, setLoading] = useState(false);
   
   const posthog = usePostHog();
   const { toast } = useToast();
+
+  // Initialize form when profile changes
+  useEffect(() => {
+    if (profile) {
+      setProfileName(profile.display_name || '');
+      setIsKidsProfile(profile.is_kids_profile);
+    }
+  }, [profile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,16 +51,18 @@ const NewProfileModal = ({ isOpen, onClose, onProfileCreated, userId }: NewProfi
       return;
     }
 
+    if (!profile) return;
+    
     setLoading(true);
 
     try {
       const { error } = await supabase
         .from('profiles')
-        .insert({
-          user_id: userId,
+        .update({
           display_name: profileName.trim(),
           is_kids_profile: isKidsProfile
-        });
+        })
+        .eq('id', profile.id);
 
       if (error) {
         toast({
@@ -56,29 +74,27 @@ const NewProfileModal = ({ isOpen, onClose, onProfileCreated, userId }: NewProfi
       }
 
       // PostHog analytics
-      posthog.capture('profile:created', {
+      posthog.capture('profile:updated', {
+        profile_id: profile.id,
         profile_name: profileName.trim(),
         is_kids_profile: isKidsProfile
       });
 
       toast({
         title: "Success",
-        description: "Profile created successfully!"
+        description: "Profile updated successfully!"
       });
 
-      // Reset form and close modal
-      setProfileName('');
-      setIsKidsProfile(false);
       onClose();
       
       // Refresh profiles list
-      onProfileCreated();
+      onProfileUpdated();
 
     } catch (error) {
-      console.error('Error creating profile:', error);
+      console.error('Error updating profile:', error);
       toast({
         title: "Error",
-        description: "Failed to create profile. Please try again.",
+        description: "Failed to update profile. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -91,7 +107,7 @@ const NewProfileModal = ({ isOpen, onClose, onProfileCreated, userId }: NewProfi
       <DialogContent className="bg-card-background border-gray-800 max-w-md">
         <DialogHeader>
           <DialogTitle className="text-text-primary font-manrope text-xl">
-            Add Profile
+            Edit Profile
           </DialogTitle>
         </DialogHeader>
 
@@ -106,12 +122,12 @@ const NewProfileModal = ({ isOpen, onClose, onProfileCreated, userId }: NewProfi
               value={profileName}
               onChange={(e) => setProfileName(e.target.value)}
               className="input-netflix mt-2"
-              placeholder="Enter your preferred name (e.g., John, Sarah, Mom)"
+              placeholder="Enter profile name"
               maxLength={50}
               required
             />
             <p className="text-xs text-text-tertiary mt-1">
-              This name will be displayed instead of your email address
+              This name will appear instead of your email address
             </p>
           </div>
 
@@ -145,7 +161,7 @@ const NewProfileModal = ({ isOpen, onClose, onProfileCreated, userId }: NewProfi
               className="btn-primary flex-1"
               disabled={loading}
             >
-              {loading ? 'CREATING...' : 'CREATE PROFILE'}
+              {loading ? 'UPDATING...' : 'SAVE CHANGES'}
             </Button>
           </div>
         </form>
@@ -154,4 +170,4 @@ const NewProfileModal = ({ isOpen, onClose, onProfileCreated, userId }: NewProfi
   );
 };
 
-export default NewProfileModal;
+export default EditProfileModal;

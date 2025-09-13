@@ -220,7 +220,7 @@ const Header = () => {
                           <User className="h-4 w-4 text-white" />
                         </div>
                         <span className="font-manrope hidden sm:block">
-                          {selectedProfile?.display_name || selectedProfile?.email?.split('@')[0] || 'User'}
+                          {selectedProfile?.display_name || 'User'}
                         </span>
                         <ChevronDown className="h-4 w-4" />
                       </div>
