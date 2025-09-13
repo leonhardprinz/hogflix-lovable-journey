@@ -16,13 +16,14 @@ const Index = () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
-        // If authenticated and has selected profile, go to browse
-        if (selectedProfile) {
-          navigate('/browse');
-        } else {
-          // If authenticated but no profile selected, go to profiles
-          navigate('/profiles');
-        }
+        // Small delay to ensure profile context is loaded
+        setTimeout(() => {
+          if (selectedProfile) {
+            navigate('/browse');
+          } else {
+            navigate('/profiles');
+          }
+        }, 50);
       }
     };
 
