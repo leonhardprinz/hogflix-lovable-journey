@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Play, Info } from 'lucide-react';
+import { useAnimateOnce } from '@/hooks/useAnimateOnce';
 
 interface Video {
   id: string;
@@ -16,6 +17,11 @@ interface Video {
 const Hero = () => {
   const [featuredVideo, setFeaturedVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Animation state management
+  const titleAnimated = useAnimateOnce(0);
+  const descriptionAnimated = useAnimateOnce(200);
+  const buttonsAnimated = useAnimateOnce(400);
 
   useEffect(() => {
     const fetchFeaturedVideo = async () => {
@@ -79,17 +85,23 @@ const Hero = () => {
       {/* Hero Content */}
       <div className="relative container mx-auto h-full flex flex-col justify-center px-4">
         <div className="max-w-2xl">
-          <h1 className="text-4xl lg:text-6xl font-bold text-foreground mb-4 animate-fade-in [animation-delay:0ms]">
+          <h1 className={`text-4xl lg:text-6xl font-bold text-foreground mb-4 transition-all duration-500 ${
+            titleAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}>
             {featuredVideo.title}
           </h1>
           {featuredVideo.description && (
-            <p className="text-lg lg:text-xl text-muted-foreground mb-6 max-w-lg animate-fade-in [animation-delay:200ms] line-clamp-3">
+            <p className={`text-lg lg:text-xl text-muted-foreground mb-6 max-w-lg line-clamp-3 transition-all duration-500 ${
+              descriptionAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
               {featuredVideo.description}
             </p>
           )}
           
           {/* Action Buttons */}
-          <div className="flex gap-4 animate-fade-in [animation-delay:400ms]">
+          <div className={`flex gap-4 transition-all duration-500 ${
+            buttonsAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}>
             <Button 
               asChild
               size="lg" 
