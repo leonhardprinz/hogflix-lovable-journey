@@ -79,18 +79,17 @@ const Hero = () => {
       {/* Hero Content */}
       <div className="relative container mx-auto h-full flex flex-col justify-center px-4">
         <div className="max-w-2xl">
-          <h1 className="text-4xl lg:text-6xl font-bold text-foreground mb-4 animate-fade-in">
+          <h1 className="text-4xl lg:text-6xl font-bold text-foreground mb-4 animate-fade-in [animation-delay:0ms]">
             {featuredVideo.title}
           </h1>
           {featuredVideo.description && (
-            <p className="text-lg lg:text-xl text-muted-foreground mb-6 max-w-lg animate-fade-in line-clamp-3" 
-               style={{ animationDelay: '0.2s' }}>
+            <p className="text-lg lg:text-xl text-muted-foreground mb-6 max-w-lg animate-fade-in [animation-delay:200ms] line-clamp-3">
               {featuredVideo.description}
             </p>
           )}
           
           {/* Action Buttons */}
-          <div className="flex gap-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
+          <div className="flex gap-4 animate-fade-in [animation-delay:400ms]">
             <Button 
               asChild
               size="lg" 

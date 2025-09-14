@@ -10,6 +10,13 @@ const Index = () => {
   const { selectedProfile } = useProfile();
   const [hasAnimated, setHasAnimated] = useState(false);
 
+  // Separate animation effect that only runs once
+  useEffect(() => {
+    const timer = setTimeout(() => setHasAnimated(true), 100);
+    return () => clearTimeout(timer);
+  }, []); // No dependencies - runs only once
+
+  // Separate auth/redirect effect
   useEffect(() => {
     const checkAuthAndRedirect = async () => {
       // Check if user is authenticated
@@ -28,10 +35,6 @@ const Index = () => {
     };
 
     checkAuthAndRedirect();
-    
-    // Set animation flag after a small delay to ensure it only runs once
-    const timer = setTimeout(() => setHasAnimated(true), 100);
-    return () => clearTimeout(timer);
   }, [navigate, selectedProfile]);
 
   return (
