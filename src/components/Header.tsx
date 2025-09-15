@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useHybridSearch } from '@/hooks/useHybridSearch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -20,23 +21,44 @@ import {
 import { User, ChevronDown, LogOut, Search, Play, Info } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
-interface AISearchVideo {
-  id: string;
-  title: string;
-  description: string | null;
-  thumbnail_url: string;
-  video_url: string;
-  duration: number;
-}
-
 const Header = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<AISearchVideo[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [searching, setSearching] = useState(false);
+  const [showInstantResults, setShowInstantResults] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  
+  // Use hybrid search hook
+  const { search, instantSearch, searchResults, isSearching, lastSearchType } = useHybridSearch();
+  
+  // Instant search results for dropdown preview
+  const instantResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return instantSearch(searchQuery);
+  }, [searchQuery, instantSearch]);
+
+  // Handle click outside to close instant results
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowInstantResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Show instant results when user types
+  useEffect(() => {
+    if (searchQuery.trim() && instantResults.length > 0) {
+      setShowInstantResults(true);
+    } else {
+      setShowInstantResults(false);
+    }
+  }, [searchQuery, instantResults]);
   
   const navigate = useNavigate();
   const posthog = usePostHog();
@@ -51,40 +73,16 @@ const Header = () => {
     return `${minutes}m`;
   };
 
-  const handleAISearch = async () => {
+  const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     
-    setSearching(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-search', {
-        body: { query: searchQuery }
-      });
-
-      if (error) {
-        console.error('AI search error:', error);
-        return;
-      }
-
-      const videos = data?.videos || [];
-      setSearchResults(videos);
-      setShowSearchResults(true);
-      
-      // Fire PostHog analytics event
-      posthog.capture('ai_search:queried', {
-        search_query: searchQuery,
-        result_count: videos.length
-      });
-      
-    } catch (error) {
-      console.error('Search error:', error);
-    } finally {
-      setSearching(false);
-    }
+    const result = await search(searchQuery);
+    setShowSearchResults(true);
   };
 
   const handleSearchKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleAISearch();
+      handleSearch();
     }
   };
 
@@ -190,20 +188,63 @@ const Header = () => {
                     )}
                   </div>
 
-                {/* AI Search Input */}
-                <div className="relative flex-1 max-w-md mx-4">
+                {/* Hybrid Search Input */}
+                <div ref={searchRef} className="relative flex-1 max-w-md mx-4">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     type="text"
-                    placeholder="Ask for a movie recommendation..."
+                    placeholder="Search movies or ask for recommendations..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={handleSearchKeyPress}
+                    onFocus={() => searchQuery.trim() && instantResults.length > 0 && setShowInstantResults(true)}
                     className="pl-10 bg-background/20 border-gray-700 text-text-primary placeholder:text-muted-foreground focus:border-primary-red"
                   />
-                  {searching && (
+                  {isSearching && (
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-red"></div>
+                    </div>
+                  )}
+                  
+                  {/* Instant search dropdown */}
+                  {showInstantResults && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-background-dark border border-gray-700 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
+                      {instantResults.slice(0, 4).map((video) => (
+                        <div
+                          key={video.id}
+                          className="px-3 py-2 hover:bg-white/10 cursor-pointer flex items-center space-x-3"
+                          onClick={() => {
+                            navigate(`/watch/${video.id}`);
+                            setSearchQuery('');
+                            setShowInstantResults(false);
+                          }}
+                        >
+                          <img
+                            src={video.thumbnail_url}
+                            alt={video.title}
+                            className="w-12 h-8 object-cover rounded"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-text-primary text-sm font-medium truncate">
+                              {video.title}
+                            </p>
+                            <p className="text-text-secondary text-xs truncate">
+                              {formatDuration(video.duration)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      {instantResults.length > 4 && (
+                        <div
+                          className="px-3 py-2 text-center text-primary-red text-sm cursor-pointer hover:bg-white/10"
+                          onClick={() => {
+                            handleSearch();
+                            setShowInstantResults(false);
+                          }}
+                        >
+                          View all {instantResults.length} results
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -256,12 +297,18 @@ const Header = () => {
         </div>
       </header>
 
-      {/* AI Search Results Modal */}
+      {/* Search Results Modal */}
       <Dialog open={showSearchResults} onOpenChange={setShowSearchResults}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-background-dark border-gray-700">
           <DialogHeader>
-            <DialogTitle className="text-text-primary font-manrope">
-              AI Search Results for "{searchQuery}"
+            <DialogTitle className="text-text-primary font-manrope flex items-center gap-2">
+              Search Results for "{searchQuery}"
+              {lastSearchType === 'ai' && (
+                <span className="text-xs bg-primary-red/20 text-primary-red px-2 py-1 rounded">AI Enhanced</span>
+              )}
+              {lastSearchType === 'hybrid' && (
+                <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">Smart Search</span>
+              )}
             </DialogTitle>
           </DialogHeader>
           
@@ -272,10 +319,11 @@ const Header = () => {
                   <div
                     key={video.id}
                     className="bg-card-background rounded-lg overflow-hidden hover:bg-white/5 transition-colors cursor-pointer"
-                    onClick={() => {
-                      navigate(`/watch/${video.id}`);
-                      setShowSearchResults(false);
-                    }}
+                     onClick={() => {
+                       navigate(`/watch/${video.id}`);
+                       setShowSearchResults(false);
+                       setSearchQuery('');
+                     }}
                   >
                     <div className="aspect-video bg-gray-700 relative overflow-hidden">
                       <img
@@ -305,11 +353,12 @@ const Header = () => {
                           size="sm"
                           variant="ghost"
                           className="text-text-primary hover:text-white hover:bg-white/10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/watch/${video.id}`);
-                            setShowSearchResults(false);
-                          }}
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             navigate(`/watch/${video.id}`);
+                             setShowSearchResults(false);
+                             setSearchQuery('');
+                           }}
                         >
                           <Info className="h-4 w-4 mr-1" />
                           Details
