@@ -3,8 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
 import Hls from 'hls.js';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
+import { HedgehogRating } from '@/components/HedgehogRating';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, Play, Pause } from 'lucide-react';
 
@@ -29,15 +31,22 @@ const VideoPlayer = () => {
   const [milestone50, setMilestone50] = useState(false);
   const [milestone75, setMilestone75] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [averageRating, setAverageRating] = useState<number>(0);
+  const [totalRatings, setTotalRatings] = useState<number>(0);
+  
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const navigate = useNavigate();
   const posthog = usePostHog();
+  const { user } = useAuth();
   const { selectedProfile } = useProfile();
+  
+  // Feature flag for new player UI
   const isNewPlayerUiEnabled = useFeatureFlagEnabled('new-player-ui');
 
   useEffect(() => {
-    const checkAuthAndLoadVideo = async () => {
+    const checkAuth = async () => {
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -52,29 +61,25 @@ const VideoPlayer = () => {
         return;
       }
 
-      if (!videoId) {
-        setError('Video ID not found');
-        setLoading(false);
-        return;
-      }
-
+      // Load video data
       await loadVideoData();
     };
 
-    checkAuthAndLoadVideo();
-  }, [videoId, navigate, selectedProfile]);
+    checkAuth();
+  }, [navigate, selectedProfile, videoId]);
 
   const loadVideoData = async () => {
+    if (!videoId) return;
+
     try {
-      // Fetch video data
+      // Fetch video metadata
       const { data: videoData, error: videoError } = await supabase
         .from('videos')
         .select('*')
         .eq('id', videoId)
         .single();
 
-      if (videoError) {
-        console.error('Error fetching video:', videoError);
+      if (videoError || !videoData) {
         setError('Video not found');
         return;
       }
@@ -82,95 +87,104 @@ const VideoPlayer = () => {
       setVideo(videoData);
 
       // Get signed URL from edge function
-      const { data: urlData, error: urlError } = await supabase.functions
-        .invoke('get-video-url', {
-          body: { videoId: videoId }
-        });
+      const { data: urlData, error: urlError } = await supabase.functions.invoke('get-video-url', {
+        body: { videoId }
+      });
 
-      if (urlError || !urlData?.signedUrl) {
-        console.error('Error getting video URL:', urlError);
-        setError('Failed to load video');
+      if (urlError || !urlData?.url) {
+        setError('Could not load video');
+        console.error('Video URL error:', urlError);
         return;
       }
 
-      setVideoUrl(urlData.signedUrl);
-      setIsHLS(urlData.isHLS || false);
+      setVideoUrl(urlData.url);
+      setIsHLS(urlData.url.includes('.m3u8'));
 
-      // Fire PostHog analytics for video view
-      if (selectedProfile) {
-        posthog.capture('video:watched', {
-          video_id: videoId,
-          video_title: videoData.title,
-          video_category_id: videoData.category_id,
-          profile_id: selectedProfile.id,
-          profile_name: selectedProfile.display_name || selectedProfile.email
-        });
-      }
+      // Fetch rating data
+      await loadRatingData();
 
-    } catch (error) {
-      console.error('Error loading video:', error);
+      // PostHog analytics
+      posthog.capture('video:watched', {
+        video_id: videoId,
+        video_title: videoData.title,
+        profile_id: selectedProfile?.id
+      });
+    } catch (err) {
+      console.error('Error loading video:', err);
       setError('Failed to load video');
     } finally {
       setLoading(false);
     }
   };
 
-  // Setup HLS player when videoUrl and isHLS are available
+  const loadRatingData = async () => {
+    if (!videoId) return;
+
+    try {
+      // Get average rating and count
+      const { data: avgData } = await supabase.rpc('get_video_average_rating', { video_id_param: videoId });
+      const { data: countData } = await supabase.rpc('get_video_rating_count', { video_id_param: videoId });
+      
+      setAverageRating(avgData || 0);
+      setTotalRatings(countData || 0);
+
+      // Get user's rating if authenticated and profile selected
+      if (user && selectedProfile) {
+        const { data: userRatingData } = await supabase.rpc('get_user_video_rating', { 
+          video_id_param: videoId,
+          profile_id_param: selectedProfile.id 
+        });
+        setUserRating(userRatingData || null);
+      }
+    } catch (err) {
+      console.error('Error loading rating data:', err);
+    }
+  };
+
+  // HLS setup
   useEffect(() => {
-    if (videoUrl && isHLS && videoRef.current) {
-      if (Hls.isSupported()) {
-        // Cleanup previous HLS instance
+    if (!videoRef.current || !videoUrl || !isHLS) return;
+
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hlsRef.current = hls;
+      hls.loadSource(videoUrl);
+      hls.attachMedia(videoRef.current);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('HLS manifest loaded');
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log('Fatal network error encountered, try to recover');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log('Fatal media error encountered, try to recover');
+              hls.recoverMediaError();
+              break;
+            default:
+              console.log('Fatal error, cannot recover');
+              setError('Video playback error');
+              hls.destroy();
+              break;
+          }
+        }
+      });
+
+      return () => {
         if (hlsRef.current) {
           hlsRef.current.destroy();
+          hlsRef.current = null;
         }
-
-        const hls = new Hls({
-          enableWorker: false,
-        });
-        
-        hlsRef.current = hls;
-        hls.loadSource(videoUrl);
-        hls.attachMedia(videoRef.current);
-        
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log('HLS manifest loaded, levels:', hls.levels);
-        });
-
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          console.error('HLS error:', event, data);
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('Fatal network error encountered, trying to recover');
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.log('Fatal media error encountered, trying to recover');
-                hls.recoverMediaError();
-                break;
-              default:
-                console.log('Fatal error, cannot recover');
-                hls.destroy();
-                setError('Failed to load video stream');
-                break;
-            }
-          }
-        });
-      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari native HLS support
-        videoRef.current.src = videoUrl;
-      } else {
-        setError('HLS not supported in this browser');
-      }
+      };
+    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari native HLS support
+      videoRef.current.src = videoUrl;
     }
-
-    // Cleanup on unmount
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
   }, [videoUrl, isHLS]);
 
   const handleBackClick = () => {
@@ -179,10 +193,10 @@ const VideoPlayer = () => {
 
   const handlePlayPause = () => {
     if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
+      if (videoRef.current.paused) {
         videoRef.current.play();
+      } else {
+        videoRef.current.pause();
       }
     }
   };
@@ -195,38 +209,37 @@ const VideoPlayer = () => {
     setIsPlaying(false);
   };
 
-  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const videoElement = e.currentTarget;
-    const currentTime = videoElement.currentTime;
-    const duration = videoElement.duration;
-    
-    if (duration > 0) {
-      const progressPercent = (currentTime / duration) * 100;
-      
-      // Check for 25% milestone
-      if (progressPercent >= 25 && !milestone25) {
+  const handleTimeUpdate = () => {
+    if (videoRef.current && video) {
+      const currentTime = videoRef.current.currentTime;
+      const duration = video.duration;
+      const progress = (currentTime / duration) * 100;
+
+      // Track milestone progress
+      if (!milestone25 && progress >= 25) {
         setMilestone25(true);
         posthog.capture('video:progress_report', {
-          video_id: videoId,
-          progress_percent: 25
+          video_id: video.id,
+          progress: 25,
+          profile_id: selectedProfile?.id
         });
       }
-      
-      // Check for 50% milestone
-      if (progressPercent >= 50 && !milestone50) {
+
+      if (!milestone50 && progress >= 50) {
         setMilestone50(true);
         posthog.capture('video:progress_report', {
-          video_id: videoId,
-          progress_percent: 50
+          video_id: video.id,
+          progress: 50,
+          profile_id: selectedProfile?.id
         });
       }
-      
-      // Check for 75% milestone
-      if (progressPercent >= 75 && !milestone75) {
+
+      if (!milestone75 && progress >= 75) {
         setMilestone75(true);
         posthog.capture('video:progress_report', {
-          video_id: videoId,
-          progress_percent: 75
+          video_id: video.id,
+          progress: 75,
+          profile_id: selectedProfile?.id
         });
       }
     }
@@ -347,8 +360,20 @@ const VideoPlayer = () => {
               </p>
             )}
             
-            <div className="text-text-tertiary font-manrope">
+            <div className="text-text-tertiary font-manrope mb-6">
               Duration: {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
+            </div>
+
+            {/* Hedgehog Rating Section */}
+            <div className="border-t border-white/10 pt-6">
+              <HedgehogRating
+                videoId={video.id}
+                currentRating={userRating}
+                averageRating={averageRating}
+                totalRatings={totalRatings}
+                size="large"
+                showStats={true}
+              />
             </div>
           </div>
         </div>

@@ -284,6 +284,51 @@ export type Database = {
           },
         ]
       }
+      video_ratings: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          rating: number
+          updated_at: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          rating: number
+          updated_at?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          rating?: number
+          updated_at?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_ratings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_ratings_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       videos: {
         Row: {
           category_id: string
@@ -346,6 +391,18 @@ export type Database = {
       get_user_role: {
         Args: { _user_id?: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      get_user_video_rating: {
+        Args: { profile_id_param: string; video_id_param: string }
+        Returns: number
+      }
+      get_video_average_rating: {
+        Args: { video_id_param: string }
+        Returns: number
+      }
+      get_video_rating_count: {
+        Args: { video_id_param: string }
+        Returns: number
       }
       has_role: {
         Args: {

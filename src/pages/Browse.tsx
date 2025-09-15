@@ -14,6 +14,7 @@ import {
   CarouselPrevious,
 } from '@/components/ui/carousel';
 import { Play, Info } from 'lucide-react';
+import { HedgehogRating } from '@/components/HedgehogRating';
 
 interface Video {
   id: string;
@@ -22,6 +23,8 @@ interface Video {
   thumbnail_url: string;
   video_url: string;
   duration: number;
+  average_rating?: number;
+  rating_count?: number;
 }
 
 interface Category {
@@ -122,7 +125,26 @@ const Browse = () => {
             return { ...category, videos: [] };
           }
 
-          return { ...category, videos: videos || [] };
+          // Add rating data to each video
+          const videosWithRatings = await Promise.all(
+            (videos || []).map(async (video) => {
+              try {
+                const { data: avgRating } = await supabase.rpc('get_video_average_rating', { video_id_param: video.id });
+                const { data: ratingCount } = await supabase.rpc('get_video_rating_count', { video_id_param: video.id });
+                
+                return {
+                  ...video,
+                  average_rating: avgRating || 0,
+                  rating_count: ratingCount || 0
+                };
+              } catch (error) {
+                console.error(`Error fetching rating for video ${video.id}:`, error);
+                return { ...video, average_rating: 0, rating_count: 0 };
+              }
+            })
+          );
+
+          return { ...category, videos: videosWithRatings };
         })
       );
 
@@ -201,9 +223,20 @@ const Browse = () => {
                             <h4 className="text-text-primary font-manrope font-medium mb-2 truncate">
                               {video.title}
                             </h4>
-                            <p className="text-text-tertiary text-sm font-manrope">
-                              {formatDuration(video.duration)}
-                            </p>
+                            <div className="flex items-center justify-between">
+                              <p className="text-text-tertiary text-sm font-manrope">
+                                {formatDuration(video.duration)}
+                              </p>
+                              <div className="ml-2">
+                                <HedgehogRating
+                                  videoId={video.id}
+                                  averageRating={video.average_rating}
+                                  totalRatings={video.rating_count}
+                                  size="small"
+                                  showStats={false}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </Link>
