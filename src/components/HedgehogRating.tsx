@@ -11,6 +11,7 @@ interface HedgehogRatingProps {
   totalRatings?: number;
   size?: 'small' | 'large';
   showStats?: boolean;
+  readOnly?: boolean;
 }
 
 export const HedgehogRating = ({ 
@@ -19,7 +20,8 @@ export const HedgehogRating = ({
   averageRating = 0,
   totalRatings = 0,
   size = 'large',
-  showStats = true 
+  showStats = true,
+  readOnly = false
 }: HedgehogRatingProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localRating, setLocalRating] = useState(currentRating || 0);
@@ -29,7 +31,7 @@ export const HedgehogRating = ({
   const { toast } = useToast();
 
   const hedgehogSize = size === 'large' ? 'text-2xl' : 'text-lg';
-  const isInteractive = user && selectedProfile;
+  const isInteractive = user && selectedProfile && !readOnly;
 
   const handleRatingSubmit = async (rating: number) => {
     if (!user || !selectedProfile || isSubmitting) return;

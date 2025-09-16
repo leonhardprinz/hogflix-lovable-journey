@@ -234,6 +234,7 @@ const Browse = () => {
                                   totalRatings={video.rating_count}
                                   size="small"
                                   showStats={false}
+                                  readOnly={true}
                                 />
                               </div>
                             </div>
