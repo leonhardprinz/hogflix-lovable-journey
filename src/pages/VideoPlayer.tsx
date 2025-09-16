@@ -91,14 +91,14 @@ const VideoPlayer = () => {
         body: { videoId }
       });
 
-      if (urlError || !urlData?.url) {
+      if (urlError || !urlData?.signedUrl) {
         setError('Could not load video');
         console.error('Video URL error:', urlError);
         return;
       }
 
-      setVideoUrl(urlData.url);
-      setIsHLS(urlData.url.includes('.m3u8'));
+      setVideoUrl(urlData.signedUrl);
+      setIsHLS(urlData.isHLS || urlData.signedUrl.includes('.m3u8'));
 
       // Fetch rating data
       await loadRatingData();
