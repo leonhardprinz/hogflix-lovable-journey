@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
+import { WatchlistProvider } from "@/contexts/WatchlistContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Footer from "@/components/Footer";
 import Index from "./pages/Index";
@@ -13,6 +14,7 @@ import Login from "./pages/Login";
 import Profiles from "./pages/Profiles";
 import Browse from "./pages/Browse";
 import VideoPlayer from "./pages/VideoPlayer";
+import MyList from "./pages/MyList";
 import Support from "./pages/Support";
 import Admin from "./pages/Admin";
 import SubmitContent from "./pages/SubmitContent";
@@ -39,6 +41,11 @@ const AppContent = () => {
           <Route path="/browse" element={
             <ProtectedRoute>
               <Browse />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-list" element={
+            <ProtectedRoute>
+              <MyList />
             </ProtectedRoute>
           } />
           <Route path="/watch/:videoId" element={
@@ -71,11 +78,13 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <ProfileProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
+          <WatchlistProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AppContent />
+            </BrowserRouter>
+          </WatchlistProvider>
         </ProfileProvider>
       </AuthProvider>
     </TooltipProvider>

@@ -198,6 +198,41 @@ export type Database = {
         }
         Relationships: []
       }
+      user_watchlist: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          updated_at: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          updated_at?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          updated_at?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_watchlist_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       video_assets: {
         Row: {
           asset_type: Database["public"]["Enums"]["asset_type"]
@@ -409,6 +444,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_video_in_watchlist: {
+        Args: { profile_id_param: string; video_id_param: string }
         Returns: boolean
       }
     }

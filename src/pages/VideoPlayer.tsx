@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
 import { HedgehogRating } from '@/components/HedgehogRating';
+import { WatchlistButton } from '@/components/WatchlistButton';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, Play, Pause } from 'lucide-react';
 
@@ -394,6 +395,14 @@ const VideoPlayer = () => {
             
             <div className="text-text-tertiary font-manrope mb-6">
               Duration: {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
+            </div>
+
+            {/* Add to Watchlist Button */}
+            <div className="mb-6">
+              <WatchlistButton
+                videoId={video.id}
+                size="lg"
+              />
             </div>
 
             {/* Hedgehog Rating Section */}

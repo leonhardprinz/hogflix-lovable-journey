@@ -13,6 +13,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel';
+import { WatchlistButton } from '@/components/WatchlistButton';
 import { Play, Info } from 'lucide-react';
 import { HedgehogRating } from '@/components/HedgehogRating';
 
@@ -211,15 +212,23 @@ const Browse = () => {
                         to={`/watch/${video.id}`}
                         data-ph-capture-attribute-video-id={video.id}
                       >
-                        <div className="w-full bg-card-background rounded card-hover cursor-pointer group">
-                          <div className="aspect-video bg-gray-700 rounded-t overflow-hidden">
-                            <img
-                              src={getThumbnailUrl(video)}
-                              alt={video.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                              loading="lazy"
-                            />
-                          </div>
+                         <div className="w-full bg-card-background rounded card-hover cursor-pointer group">
+                           <div className="aspect-video bg-gray-700 rounded-t overflow-hidden relative">
+                             <img
+                               src={getThumbnailUrl(video)}
+                               alt={video.title}
+                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                               loading="lazy"
+                             />
+                             {/* Watchlist button overlay */}
+                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                               <WatchlistButton
+                                 videoId={video.id}
+                                 variant="icon"
+                                 size="sm"
+                               />
+                             </div>
+                           </div>
                           <div className="p-4">
                             <h4 className="text-text-primary font-manrope font-medium mb-2 truncate">
                               {video.title}
