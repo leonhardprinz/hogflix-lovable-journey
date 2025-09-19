@@ -83,7 +83,19 @@ const Header = () => {
 
   const handleSearchKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSearch();
+      // If user presses Enter, redirect to FlixBuddy with their query
+      if (searchQuery.trim()) {
+        setShowInstantResults(false);
+        
+        // Track search-to-chat conversion
+        posthog.capture('search:redirected_to_flixbuddy', {
+          query: searchQuery,
+          instant_results_count: instantResults.length
+        });
+        
+        navigate(`/flixbuddy?q=${encodeURIComponent(searchQuery)}`);
+        setSearchQuery('');
+      }
     }
   };
 
@@ -178,6 +190,12 @@ const Header = () => {
                       className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
                     >
                       Submit Content
+                    </Link>
+                    <Link 
+                      to="/flixbuddy" 
+                      className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                    >
+                      FlixBuddy
                     </Link>
                     {(role === 'admin' || role === 'moderator') && (
                       <Link 

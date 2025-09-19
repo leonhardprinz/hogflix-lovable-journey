@@ -18,7 +18,9 @@ import MyList from "./pages/MyList";
 import Support from "./pages/Support";
 import Admin from "./pages/Admin";
 import SubmitContent from "./pages/SubmitContent";
+import FlixBuddy from "./pages/FlixBuddy";
 import NotFound from "./pages/NotFound";
+import FloatingHedgehog from "./components/FloatingHedgehog";
 
 const queryClient = new QueryClient();
 
@@ -64,11 +66,17 @@ const AppContent = () => {
               <Admin />
             </ProtectedRoute>
           } />
+          <Route path="/flixbuddy" element={
+            <ProtectedRoute>
+              <FlixBuddy />
+            </ProtectedRoute>
+          } />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
       {!hideFooter && <Footer />}
+      <FloatingHedgehog />
     </div>
   );
 };

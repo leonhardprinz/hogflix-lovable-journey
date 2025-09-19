@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.ai-search]
 verify_jwt = true
+
+[functions.flixbuddy-chat]
+verify_jwt = true
