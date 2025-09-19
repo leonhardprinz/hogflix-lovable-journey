@@ -52,13 +52,16 @@ const FlixBuddy = () => {
     return `${minutes}m`;
   };
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom only during active conversation
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only scroll to bottom if we have more than just the welcome message
+    if (messages.length > 1) {
+      scrollToBottom();
+    }
   }, [messages]);
 
   // Initialize conversation
