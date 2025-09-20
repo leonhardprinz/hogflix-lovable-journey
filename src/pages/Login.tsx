@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, CheckCircle, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Play, CheckCircle, Mail, Lock, ArrowRight } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -106,11 +106,11 @@ const Login = () => {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-red/10 rounded-full mb-4">
-            <Shield className="w-8 h-8 text-primary-red" />
+            <Play className="w-8 h-8 text-primary-red" />
           </div>
           <h1 className="text-4xl font-bold text-text-primary mb-2">HogFlix</h1>
-          <h2 className="text-2xl font-bold text-text-primary mb-2">Secure Sign In</h2>
-          <p className="text-text-secondary">Your entertainment awaits - sign in securely</p>
+          <h2 className="text-2xl font-bold text-text-primary mb-2">Demo Sign In</h2>
+          <p className="text-text-secondary">PostHog demo environment - explore real functionality</p>
         </div>
 
         <div className="bg-background-dark/60 backdrop-blur-sm border border-gray-800/50 rounded-xl p-8 shadow-2xl">
@@ -195,7 +195,7 @@ const Login = () => {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  Sign In Securely
+                  Sign In to Demo
                   <ArrowRight className="w-5 h-5" />
                 </div>
               )}
@@ -205,8 +205,8 @@ const Login = () => {
 
         <div className="mt-8 text-center">
           <div className="flex items-center gap-2 justify-center text-sm text-text-tertiary mb-4">
-            <Shield className="w-4 h-4" />
-            Your data is protected with enterprise-grade security
+            <Play className="w-4 h-4" />
+            PostHog demo showcasing real functionality - soon featuring "PostHog Demos" content for customers
           </div>
           <p className="text-text-secondary">
             Don't have an account?{' '}
