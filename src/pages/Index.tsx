@@ -2,40 +2,35 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useAnimateOnce } from '@/hooks/useAnimateOnce';
 import { Button } from '@/components/ui/button';
 import { Play, Star, Users, Clock } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
   const { selectedProfile } = useProfile();
-  const [hasAnimated, setHasAnimated] = useState(false);
+  const hasAnimated = useAnimateOnce(100);
 
-  // Separate animation effect that only runs once
-  useEffect(() => {
-    const timer = setTimeout(() => setHasAnimated(true), 100);
-    return () => clearTimeout(timer);
-  }, []); // No dependencies - runs only once
-
-  // Separate auth/redirect effect
+  // Auth check and redirect effect
   useEffect(() => {
     const checkAuthAndRedirect = async () => {
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
-        // Small delay to ensure profile context is loaded
+        // Use a longer delay to ensure profile context is loaded
         setTimeout(() => {
           if (selectedProfile) {
             navigate('/browse');
           } else {
             navigate('/profiles');
           }
-        }, 50);
+        }, 200);
       }
     };
 
     checkAuthAndRedirect();
-  }, [navigate, selectedProfile]);
+  }, [navigate]); // Remove selectedProfile dependency
 
   return (
     <div className="min-h-screen bg-background-dark">
