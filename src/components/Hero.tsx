@@ -70,9 +70,22 @@ const Hero = () => {
 
   return (
     <div className="relative h-[70vh] bg-gradient-to-r from-background via-background/80 to-transparent">
-      {/* Hero Background */}
+      {/* Hero Background Video */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover"
+        poster={featuredVideo.thumbnail_url}
+      >
+        <source src={featuredVideo.video_url} type="video/mp4" />
+        {/* Fallback to thumbnail if video fails */}
+      </video>
+      
+      {/* Fallback background image for when video is loading */}
       <div 
-        className="absolute inset-0 bg-cover bg-center"
+        className="absolute inset-0 bg-cover bg-center -z-10"
         style={{
           backgroundImage: `url(${featuredVideo.thumbnail_url})`,
         }}
