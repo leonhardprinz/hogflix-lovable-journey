@@ -5,6 +5,7 @@ import Hls from 'hls.js';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useWatchProgress } from '@/hooks/useWatchProgress';
 import Header from '@/components/Header';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { WatchlistButton } from '@/components/WatchlistButton';
@@ -36,6 +37,9 @@ const VideoPlayer = () => {
   const [averageRating, setAverageRating] = useState<number>(0);
   const [totalRatings, setTotalRatings] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sessionId] = useState(() => crypto.randomUUID());
+  const [hasResumed, setHasResumed] = useState(false);
+  const [lastSaveTime, setLastSaveTime] = useState(0);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -43,6 +47,7 @@ const VideoPlayer = () => {
   const posthog = usePostHog();
   const { user } = useAuth();
   const { selectedProfile } = useProfile();
+  const { progress, saveProgress, loadProgress } = useWatchProgress(videoId);
   
   // Feature flag for new player UI
   const isNewPlayerUiEnabled = useFeatureFlagEnabled('new-player-ui');
@@ -105,11 +110,20 @@ const VideoPlayer = () => {
       // Fetch rating data
       await loadRatingData();
 
-      // PostHog analytics
-      posthog.capture('video:watched', {
+      // Check for existing progress and resume if applicable
+      const existingProgress = await loadProgress(videoId);
+      const shouldResume = existingProgress && 
+        existingProgress.progress_percentage > 5 && 
+        existingProgress.progress_percentage < 95;
+
+      // PostHog analytics for session start
+      posthog.capture('video:session_started', {
         video_id: videoId,
         video_title: videoData.title,
-        profile_id: selectedProfile?.id
+        profile_id: selectedProfile?.id,
+        session_id: sessionId,
+        is_resume: shouldResume,
+        resume_from_seconds: shouldResume ? existingProgress.progress_seconds : 0
       });
     } catch (err) {
       console.error('Error loading video:', err);
@@ -143,51 +157,83 @@ const VideoPlayer = () => {
     }
   };
 
-  // HLS setup
+  // HLS setup and resume functionality
   useEffect(() => {
-    if (!videoRef.current || !videoUrl || !isHLS) return;
+    if (!videoRef.current || !videoUrl) return;
 
-    if (Hls.isSupported()) {
-      const hls = new Hls();
-      hlsRef.current = hls;
-      hls.loadSource(videoUrl);
-      hls.attachMedia(videoRef.current);
+    if (isHLS) {
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hlsRef.current = hls;
+        hls.loadSource(videoUrl);
+        hls.attachMedia(videoRef.current);
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log('HLS manifest loaded');
-      });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('HLS manifest loaded');
+          handleVideoReady();
+        });
 
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log('Fatal network error encountered, try to recover');
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.log('Fatal media error encountered, try to recover');
-              hls.recoverMediaError();
-              break;
-            default:
-              console.log('Fatal error, cannot recover');
-              setError('Video playback error');
-              hls.destroy();
-              break;
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Fatal network error encountered, try to recover');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Fatal media error encountered, try to recover');
+                hls.recoverMediaError();
+                break;
+              default:
+                console.log('Fatal error, cannot recover');
+                setError('Video playback error');
+                hls.destroy();
+                break;
+            }
           }
-        }
-      });
+        });
 
-      return () => {
-        if (hlsRef.current) {
-          hlsRef.current.destroy();
-          hlsRef.current = null;
-        }
-      };
-    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-      // Safari native HLS support
-      videoRef.current.src = videoUrl;
+        return () => {
+          if (hlsRef.current) {
+            hlsRef.current.destroy();
+            hlsRef.current = null;
+          }
+        };
+      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS support
+        videoRef.current.src = videoUrl;
+        videoRef.current.addEventListener('loadedmetadata', handleVideoReady);
+      }
+    } else {
+      // Regular MP4 video
+      videoRef.current.addEventListener('loadedmetadata', handleVideoReady);
     }
+
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.removeEventListener('loadedmetadata', handleVideoReady);
+      }
+    };
   }, [videoUrl, isHLS]);
+
+  // Handle video ready and resume if needed
+  const handleVideoReady = () => {
+    if (!videoRef.current || !progress || hasResumed) return;
+    
+    const shouldResume = progress.progress_percentage > 5 && progress.progress_percentage < 95;
+    
+    if (shouldResume) {
+      videoRef.current.currentTime = progress.progress_seconds;
+      setHasResumed(true);
+      
+      posthog.capture('video:session_resumed', {
+        video_id: videoId,
+        session_id: sessionId,
+        resumed_at_seconds: progress.progress_seconds,
+        profile_id: selectedProfile?.id
+      });
+    }
+  };
 
   // Fullscreen autoplay functionality
   useEffect(() => {
@@ -236,43 +282,82 @@ const VideoPlayer = () => {
 
   const handleVideoPlay = () => {
     setIsPlaying(true);
+    posthog.capture('video:session_resumed', {
+      video_id: videoId,
+      session_id: sessionId,
+      profile_id: selectedProfile?.id
+    });
   };
 
   const handleVideoPause = () => {
     setIsPlaying(false);
+    posthog.capture('video:session_paused', {
+      video_id: videoId,
+      session_id: sessionId,
+      profile_id: selectedProfile?.id,
+      current_seconds: videoRef.current?.currentTime || 0
+    });
   };
 
   const handleTimeUpdate = () => {
-    if (videoRef.current && video) {
+    if (videoRef.current && video && selectedProfile) {
       const currentTime = videoRef.current.currentTime;
       const duration = video.duration;
-      const progress = (currentTime / duration) * 100;
+      const progressPercentage = (currentTime / duration) * 100;
+      const now = Date.now();
 
-      // Track milestone progress
-      if (!milestone25 && progress >= 25) {
+      // Save progress every 15 seconds
+      if (now - lastSaveTime >= 15000) {
+        saveProgress(video.id, currentTime, duration, sessionId);
+        setLastSaveTime(now);
+      }
+
+      // Track milestone progress with enhanced data
+      if (!milestone25 && progressPercentage >= 25) {
         setMilestone25(true);
         posthog.capture('video:progress_report', {
           video_id: video.id,
           progress: 25,
-          profile_id: selectedProfile?.id
+          profile_id: selectedProfile.id,
+          session_id: sessionId,
+          watch_time_seconds: currentTime,
+          is_continuous: !hasResumed || progress?.progress_seconds <= currentTime * 0.8
         });
       }
 
-      if (!milestone50 && progress >= 50) {
+      if (!milestone50 && progressPercentage >= 50) {
         setMilestone50(true);
         posthog.capture('video:progress_report', {
           video_id: video.id,
           progress: 50,
-          profile_id: selectedProfile?.id
+          profile_id: selectedProfile.id,
+          session_id: sessionId,
+          watch_time_seconds: currentTime,
+          is_continuous: !hasResumed || progress?.progress_seconds <= currentTime * 0.8
         });
       }
 
-      if (!milestone75 && progress >= 75) {
+      if (!milestone75 && progressPercentage >= 75) {
         setMilestone75(true);
         posthog.capture('video:progress_report', {
           video_id: video.id,
           progress: 75,
-          profile_id: selectedProfile?.id
+          profile_id: selectedProfile.id,
+          session_id: sessionId,
+          watch_time_seconds: currentTime,
+          is_continuous: !hasResumed || progress?.progress_seconds <= currentTime * 0.8
+        });
+      }
+
+      // Track completion
+      if (progressPercentage >= 90) {
+        posthog.capture('video:session_ended', {
+          video_id: video.id,
+          session_id: sessionId,
+          profile_id: selectedProfile.id,
+          total_watch_time: currentTime,
+          completion_percentage: progressPercentage,
+          ended_reason: 'completed'
         });
       }
     }

@@ -470,6 +470,51 @@ export type Database = {
           },
         ]
       }
+      watch_progress: {
+        Row: {
+          completed: boolean
+          created_at: string
+          duration_seconds: number
+          id: string
+          last_watched_at: string
+          profile_id: string
+          progress_percentage: number
+          progress_seconds: number
+          session_id: string | null
+          updated_at: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          last_watched_at?: string
+          profile_id: string
+          progress_percentage?: number
+          progress_seconds?: number
+          session_id?: string | null
+          updated_at?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          last_watched_at?: string
+          profile_id?: string
+          progress_percentage?: number
+          progress_seconds?: number
+          session_id?: string | null
+          updated_at?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

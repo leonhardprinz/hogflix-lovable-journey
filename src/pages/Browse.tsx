@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
 import Hero from '@/components/Hero';
+import { ResumeWatchingCarousel } from '@/components/ResumeWatchingCarousel';
 import { Button } from '@/components/ui/button';
 import { 
   Carousel,
@@ -186,6 +187,9 @@ const Browse = () => {
             )}
           </h2>
         </div>
+
+        {/* Resume Watching Section */}
+        <ResumeWatchingCarousel />
 
         {/* Dynamic Categories and Videos */}
         <div className="space-y-16">
