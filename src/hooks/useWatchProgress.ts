@@ -34,7 +34,12 @@ export const useWatchProgress = (videoId?: string) => {
 
   // Load existing progress for a video
   const loadProgress = useCallback(async (id: string) => {
-    if (!user || !selectedProfile) return null;
+    if (!user || !selectedProfile) {
+      console.log('Skip loading progress - no user or profile');
+      return null;
+    }
+
+    console.log('Loading progress for video:', id);
 
     try {
       const { data, error } = await supabase
@@ -50,6 +55,7 @@ export const useWatchProgress = (videoId?: string) => {
         return null;
       }
 
+      console.log('Loaded progress data:', data);
       return data;
     } catch (error) {
       console.error('Error loading progress:', error);
@@ -64,10 +70,26 @@ export const useWatchProgress = (videoId?: string) => {
     duration: number,
     sessionId: string
   ) => {
-    if (!user || !selectedProfile || currentTime < 0 || duration <= 0) return;
+    if (!user || !selectedProfile || currentTime < 0 || duration <= 0) {
+      console.log('Skip saving progress - invalid conditions:', { 
+        hasUser: !!user, 
+        hasProfile: !!selectedProfile, 
+        currentTime, 
+        duration 
+      });
+      return;
+    }
 
     const progressPercentage = (currentTime / duration) * 100;
     const isCompleted = progressPercentage >= 90; // Mark as completed at 90%
+
+    console.log('Attempting to save progress:', {
+      video_id: id,
+      current_time: Math.floor(currentTime),
+      duration: Math.floor(duration),
+      percentage: Number(progressPercentage.toFixed(2)),
+      completed: isCompleted
+    });
 
     try {
       const progressData = {
@@ -90,6 +112,8 @@ export const useWatchProgress = (videoId?: string) => {
         console.error('Error saving progress:', error);
         return;
       }
+
+      console.log('Progress saved successfully:', progressData);
 
       // Update local state
       setProgress(progressData);

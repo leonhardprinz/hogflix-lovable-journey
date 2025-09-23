@@ -40,6 +40,8 @@ const VideoPlayer = () => {
   const [sessionId] = useState(() => crypto.randomUUID());
   const [hasResumed, setHasResumed] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState(0);
+  const [videoReady, setVideoReady] = useState(false);
+  const [resumeMessage, setResumeMessage] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -110,21 +112,17 @@ const VideoPlayer = () => {
       // Fetch rating data
       await loadRatingData();
 
-      // Check for existing progress and resume if applicable
-      const existingProgress = await loadProgress(videoId);
-      const shouldResume = existingProgress && 
-        existingProgress.progress_percentage > 5 && 
-        existingProgress.progress_percentage < 95;
-
       // PostHog analytics for session start
       posthog.capture('video:session_started', {
         video_id: videoId,
         video_title: videoData.title,
         profile_id: selectedProfile?.id,
         session_id: sessionId,
-        is_resume: shouldResume,
-        resume_from_seconds: shouldResume ? existingProgress.progress_seconds : 0
+        is_resume: false, // Will be updated when progress loads
+        resume_from_seconds: 0 // Will be updated when progress loads
       });
+
+      console.log('Video data loaded:', { videoId, title: videoData.title });
     } catch (err) {
       console.error('Error loading video:', err);
       setError('Failed to load video');
@@ -216,24 +214,46 @@ const VideoPlayer = () => {
     };
   }, [videoUrl, isHLS]);
 
-  // Handle video ready and resume if needed
+  // Handle video ready
   const handleVideoReady = () => {
-    if (!videoRef.current || !progress || hasResumed) return;
+    console.log('Video ready for playback');
+    setVideoReady(true);
+  };
+
+  // Handle resume logic when both video and progress are ready
+  useEffect(() => {
+    if (!videoReady || !videoRef.current || !progress || hasResumed || !videoId) return;
     
     const shouldResume = progress.progress_percentage > 5 && progress.progress_percentage < 95;
     
-    if (shouldResume) {
-      videoRef.current.currentTime = progress.progress_seconds;
+    console.log('Progress data:', {
+      progress_seconds: progress.progress_seconds,
+      progress_percentage: progress.progress_percentage,
+      should_resume: shouldResume
+    });
+    
+    if (shouldResume && progress.progress_seconds > 0) {
+      const resumeTime = Math.max(0, Math.min(progress.progress_seconds, video?.duration || 0));
+      
+      console.log('Resuming video from:', resumeTime, 'seconds');
+      videoRef.current.currentTime = resumeTime;
       setHasResumed(true);
+      
+      const minutes = Math.floor(resumeTime / 60);
+      const seconds = Math.floor(resumeTime % 60);
+      setResumeMessage(`Resuming from ${minutes}:${seconds.toString().padStart(2, '0')}`);
+      
+      // Clear message after 3 seconds
+      setTimeout(() => setResumeMessage(null), 3000);
       
       posthog.capture('video:session_resumed', {
         video_id: videoId,
         session_id: sessionId,
-        resumed_at_seconds: progress.progress_seconds,
+        resumed_at_seconds: resumeTime,
         profile_id: selectedProfile?.id
       });
     }
-  };
+  }, [videoReady, progress, hasResumed, videoId, video?.duration, selectedProfile, posthog, sessionId]);
 
   // Fullscreen autoplay functionality
   useEffect(() => {
@@ -306,8 +326,9 @@ const VideoPlayer = () => {
       const progressPercentage = (currentTime / duration) * 100;
       const now = Date.now();
 
-      // Save progress every 15 seconds
-      if (now - lastSaveTime >= 15000) {
+      // Save progress every 15 seconds, with validation
+      if (now - lastSaveTime >= 15000 && currentTime > 0 && duration > 0 && currentTime <= duration) {
+        console.log('Saving progress:', { currentTime: Math.floor(currentTime), duration: Math.floor(duration), percentage: progressPercentage.toFixed(2) });
         saveProgress(video.id, currentTime, duration, sessionId);
         setLastSaveTime(now);
       }
@@ -437,6 +458,13 @@ const VideoPlayer = () => {
                    {!isHLS && <source src={videoUrl} type="video/mp4" />}
                    Your browser does not support the video tag.
                  </video>
+                
+                {/* Resume Message */}
+                {resumeMessage && (
+                  <div className="absolute top-4 left-4 bg-black/80 text-white px-3 py-2 rounded-md text-sm font-medium">
+                    {resumeMessage}
+                  </div>
+                )}
                 
                 {/* Custom Controls Overlay (only when feature flag is enabled) */}
                 {isNewPlayerUiEnabled && (
