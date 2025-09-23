@@ -131,7 +131,8 @@ export const useWatchProgress = (videoId?: string) => {
           progress_seconds,
           progress_percentage,
           last_watched_at,
-          videos (
+          video_id,
+          videos!fk_watch_progress_video (
             id,
             title,
             description,
