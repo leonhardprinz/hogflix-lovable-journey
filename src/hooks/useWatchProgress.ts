@@ -70,22 +70,26 @@ export const useWatchProgress = (videoId?: string) => {
     duration: number,
     sessionId: string
   ) => {
-    if (!user || !selectedProfile || currentTime < 0 || duration <= 0) {
+    // Only save if currentTime is at least 1 second to avoid 0 values
+    if (!user || !selectedProfile || currentTime < 1 || duration <= 0 || currentTime > duration) {
       console.log('Skip saving progress - invalid conditions:', { 
         hasUser: !!user, 
         hasProfile: !!selectedProfile, 
         currentTime, 
-        duration 
+        duration,
+        reason: currentTime < 1 ? 'currentTime too low' : 'other'
       });
       return;
     }
 
     const progressPercentage = (currentTime / duration) * 100;
     const isCompleted = progressPercentage >= 90; // Mark as completed at 90%
+    const progressSeconds = Math.floor(currentTime);
 
     console.log('Attempting to save progress:', {
       video_id: id,
-      current_time: Math.floor(currentTime),
+      current_time: currentTime,
+      progress_seconds: progressSeconds,
       duration: Math.floor(duration),
       percentage: Number(progressPercentage.toFixed(2)),
       completed: isCompleted
@@ -96,7 +100,7 @@ export const useWatchProgress = (videoId?: string) => {
         user_id: user.id,
         profile_id: selectedProfile.id,
         video_id: id,
-        progress_seconds: Math.floor(currentTime),
+        progress_seconds: progressSeconds,
         duration_seconds: Math.floor(duration),
         progress_percentage: Number(progressPercentage.toFixed(2)),
         completed: isCompleted,

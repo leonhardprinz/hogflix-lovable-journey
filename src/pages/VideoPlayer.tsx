@@ -38,10 +38,9 @@ const VideoPlayer = () => {
   const [totalRatings, setTotalRatings] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sessionId] = useState(() => crypto.randomUUID());
-  const [hasResumed, setHasResumed] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState(0);
-  const [videoReady, setVideoReady] = useState(false);
   const [resumeMessage, setResumeMessage] = useState<string | null>(null);
+  const [showStartOverButton, setShowStartOverButton] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -55,8 +54,8 @@ const VideoPlayer = () => {
   const isNewPlayerUiEnabled = useFeatureFlagEnabled('new-player-ui');
 
   useEffect(() => {
-    const checkAuth = async () => {
-      // Check if user is authenticated
+    const initializePlayer = async () => {
+      // Check authentication
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session?.user) {
@@ -64,72 +63,88 @@ const VideoPlayer = () => {
         return;
       }
 
-      // Check if profile is selected
       if (!selectedProfile) {
         navigate('/profiles');
         return;
       }
 
-      // Load video data
-      await loadVideoData();
+      if (!videoId) {
+        setError('No video ID provided');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log('🎬 Initializing video player for:', videoId);
+        
+        // Step 1: Load video metadata
+        const { data: videoData, error: videoError } = await supabase
+          .from('videos')
+          .select('*')
+          .eq('id', videoId)
+          .single();
+
+        if (videoError || !videoData) {
+          setError('Video not found');
+          setLoading(false);
+          return;
+        }
+
+        console.log('📹 Video metadata loaded:', videoData.title);
+        setVideo(videoData);
+
+        // Step 2: Load watch progress first
+        console.log('📊 Loading watch progress...');
+        const progressData = await loadProgress(videoId);
+        console.log('📊 Progress data:', progressData);
+
+        // Step 3: Get video URL
+        const { data: urlData, error: urlError } = await supabase.functions.invoke('get-video-url', {
+          body: { videoId }
+        });
+
+        if (urlError || !urlData?.signedUrl) {
+          setError('Could not load video');
+          console.error('Video URL error:', urlError);
+          setLoading(false);
+          return;
+        }
+
+        console.log('🔗 Video URL obtained');
+        setVideoUrl(urlData.signedUrl);
+        setIsHLS(urlData.isHLS || urlData.signedUrl.includes('.m3u8'));
+
+        // Step 4: Load rating data
+        await loadRatingData();
+
+        // Step 5: Setup resume message if needed
+        if (progressData && progressData.progress_percentage > 5 && progressData.progress_percentage < 95) {
+          const resumeTime = progressData.progress_seconds;
+          const minutes = Math.floor(resumeTime / 60);
+          const seconds = Math.floor(resumeTime % 60);
+          setResumeMessage(`Resume from ${minutes}:${seconds.toString().padStart(2, '0')}?`);
+          setShowStartOverButton(true);
+        }
+
+        // PostHog analytics
+        posthog.capture('video:session_started', {
+          video_id: videoId,
+          video_title: videoData.title,
+          profile_id: selectedProfile?.id,
+          session_id: sessionId,
+          has_resume_point: !!(progressData && progressData.progress_seconds > 0)
+        });
+
+      } catch (err) {
+        console.error('❌ Error initializing player:', err);
+        setError('Failed to load video');
+      } finally {
+        setLoading(false);
+      }
     };
 
-    checkAuth();
-  }, [navigate, selectedProfile, videoId]);
-
-  const loadVideoData = async () => {
-    if (!videoId) return;
-
-    try {
-      // Fetch video metadata
-      const { data: videoData, error: videoError } = await supabase
-        .from('videos')
-        .select('*')
-        .eq('id', videoId)
-        .single();
-
-      if (videoError || !videoData) {
-        setError('Video not found');
-        return;
-      }
-
-      setVideo(videoData);
-
-      // Get signed URL from edge function
-      const { data: urlData, error: urlError } = await supabase.functions.invoke('get-video-url', {
-        body: { videoId }
-      });
-
-      if (urlError || !urlData?.signedUrl) {
-        setError('Could not load video');
-        console.error('Video URL error:', urlError);
-        return;
-      }
-
-      setVideoUrl(urlData.signedUrl);
-      setIsHLS(urlData.isHLS || urlData.signedUrl.includes('.m3u8'));
-
-      // Fetch rating data
-      await loadRatingData();
-
-      // PostHog analytics for session start
-      posthog.capture('video:session_started', {
-        video_id: videoId,
-        video_title: videoData.title,
-        profile_id: selectedProfile?.id,
-        session_id: sessionId,
-        is_resume: false, // Will be updated when progress loads
-        resume_from_seconds: 0 // Will be updated when progress loads
-      });
-
-      console.log('Video data loaded:', { videoId, title: videoData.title });
-    } catch (err) {
-      console.error('Error loading video:', err);
-      setError('Failed to load video');
-    } finally {
-      setLoading(false);
-    }
-  };
+    initializePlayer();
+  }, [navigate, selectedProfile, videoId, loadProgress, sessionId, posthog]);
 
   const loadRatingData = async () => {
     if (!videoId) return;
@@ -155,9 +170,31 @@ const VideoPlayer = () => {
     }
   };
 
-  // HLS setup and resume functionality
+  // Setup video player when URL is ready
   useEffect(() => {
     if (!videoRef.current || !videoUrl) return;
+
+    console.log('🎥 Setting up video player');
+
+    const handleLoadedMetadata = () => {
+      console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
+      
+      // Handle resume if we have progress data
+      if (progress && progress.progress_seconds > 0 && progress.progress_percentage > 5 && progress.progress_percentage < 95) {
+        const resumeTime = Math.min(progress.progress_seconds, videoRef.current?.duration || 0);
+        console.log('⏯️ Setting resume time:', resumeTime);
+        if (videoRef.current) {
+          videoRef.current.currentTime = resumeTime;
+        }
+        
+        posthog.capture('video:session_resumed', {
+          video_id: videoId,
+          session_id: sessionId,
+          resumed_at_seconds: resumeTime,
+          profile_id: selectedProfile?.id
+        });
+      }
+    };
 
     if (isHLS) {
       if (Hls.isSupported()) {
@@ -166,28 +203,11 @@ const VideoPlayer = () => {
         hls.loadSource(videoUrl);
         hls.attachMedia(videoRef.current);
 
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log('HLS manifest loaded');
-          handleVideoReady();
-        });
-
+        hls.on(Hls.Events.MANIFEST_PARSED, handleLoadedMetadata);
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('Fatal network error encountered, try to recover');
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.log('Fatal media error encountered, try to recover');
-                hls.recoverMediaError();
-                break;
-              default:
-                console.log('Fatal error, cannot recover');
-                setError('Video playback error');
-                hls.destroy();
-                break;
-            }
+            console.error('🔴 Fatal HLS error:', data);
+            setError('Video playback failed');
           }
         });
 
@@ -200,62 +220,37 @@ const VideoPlayer = () => {
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari native HLS support
         videoRef.current.src = videoUrl;
-        videoRef.current.addEventListener('loadedmetadata', handleVideoReady);
+        videoRef.current.addEventListener('loadedmetadata', handleLoadedMetadata);
       }
     } else {
       // Regular MP4 video
-      videoRef.current.addEventListener('loadedmetadata', handleVideoReady);
+      videoRef.current.src = videoUrl;
+      videoRef.current.addEventListener('loadedmetadata', handleLoadedMetadata);
     }
 
     return () => {
       if (videoRef.current) {
-        videoRef.current.removeEventListener('loadedmetadata', handleVideoReady);
+        videoRef.current.removeEventListener('loadedmetadata', handleLoadedMetadata);
       }
     };
-  }, [videoUrl, isHLS]);
+  }, [videoUrl, isHLS, progress, videoId, sessionId, selectedProfile, posthog]);
 
-  // Handle video ready
-  const handleVideoReady = () => {
-    console.log('Video ready for playback');
-    setVideoReady(true);
+  // Handle start over button
+  const handleStartOver = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      setResumeMessage(null);
+      setShowStartOverButton(false);
+    }
   };
 
-  // Handle resume logic when both video and progress are ready
-  useEffect(() => {
-    if (!videoReady || !videoRef.current || !progress || hasResumed || !videoId) return;
-    
-    const shouldResume = progress.progress_percentage > 5 && progress.progress_percentage < 95;
-    
-    console.log('Progress data:', {
-      progress_seconds: progress.progress_seconds,
-      progress_percentage: progress.progress_percentage,
-      should_resume: shouldResume
-    });
-    
-    if (shouldResume && progress.progress_seconds > 0) {
-      const resumeTime = Math.max(0, Math.min(progress.progress_seconds, video?.duration || 0));
-      
-      console.log('Resuming video from:', resumeTime, 'seconds');
-      videoRef.current.currentTime = resumeTime;
-      setHasResumed(true);
-      
-      const minutes = Math.floor(resumeTime / 60);
-      const seconds = Math.floor(resumeTime % 60);
-      setResumeMessage(`Resuming from ${minutes}:${seconds.toString().padStart(2, '0')}`);
-      
-      // Clear message after 3 seconds
-      setTimeout(() => setResumeMessage(null), 3000);
-      
-      posthog.capture('video:session_resumed', {
-        video_id: videoId,
-        session_id: sessionId,
-        resumed_at_seconds: resumeTime,
-        profile_id: selectedProfile?.id
-      });
-    }
-  }, [videoReady, progress, hasResumed, videoId, video?.duration, selectedProfile, posthog, sessionId]);
+  // Handle continue button (dismiss message)
+  const handleContinue = () => {
+    setResumeMessage(null);
+    setShowStartOverButton(false);
+  };
 
-  // Fullscreen autoplay functionality
+  // Fullscreen functionality
   useEffect(() => {
     const handleFullscreenChange = () => {
       const isCurrentlyFullscreen = !!(
@@ -267,7 +262,6 @@ const VideoPlayer = () => {
       
       setIsFullscreen(isCurrentlyFullscreen);
       
-      // Auto-play when entering fullscreen
       if (isCurrentlyFullscreen && videoRef.current) {
         videoRef.current.play().catch(console.error);
       }
@@ -302,21 +296,12 @@ const VideoPlayer = () => {
 
   const handleVideoPlay = () => {
     setIsPlaying(true);
-    posthog.capture('video:session_resumed', {
-      video_id: videoId,
-      session_id: sessionId,
-      profile_id: selectedProfile?.id
-    });
+    console.log('▶️ Video playing');
   };
 
   const handleVideoPause = () => {
     setIsPlaying(false);
-    posthog.capture('video:session_paused', {
-      video_id: videoId,
-      session_id: sessionId,
-      profile_id: selectedProfile?.id,
-      current_seconds: videoRef.current?.currentTime || 0
-    });
+    console.log('⏸️ Video paused');
   };
 
   const handleTimeUpdate = () => {
@@ -326,59 +311,57 @@ const VideoPlayer = () => {
       const progressPercentage = (currentTime / duration) * 100;
       const now = Date.now();
 
-      // Save progress every 15 seconds, with validation
-      if (now - lastSaveTime >= 15000 && currentTime > 0 && duration > 0 && currentTime <= duration) {
-        console.log('Saving progress:', { currentTime: Math.floor(currentTime), duration: Math.floor(duration), percentage: progressPercentage.toFixed(2) });
+      // Save progress every 10 seconds, but only if currentTime >= 1 second
+      if (now - lastSaveTime >= 10000 && currentTime >= 1 && duration > 0) {
+        console.log('💾 Saving progress:', {
+          currentTime: currentTime.toFixed(2),
+          progress_seconds: Math.floor(currentTime),
+          duration: duration,
+          percentage: progressPercentage.toFixed(2)
+        });
+        
         saveProgress(video.id, currentTime, duration, sessionId);
         setLastSaveTime(now);
       }
 
-      // Track milestone progress with enhanced data
+      // Track milestone progress
       if (!milestone25 && progressPercentage >= 25) {
         setMilestone25(true);
-        posthog.capture('video:progress_report', {
+        posthog.capture('video:progress_milestone', {
           video_id: video.id,
-          progress: 25,
+          milestone: 25,
           profile_id: selectedProfile.id,
-          session_id: sessionId,
-          watch_time_seconds: currentTime,
-          is_continuous: !hasResumed || progress?.progress_seconds <= currentTime * 0.8
+          session_id: sessionId
         });
       }
 
       if (!milestone50 && progressPercentage >= 50) {
         setMilestone50(true);
-        posthog.capture('video:progress_report', {
+        posthog.capture('video:progress_milestone', {
           video_id: video.id,
-          progress: 50,
+          milestone: 50,
           profile_id: selectedProfile.id,
-          session_id: sessionId,
-          watch_time_seconds: currentTime,
-          is_continuous: !hasResumed || progress?.progress_seconds <= currentTime * 0.8
+          session_id: sessionId
         });
       }
 
       if (!milestone75 && progressPercentage >= 75) {
         setMilestone75(true);
-        posthog.capture('video:progress_report', {
+        posthog.capture('video:progress_milestone', {
           video_id: video.id,
-          progress: 75,
+          milestone: 75,
           profile_id: selectedProfile.id,
-          session_id: sessionId,
-          watch_time_seconds: currentTime,
-          is_continuous: !hasResumed || progress?.progress_seconds <= currentTime * 0.8
+          session_id: sessionId
         });
       }
 
       // Track completion
-      if (progressPercentage >= 90) {
-        posthog.capture('video:session_ended', {
+      if (progressPercentage >= 95) {
+        posthog.capture('video:completed', {
           video_id: video.id,
           session_id: sessionId,
           profile_id: selectedProfile.id,
-          total_watch_time: currentTime,
-          completion_percentage: progressPercentage,
-          ended_reason: 'completed'
+          total_duration: duration
         });
       }
     }
@@ -451,23 +434,33 @@ const VideoPlayer = () => {
                   controls={!isNewPlayerUiEnabled}
                   poster={video.thumbnail_url}
                   preload="metadata"
-                   onTimeUpdate={handleTimeUpdate}
-                   onPlay={handleVideoPlay}
-                   onPause={handleVideoPause}
-                 >
-                   {!isHLS && <source src={videoUrl} type="video/mp4" />}
-                   Your browser does not support the video tag.
-                 </video>
+                  onTimeUpdate={handleTimeUpdate}
+                  onPlay={handleVideoPlay}
+                  onPause={handleVideoPause}
+                >
+                  {!isHLS && <source src={videoUrl} type="video/mp4" />}
+                  Your browser does not support the video tag.
+                </video>
                 
-                {/* Resume Message */}
+                {/* Resume Message Overlay */}
                 {resumeMessage && (
-                  <div className="absolute top-4 left-4 bg-black/80 text-white px-3 py-2 rounded-md text-sm font-medium">
-                    {resumeMessage}
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <div className="bg-background-dark/90 p-6 rounded-lg border border-white/20 text-center">
+                      <p className="text-white text-lg mb-4 font-manrope">{resumeMessage}</p>
+                      <div className="flex gap-4 justify-center">
+                        <Button onClick={handleContinue} variant="default">
+                          Continue
+                        </Button>
+                        <Button onClick={handleStartOver} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20">
+                          Start Over
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
                 
-                {/* Custom Controls Overlay (only when feature flag is enabled) */}
-                {isNewPlayerUiEnabled && (
+                {/* Custom Controls Overlay */}
+                {isNewPlayerUiEnabled && !resumeMessage && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors group">
                     <Button
                       onClick={handlePlayPause}
