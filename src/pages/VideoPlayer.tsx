@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
+import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 import Header from '@/components/Header';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { WatchlistButton } from '@/components/WatchlistButton';
@@ -32,7 +33,6 @@ const VideoPlayer = () => {
   const [milestone25, setMilestone25] = useState(false);
   const [milestone50, setMilestone50] = useState(false);
   const [milestone75, setMilestone75] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [averageRating, setAverageRating] = useState<number>(0);
   const [totalRatings, setTotalRatings] = useState<number>(0);
@@ -42,7 +42,6 @@ const VideoPlayer = () => {
   const [resumeMessage, setResumeMessage] = useState<string | null>(null);
   const [showStartOverButton, setShowStartOverButton] = useState(false);
   
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const navigate = useNavigate();
   const posthog = usePostHog();
@@ -52,6 +51,71 @@ const VideoPlayer = () => {
   
   // Feature flag for new player UI
   const isNewPlayerUiEnabled = useFeatureFlagEnabled('new-player-ui');
+
+  // Video player hook with progress tracking
+  const { videoRef, videoProps, isPlaying, isReady, play, pause, togglePlayPause, seekTo } = useVideoPlayer({
+    autoplay: true,
+    onTimeUpdate: (currentTime, duration) => {
+      if (video && selectedProfile) {
+        const progressPercentage = (currentTime / duration) * 100;
+        const now = Date.now();
+
+        // Save progress every 5 seconds once meaningful watching has occurred
+        if (now - lastSaveTime >= 5000 && currentTime >= 3 && duration > 0) {
+          console.log('💾 Auto-saving progress:', {
+            currentTime: currentTime.toFixed(2),
+            progress_seconds: Math.floor(currentTime),
+            duration: duration,
+            percentage: progressPercentage.toFixed(2) + '%'
+          });
+          
+          saveProgress(video.id, currentTime, duration, sessionId);
+          setLastSaveTime(now);
+        }
+
+        // Track milestone progress
+        if (!milestone25 && progressPercentage >= 25) {
+          setMilestone25(true);
+          posthog.capture('video:progress_milestone', {
+            video_id: video.id,
+            milestone: 25,
+            profile_id: selectedProfile.id,
+            session_id: sessionId
+          });
+        }
+
+        if (!milestone50 && progressPercentage >= 50) {
+          setMilestone50(true);
+          posthog.capture('video:progress_milestone', {
+            video_id: video.id,
+            milestone: 50,
+            profile_id: selectedProfile.id,
+            session_id: sessionId
+          });
+        }
+
+        if (!milestone75 && progressPercentage >= 75) {
+          setMilestone75(true);
+          posthog.capture('video:progress_milestone', {
+            video_id: video.id,
+            milestone: 75,
+            profile_id: selectedProfile.id,
+            session_id: sessionId
+          });
+        }
+
+        // Track completion
+        if (progressPercentage >= 95) {
+          posthog.capture('video:completed', {
+            video_id: video.id,
+            session_id: sessionId,
+            profile_id: selectedProfile.id,
+            total_duration: duration
+          });
+        }
+      }
+    }
+  });
 
   useEffect(() => {
     const initializePlayer = async () => {
@@ -117,13 +181,14 @@ const VideoPlayer = () => {
         // Step 4: Load rating data
         await loadRatingData();
 
-        // Step 5: Setup resume message if needed
-        if (progressData && progressData.progress_percentage > 5 && progressData.progress_percentage < 95) {
+        // Step 5: Setup resume message if meaningful progress exists
+        if (progressData && progressData.progress_seconds > 3 && progressData.progress_percentage < 95) {
           const resumeTime = progressData.progress_seconds;
           const minutes = Math.floor(resumeTime / 60);
           const seconds = Math.floor(resumeTime % 60);
           setResumeMessage(`Resume from ${minutes}:${seconds.toString().padStart(2, '0')}?`);
           setShowStartOverButton(true);
+          console.log('📺 Resume message set for', resumeTime, 'seconds');
         }
 
         // PostHog analytics
@@ -179,12 +244,14 @@ const VideoPlayer = () => {
     const handleLoadedMetadata = () => {
       console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
       
-      // Handle resume if we have progress data
-      if (progress && progress.progress_seconds > 0 && progress.progress_percentage > 5 && progress.progress_percentage < 95) {
+      // Apply resume time if we have meaningful progress
+      if (progress && progress.progress_seconds > 3 && progress.progress_percentage < 95) {
         const resumeTime = Math.min(progress.progress_seconds, videoRef.current?.duration || 0);
-        console.log('⏯️ Setting resume time:', resumeTime);
-        if (videoRef.current) {
+        console.log('⏯️ Applying resume time:', resumeTime, 'seconds');
+        
+        if (videoRef.current && resumeTime > 3) {
           videoRef.current.currentTime = resumeTime;
+          console.log('✅ Resume time set to:', videoRef.current.currentTime);
         }
         
         posthog.capture('video:session_resumed', {
@@ -192,6 +259,14 @@ const VideoPlayer = () => {
           session_id: sessionId,
           resumed_at_seconds: resumeTime,
           profile_id: selectedProfile?.id
+        });
+      }
+      
+      // Auto-play the video
+      if (videoRef.current) {
+        console.log('▶️ Auto-playing video...');
+        videoRef.current.play().catch((error) => {
+          console.log('⚠️ Autoplay failed (user interaction required):', error.message);
         });
       }
     };
@@ -237,17 +312,16 @@ const VideoPlayer = () => {
 
   // Handle start over button
   const handleStartOver = () => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      setResumeMessage(null);
-      setShowStartOverButton(false);
-    }
+    seekTo(0);
+    setResumeMessage(null);
+    setShowStartOverButton(false);
   };
 
-  // Handle continue button (dismiss message)
+  // Handle continue button (dismiss message and start playing)
   const handleContinue = () => {
     setResumeMessage(null);
     setShowStartOverButton(false);
+    play(); // Ensure video starts playing
   };
 
   // Fullscreen functionality
@@ -282,89 +356,6 @@ const VideoPlayer = () => {
 
   const handleBackClick = () => {
     navigate('/browse');
-  };
-
-  const handlePlayPause = () => {
-    if (videoRef.current) {
-      if (videoRef.current.paused) {
-        videoRef.current.play();
-      } else {
-        videoRef.current.pause();
-      }
-    }
-  };
-
-  const handleVideoPlay = () => {
-    setIsPlaying(true);
-    console.log('▶️ Video playing');
-  };
-
-  const handleVideoPause = () => {
-    setIsPlaying(false);
-    console.log('⏸️ Video paused');
-  };
-
-  const handleTimeUpdate = () => {
-    if (videoRef.current && video && selectedProfile) {
-      const currentTime = videoRef.current.currentTime;
-      const duration = video.duration;
-      const progressPercentage = (currentTime / duration) * 100;
-      const now = Date.now();
-
-      // Save progress every 10 seconds, but only if currentTime >= 1 second
-      if (now - lastSaveTime >= 10000 && currentTime >= 1 && duration > 0) {
-        console.log('💾 Saving progress:', {
-          currentTime: currentTime.toFixed(2),
-          progress_seconds: Math.floor(currentTime),
-          duration: duration,
-          percentage: progressPercentage.toFixed(2)
-        });
-        
-        saveProgress(video.id, currentTime, duration, sessionId);
-        setLastSaveTime(now);
-      }
-
-      // Track milestone progress
-      if (!milestone25 && progressPercentage >= 25) {
-        setMilestone25(true);
-        posthog.capture('video:progress_milestone', {
-          video_id: video.id,
-          milestone: 25,
-          profile_id: selectedProfile.id,
-          session_id: sessionId
-        });
-      }
-
-      if (!milestone50 && progressPercentage >= 50) {
-        setMilestone50(true);
-        posthog.capture('video:progress_milestone', {
-          video_id: video.id,
-          milestone: 50,
-          profile_id: selectedProfile.id,
-          session_id: sessionId
-        });
-      }
-
-      if (!milestone75 && progressPercentage >= 75) {
-        setMilestone75(true);
-        posthog.capture('video:progress_milestone', {
-          video_id: video.id,
-          milestone: 75,
-          profile_id: selectedProfile.id,
-          session_id: sessionId
-        });
-      }
-
-      // Track completion
-      if (progressPercentage >= 95) {
-        posthog.capture('video:completed', {
-          video_id: video.id,
-          session_id: sessionId,
-          profile_id: selectedProfile.id,
-          total_duration: duration
-        });
-      }
-    }
   };
 
   if (loading) {
@@ -429,14 +420,11 @@ const VideoPlayer = () => {
             {videoUrl ? (
               <>
                 <video
-                  ref={videoRef}
+                  {...videoProps}
                   className="w-full h-full"
                   controls={!isNewPlayerUiEnabled}
                   poster={video.thumbnail_url}
                   preload="metadata"
-                  onTimeUpdate={handleTimeUpdate}
-                  onPlay={handleVideoPlay}
-                  onPause={handleVideoPause}
                 >
                   {!isHLS && <source src={videoUrl} type="video/mp4" />}
                   Your browser does not support the video tag.
@@ -463,7 +451,7 @@ const VideoPlayer = () => {
                 {isNewPlayerUiEnabled && !resumeMessage && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors group">
                     <Button
-                      onClick={handlePlayPause}
+                      onClick={togglePlayPause}
                       variant="ghost"
                       size="lg"
                       className="bg-white/20 hover:bg-white/30 text-white border-0 h-20 w-20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"

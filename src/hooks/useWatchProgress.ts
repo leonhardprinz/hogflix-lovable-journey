@@ -63,39 +63,48 @@ export const useWatchProgress = (videoId?: string) => {
     }
   }, [user, selectedProfile]);
 
-  // Save or update progress
+  // Save or update progress with improved logic
   const saveProgress = useCallback(async (
     id: string,
     currentTime: number,
     duration: number,
     sessionId: string
   ) => {
-    // Only save if currentTime is at least 1 second to avoid 0 values
-    if (!user || !selectedProfile || currentTime < 1 || duration <= 0 || currentTime > duration) {
-      console.log('Skip saving progress - invalid conditions:', { 
+    // More permissive conditions - save progress after 3 seconds of actual watching
+    if (!user || !selectedProfile || currentTime < 3 || duration <= 0 || currentTime > duration) {
+      console.log('⏭️ Skip saving progress:', { 
         hasUser: !!user, 
         hasProfile: !!selectedProfile, 
-        currentTime, 
+        currentTime: currentTime.toFixed(2), 
         duration,
-        reason: currentTime < 1 ? 'currentTime too low' : 'other'
+        reason: currentTime < 3 ? 'currentTime < 3 seconds' : 'other invalid condition'
       });
       return;
     }
 
     const progressPercentage = (currentTime / duration) * 100;
-    const isCompleted = progressPercentage >= 90; // Mark as completed at 90%
+    const isCompleted = progressPercentage >= 90;
     const progressSeconds = Math.floor(currentTime);
 
-    console.log('Attempting to save progress:', {
+    console.log('💾 Saving progress:', {
       video_id: id,
-      current_time: currentTime,
+      current_time: currentTime.toFixed(2),
       progress_seconds: progressSeconds,
-      duration: Math.floor(duration),
-      percentage: Number(progressPercentage.toFixed(2)),
+      duration_seconds: Math.floor(duration),
+      percentage: progressPercentage.toFixed(2) + '%',
       completed: isCompleted
     });
 
     try {
+      // Use proper UPDATE/INSERT instead of problematic upsert
+      const { data: existingData } = await supabase
+        .from('watch_progress')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('profile_id', selectedProfile.id)
+        .eq('video_id', id)
+        .maybeSingle();
+
       const progressData = {
         user_id: user.id,
         profile_id: selectedProfile.id,
@@ -108,24 +117,34 @@ export const useWatchProgress = (videoId?: string) => {
         last_watched_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
-        .from('watch_progress')
-        .upsert(progressData);
+      let error;
+      if (existingData) {
+        // Update existing record
+        const { error: updateError } = await supabase
+          .from('watch_progress')
+          .update(progressData)
+          .eq('id', existingData.id);
+        error = updateError;
+      } else {
+        // Insert new record
+        const { error: insertError } = await supabase
+          .from('watch_progress')
+          .insert(progressData);
+        error = insertError;
+      }
 
       if (error) {
-        console.error('Error saving progress:', error);
+        console.error('❌ Error saving progress:', error);
         return;
       }
 
-      console.log('Progress saved successfully:', progressData);
-
-      // Update local state
+      console.log('✅ Progress saved successfully');
       setProgress(progressData);
 
       // PostHog tracking
       posthog.capture('video:progress_saved', {
         video_id: id,
-        progress_seconds: Math.floor(currentTime),
+        progress_seconds: progressSeconds,
         progress_percentage: Number(progressPercentage.toFixed(2)),
         session_id: sessionId,
         completed: isCompleted,
@@ -133,7 +152,6 @@ export const useWatchProgress = (videoId?: string) => {
         auto_save: true
       });
 
-      // Track completion event
       if (isCompleted) {
         posthog.capture('video:completed', {
           video_id: id,
@@ -143,24 +161,29 @@ export const useWatchProgress = (videoId?: string) => {
         });
       }
     } catch (error) {
-      console.error('Error saving progress:', error);
+      console.error('❌ Error in saveProgress:', error);
     }
   }, [user, selectedProfile, posthog]);
 
-  // Get videos with resume progress (5% - 95% completion)
+  // Get videos with resume progress - improved query and lower threshold
   const getResumeWatchingVideos = useCallback(async (): Promise<VideoWithProgress[]> => {
-    if (!user || !selectedProfile) return [];
+    if (!user || !selectedProfile) {
+      console.log('🚫 No user or profile for resume videos');
+      return [];
+    }
 
+    console.log('🔍 Fetching resume watching videos...');
     setLoading(true);
+    
     try {
+      // Use a simpler direct JOIN query with lower thresholds
       const { data, error } = await supabase
         .from('watch_progress')
         .select(`
           progress_seconds,
           progress_percentage,
           last_watched_at,
-          video_id,
-          videos!fk_watch_progress_video (
+          videos (
             id,
             title,
             description,
@@ -172,24 +195,48 @@ export const useWatchProgress = (videoId?: string) => {
         .eq('user_id', user.id)
         .eq('profile_id', selectedProfile.id)
         .eq('completed', false)
-        .gte('progress_percentage', 5)
-        .lte('progress_percentage', 95)
+        .gte('progress_seconds', 5)  // At least 5 seconds watched
+        .lte('progress_percentage', 95)  // Not completed
         .order('last_watched_at', { ascending: false })
         .limit(15);
 
       if (error) {
-        console.error('Error fetching resume watching videos:', error);
+        console.error('❌ Error fetching resume videos:', error);
         return [];
       }
 
-      return (data || []).map((item: any) => ({
-        ...item.videos,
-        progress_seconds: item.progress_seconds,
-        progress_percentage: item.progress_percentage,
-        last_watched_at: item.last_watched_at,
-      }));
+      console.log('📊 Resume videos query result:', data?.length || 0, 'videos');
+      
+      if (!data || data.length === 0) {
+        console.log('ℹ️ No resume videos found - checking all progress records...');
+        
+        // Debug query to see what we have
+        const { data: debugData } = await supabase
+          .from('watch_progress')
+          .select('progress_seconds, progress_percentage, completed')
+          .eq('user_id', user.id)
+          .eq('profile_id', selectedProfile.id)
+          .order('last_watched_at', { ascending: false })
+          .limit(5);
+          
+        console.log('🔍 Recent progress records:', debugData);
+      }
+
+      // Transform the data properly
+      const resumeVideos = (data || [])
+        .filter(item => item.videos) // Ensure video data exists
+        .map((item: any) => ({
+          ...item.videos,
+          progress_seconds: item.progress_seconds,
+          progress_percentage: item.progress_percentage,
+          last_watched_at: item.last_watched_at,
+        }));
+
+      console.log('✅ Returning', resumeVideos.length, 'resume videos');
+      return resumeVideos;
+      
     } catch (error) {
-      console.error('Error fetching resume watching videos:', error);
+      console.error('❌ Error in getResumeWatchingVideos:', error);
       return [];
     } finally {
       setLoading(false);

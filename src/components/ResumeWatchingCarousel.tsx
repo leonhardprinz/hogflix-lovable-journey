@@ -58,7 +58,9 @@ export const ResumeWatchingCarousel = () => {
   }, []);
 
   const loadVideos = async () => {
+    console.log('🔄 Loading resume watching videos...');
     const resumeVideos = await getResumeWatchingVideos();
+    console.log('📺 Resume videos loaded:', resumeVideos.length);
     setVideos(resumeVideos);
     
     if (resumeVideos.length > 0) {
@@ -90,7 +92,24 @@ export const ResumeWatchingCarousel = () => {
     setVideos(prev => prev.filter(v => v.id !== videoId));
   };
 
-  if (loading || videos.length === 0) {
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="mb-12">
+        <h3 className="text-xl font-bold text-text-primary mb-6 font-manrope flex items-center gap-2">
+          <Play className="h-5 w-5 text-primary-red" />
+          Continue Watching
+        </h3>
+        <div className="flex items-center justify-center py-8">
+          <div className="text-text-secondary font-manrope">Loading your continue watching list...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't show section if no videos
+  if (videos.length === 0) {
+    console.log('🚫 No resume videos to display');
     return null;
   }
 
@@ -172,7 +191,7 @@ export const ResumeWatchingCarousel = () => {
                       </span>
                     </div>
                     <div className="mt-2 text-xs text-text-tertiary font-manrope">
-                      {Math.round(video.progress_percentage)}% complete
+                      {Math.round(video.progress_percentage)}% complete • {video.progress_seconds}s watched
                     </div>
                   </div>
                 </div>
