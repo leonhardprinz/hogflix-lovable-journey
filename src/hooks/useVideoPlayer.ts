@@ -53,14 +53,8 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
   const handleLoadedMetadata = useCallback(() => {
     console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
     setIsReady(true);
-    
-    if (autoplay) {
-      // Small delay to ensure everything is ready
-      setTimeout(() => {
-        play();
-      }, 100);
-    }
-  }, [autoplay, play]);
+    // Note: Autoplay is now controlled externally to avoid race conditions
+  }, []);
 
   const handleTimeUpdateInternal = useCallback(() => {
     if (videoRef.current) {

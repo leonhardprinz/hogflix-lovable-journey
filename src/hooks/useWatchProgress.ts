@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -63,106 +63,94 @@ export const useWatchProgress = (videoId?: string) => {
     }
   }, [user, selectedProfile]);
 
-  // Save or update progress with improved logic
-  const saveProgress = useCallback(async (
+  // Non-blocking progress save queue
+  const progressSaveQueue = useRef<NodeJS.Timeout | null>(null);
+  
+  // Save or update progress with non-blocking queue
+  const saveProgress = useCallback((
     id: string,
     currentTime: number,
     duration: number,
     sessionId: string
   ) => {
-    // More permissive conditions - save progress after 3 seconds of actual watching
+    // Validate conditions
     if (!user || !selectedProfile || currentTime < 3 || duration <= 0 || currentTime > duration) {
-      console.log('⏭️ Skip saving progress:', { 
-        hasUser: !!user, 
-        hasProfile: !!selectedProfile, 
-        currentTime: currentTime.toFixed(2), 
-        duration,
-        reason: currentTime < 3 ? 'currentTime < 3 seconds' : 'other invalid condition'
-      });
       return;
     }
 
-    const progressPercentage = (currentTime / duration) * 100;
-    const isCompleted = progressPercentage >= 90;
-    const progressSeconds = Math.floor(currentTime);
+    // Clear existing queued save to debounce rapid calls
+    if (progressSaveQueue.current) {
+      clearTimeout(progressSaveQueue.current);
+    }
 
-    console.log('💾 Saving progress:', {
-      video_id: id,
-      current_time: currentTime.toFixed(2),
-      progress_seconds: progressSeconds,
-      duration_seconds: Math.floor(duration),
-      percentage: progressPercentage.toFixed(2) + '%',
-      completed: isCompleted
-    });
+    // Queue the save operation to run after current execution stack
+    progressSaveQueue.current = setTimeout(async () => {
+      const progressPercentage = (currentTime / duration) * 100;
+      const isCompleted = progressPercentage >= 90;
+      const progressSeconds = Math.floor(currentTime);
 
-    try {
-      // Use proper UPDATE/INSERT instead of problematic upsert
-      const { data: existingData } = await supabase
-        .from('watch_progress')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('profile_id', selectedProfile.id)
-        .eq('video_id', id)
-        .maybeSingle();
-
-      const progressData = {
-        user_id: user.id,
-        profile_id: selectedProfile.id,
+      console.log('💾 Queued progress save:', {
         video_id: id,
         progress_seconds: progressSeconds,
-        duration_seconds: Math.floor(duration),
-        progress_percentage: Number(progressPercentage.toFixed(2)),
-        completed: isCompleted,
-        session_id: sessionId,
-        last_watched_at: new Date().toISOString(),
-      };
-
-      let error;
-      if (existingData) {
-        // Update existing record
-        const { error: updateError } = await supabase
-          .from('watch_progress')
-          .update(progressData)
-          .eq('id', existingData.id);
-        error = updateError;
-      } else {
-        // Insert new record
-        const { error: insertError } = await supabase
-          .from('watch_progress')
-          .insert(progressData);
-        error = insertError;
-      }
-
-      if (error) {
-        console.error('❌ Error saving progress:', error);
-        return;
-      }
-
-      console.log('✅ Progress saved successfully');
-      setProgress(progressData);
-
-      // PostHog tracking
-      posthog.capture('video:progress_saved', {
-        video_id: id,
-        progress_seconds: progressSeconds,
-        progress_percentage: Number(progressPercentage.toFixed(2)),
-        session_id: sessionId,
-        completed: isCompleted,
-        profile_id: selectedProfile.id,
-        auto_save: true
+        percentage: progressPercentage.toFixed(2) + '%'
       });
 
-      if (isCompleted) {
-        posthog.capture('video:completed', {
-          video_id: id,
-          session_id: sessionId,
+      try {
+        // Check for existing record first
+        const { data: existingData } = await supabase
+          .from('watch_progress')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('profile_id', selectedProfile.id)
+          .eq('video_id', id)
+          .maybeSingle();
+
+        const progressData = {
+          user_id: user.id,
           profile_id: selectedProfile.id,
-          total_duration: Math.floor(duration)
-        });
+          video_id: id,
+          progress_seconds: progressSeconds,
+          duration_seconds: Math.floor(duration),
+          progress_percentage: Number(progressPercentage.toFixed(2)),
+          completed: isCompleted,
+          session_id: sessionId,
+          last_watched_at: new Date().toISOString(),
+        };
+
+        let error;
+        if (existingData) {
+          const { error: updateError } = await supabase
+            .from('watch_progress')
+            .update(progressData)
+            .eq('id', existingData.id);
+          error = updateError;
+        } else {
+          const { error: insertError } = await supabase
+            .from('watch_progress')
+            .insert(progressData);
+          error = insertError;
+        }
+
+        if (!error) {
+          console.log('✅ Progress saved');
+          setProgress(progressData);
+          
+          // Track completion
+          if (isCompleted) {
+            posthog.capture('video:completed', {
+              video_id: id,
+              session_id: sessionId,
+              profile_id: selectedProfile.id,
+              total_duration: Math.floor(duration)
+            });
+          }
+        } else {
+          console.error('❌ Save error:', error);
+        }
+      } catch (error) {
+        console.error('❌ Progress save failed:', error);
       }
-    } catch (error) {
-      console.error('❌ Error in saveProgress:', error);
-    }
+    }, 100); // Small delay to debounce and make non-blocking
   }, [user, selectedProfile, posthog]);
 
   // Get videos with resume progress - improved query and lower threshold

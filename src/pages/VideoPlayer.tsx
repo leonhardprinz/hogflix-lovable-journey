@@ -54,21 +54,15 @@ const VideoPlayer = () => {
 
   // Video player hook with progress tracking
   const { videoRef, videoProps, isPlaying, isReady, play, pause, togglePlayPause, seekTo } = useVideoPlayer({
-    autoplay: true,
+    autoplay: false, // We'll control autoplay manually for better timing
     onTimeUpdate: (currentTime, duration) => {
       if (video && selectedProfile) {
         const progressPercentage = (currentTime / duration) * 100;
         const now = Date.now();
 
-        // Save progress every 5 seconds once meaningful watching has occurred
-        if (now - lastSaveTime >= 5000 && currentTime >= 3 && duration > 0) {
-          console.log('💾 Auto-saving progress:', {
-            currentTime: currentTime.toFixed(2),
-            progress_seconds: Math.floor(currentTime),
-            duration: duration,
-            percentage: progressPercentage.toFixed(2) + '%'
-          });
-          
+        // Save progress every 10 seconds (reduced frequency) once meaningful watching has occurred
+        if (now - lastSaveTime >= 10000 && currentTime >= 3 && duration > 0) {
+          // Non-blocking progress save
           saveProgress(video.id, currentTime, duration, sessionId);
           setLastSaveTime(now);
         }
@@ -241,17 +235,37 @@ const VideoPlayer = () => {
 
     console.log('🎥 Setting up video player');
 
-    const handleLoadedMetadata = () => {
+    const handleLoadedMetadata = async () => {
       console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
       
+      const videoElement = videoRef.current;
+      if (!videoElement) return;
+
       // Apply resume time if we have meaningful progress
       if (progress && progress.progress_seconds > 3 && progress.progress_percentage < 95) {
-        const resumeTime = Math.min(progress.progress_seconds, videoRef.current?.duration || 0);
+        const resumeTime = Math.min(progress.progress_seconds, videoElement.duration || 0);
         console.log('⏯️ Applying resume time:', resumeTime, 'seconds');
         
-        if (videoRef.current && resumeTime > 3) {
-          videoRef.current.currentTime = resumeTime;
-          console.log('✅ Resume time set to:', videoRef.current.currentTime);
+        if (resumeTime > 3) {
+          // For HLS videos, we need to wait for seeking to complete
+          if (isHLS) {
+            videoElement.currentTime = resumeTime;
+            // Wait for seek to complete before playing
+            await new Promise((resolve) => {
+              const onSeeked = () => {
+                videoElement.removeEventListener('seeked', onSeeked);
+                resolve(void 0);
+              };
+              videoElement.addEventListener('seeked', onSeeked);
+              
+              // Timeout fallback
+              setTimeout(resolve, 1000);
+            });
+          } else {
+            videoElement.currentTime = resumeTime;
+          }
+          
+          console.log('✅ Resume time set to:', videoElement.currentTime);
         }
         
         posthog.capture('video:session_resumed', {
@@ -262,12 +276,13 @@ const VideoPlayer = () => {
         });
       }
       
-      // Auto-play the video
-      if (videoRef.current) {
-        console.log('▶️ Auto-playing video...');
-        videoRef.current.play().catch((error) => {
-          console.log('⚠️ Autoplay failed (user interaction required):', error.message);
-        });
+      // Auto-play the video after seeking is complete
+      console.log('▶️ Starting video playback...');
+      try {
+        await videoElement.play();
+        console.log('✅ Video started successfully');
+      } catch (error) {
+        console.log('⚠️ Autoplay failed (user interaction required):', error);
       }
     };
 
@@ -317,11 +332,37 @@ const VideoPlayer = () => {
     setShowStartOverButton(false);
   };
 
-  // Handle continue button (dismiss message and start playing)
-  const handleContinue = () => {
+  // Handle continue button (dismiss message and start playing from resume point)
+  const handleContinue = async () => {
     setResumeMessage(null);
     setShowStartOverButton(false);
-    play(); // Ensure video starts playing
+    
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+
+    // Apply resume time before playing
+    if (progress && progress.progress_seconds > 3) {
+      const resumeTime = Math.min(progress.progress_seconds, videoElement.duration || 0);
+      console.log('▶️ Continuing from:', resumeTime, 'seconds');
+      
+      if (isHLS) {
+        // For HLS, wait for seek completion
+        videoElement.currentTime = resumeTime;
+        await new Promise((resolve) => {
+          const onSeeked = () => {
+            videoElement.removeEventListener('seeked', onSeeked);
+            resolve(void 0);
+          };
+          videoElement.addEventListener('seeked', onSeeked);
+          setTimeout(resolve, 500);
+        });
+      } else {
+        videoElement.currentTime = resumeTime;
+      }
+    }
+    
+    // Start playing
+    play();
   };
 
   // Fullscreen functionality
