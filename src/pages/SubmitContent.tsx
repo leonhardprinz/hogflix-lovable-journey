@@ -6,8 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Upload, Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, Upload, Plus, Sparkles } from "lucide-react";
+import UploadProgress, { UploadStep } from "@/components/upload/UploadProgress";
+import DragDropUpload from "@/components/upload/DragDropUpload";
+import FileValidation from "@/components/upload/FileValidation";
 
 interface Category {
   id: string;
@@ -31,6 +34,12 @@ export default function SubmitContent() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [duration, setDuration] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Enhanced upload state
+  const [currentStep, setCurrentStep] = useState<UploadStep>('validation');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string>("");
+  const [thumbnailPreview, setThumbnailPreview] = useState<string>("");
 
   const videoProbeRef = useRef<HTMLVideoElement>(null);
 
@@ -76,14 +85,26 @@ export default function SubmitContent() {
     };
   }, [videoFile]);
 
+  // Create thumbnail preview
+  useEffect(() => {
+    if (thumbnailFile) {
+      const url = URL.createObjectURL(thumbnailFile);
+      setThumbnailPreview(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setThumbnailPreview("");
+    }
+  }, [thumbnailFile]);
+
   const canSubmit = useMemo(() => {
     return (
       !!title.trim() &&
       (!!categoryId || !!newCategoryName.trim()) &&
       !!thumbnailFile &&
-      !!videoFile
+      !!videoFile &&
+      !submitting
     );
-  }, [title, categoryId, newCategoryName, thumbnailFile, videoFile]);
+  }, [title, categoryId, newCategoryName, thumbnailFile, videoFile, submitting]);
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -111,10 +132,18 @@ export default function SubmitContent() {
     if (!canSubmit || submitting) return;
 
     setSubmitting(true);
+    setUploadError("");
+    setCurrentStep('validation');
+    setUploadProgress(0);
+
     try {
+      // Step 1: Validation
+      setCurrentStep('validation');
+      setUploadProgress(10);
+      await new Promise(resolve => setTimeout(resolve, 500)); // Brief pause for UX
+      
       let chosenCategoryId = categoryId;
       if (!chosenCategoryId && newCategoryName.trim()) {
-        // Create category inline if not already created via button
         const maxSort = categories.reduce((acc, c) => Math.max(acc, c.sort_order), 0);
         const { data: cat, error: catErr } = await supabase
           .from("categories")
@@ -127,28 +156,46 @@ export default function SubmitContent() {
       }
 
       if (!thumbnailFile || !videoFile) throw new Error("Missing files");
-
       const id = crypto.randomUUID();
 
-      // 1) Upload thumbnail to public bucket
+      // Step 2: Upload thumbnail
+      setCurrentStep('thumbnail-upload');
+      setUploadProgress(25);
       const thumbPath = `thumbnails/${id}-${thumbnailFile.name}`;
       const { error: thumbErr } = await supabase.storage
         .from("video-thumbnails")
-        .upload(thumbPath, thumbnailFile, { upsert: true, cacheControl: "3600" });
+        .upload(thumbPath, thumbnailFile, { 
+          upsert: true, 
+          cacheControl: "3600"
+        });
       if (thumbErr) throw thumbErr;
+      
       const { data: pubThumb } = supabase.storage
         .from("video-thumbnails")
         .getPublicUrl(thumbPath);
       const thumbnailUrl = pubThumb.publicUrl;
+      setUploadProgress(40);
 
-      // 2) Upload original video to private bucket
+      // Step 3: Upload video with progress simulation
+      setCurrentStep('video-upload');
       const videoPath = `originals/${id}-${videoFile.name}`;
+      
+      // Simulate progress during upload
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 2, 85));
+      }, 200);
+      
       const { error: videoErr } = await supabase.storage
         .from("videos")
         .upload(videoPath, videoFile, { upsert: true });
+      
+      clearInterval(progressInterval);
       if (videoErr) throw videoErr;
 
-      // 3) Insert into videos table
+      // Step 4: Processing and database insertion
+      setCurrentStep('processing');
+      setUploadProgress(90);
+      
       const { error: insertErr } = await supabase.from("videos").insert({
         title: title.trim(),
         description: description.trim() || null,
@@ -159,18 +206,35 @@ export default function SubmitContent() {
       });
       if (insertErr) throw insertErr;
 
-      toast({ title: "Content submitted", description: `${title} uploaded successfully and is now available for streaming.` });
-      // reset form
-      setTitle("");
-      setDescription("");
-      setCategoryId("");
-      setNewCategoryName("");
-      setThumbnailFile(null);
-      setVideoFile(null);
-      setDuration(0);
+      // Step 5: Complete
+      setCurrentStep('complete');
+      setUploadProgress(100);
+      
+      toast({ 
+        title: "🎉 Content submitted successfully!", 
+        description: `${title} is now live and available for streaming.` 
+      });
+      
+      // Reset form after brief success display
+      setTimeout(() => {
+        setTitle("");
+        setDescription("");
+        setCategoryId("");
+        setNewCategoryName("");
+        setThumbnailFile(null);
+        setVideoFile(null);
+        setDuration(0);
+        setCurrentStep('validation');
+        setUploadProgress(0);
+      }, 2000);
+      
     } catch (err: any) {
       console.error(err);
-      toast({ title: "Failed to submit content", description: err.message || "Unexpected error" });
+      setUploadError(err.message || "Unexpected error occurred");
+      toast({ 
+        title: "Upload failed", 
+        description: err.message || "Please try again or contact support if the issue persists." 
+      });
     } finally {
       setSubmitting(false);
     }
@@ -187,76 +251,159 @@ export default function SubmitContent() {
         </p>
 
         <section aria-labelledby="upload-movie" className="grid gap-8 lg:grid-cols-3">
-          <div className="lg:col-span-2 bg-card-background border border-gray-700 rounded p-6">
-            <h2 id="upload-movie" className="text-xl font-semibold text-text-primary font-manrope mb-4">Upload Movie</h2>
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <Label htmlFor="title">Title</Label>
-                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Movie title" />
+          <div className="lg:col-span-2 space-y-6">
+            {/* Main Upload Form */}
+            <div className="bg-card-background border border-gray-700 rounded-lg p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <Sparkles className="h-6 w-6 text-primary" />
+                <h2 id="upload-movie" className="text-xl font-semibold text-text-primary font-manrope">
+                  Upload Content
+                </h2>
               </div>
+              
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid gap-6">
+                  <div>
+                    <Label htmlFor="title">Title *</Label>
+                    <Input 
+                      id="title" 
+                      value={title} 
+                      onChange={(e) => setTitle(e.target.value)} 
+                      placeholder="Enter your content title"
+                      className="mt-2"
+                      disabled={submitting}
+                    />
+                  </div>
 
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description" rows={4} />
-              </div>
+                  <div>
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea 
+                      id="description" 
+                      value={description} 
+                      onChange={(e) => setDescription(e.target.value)} 
+                      placeholder="Describe your content (optional but recommended)"
+                      rows={3}
+                      className="mt-2"
+                      disabled={submitting}
+                    />
+                  </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label>Category</Label>
-                  <div className="flex gap-2">
-                    <Select value={categoryId} onValueChange={setCategoryId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={loadingCategories ? "Loading…" : "Select category"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Category *</Label>
+                      <div className="flex gap-2 mt-2">
+                        <Select value={categoryId} onValueChange={setCategoryId} disabled={submitting}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={loadingCategories ? "Loading…" : "Select category"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="newCat">Or create new category</Label>
+                      <div className="flex gap-2 mt-2">
+                        <Input 
+                          id="newCat" 
+                          value={newCategoryName} 
+                          onChange={(e) => setNewCategoryName(e.target.value)} 
+                          placeholder="New category name"
+                          disabled={submitting}
+                        />
+                        <Button 
+                          type="button" 
+                          onClick={handleCreateCategory} 
+                          disabled={!newCategoryName.trim() || creatingCategory || submitting}
+                          size="sm"
+                        >
+                          {creatingCategory ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <Label htmlFor="newCat">Or create new</Label>
-                  <div className="flex gap-2">
-                    <Input id="newCat" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="New category name" />
-                    <Button type="button" onClick={handleCreateCategory} disabled={!newCategoryName.trim() || creatingCategory}>
-                      {creatingCategory ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    </Button>
+
+                {/* Enhanced File Upload Areas */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  <DragDropUpload
+                    accept="image/*"
+                    onFileSelect={setThumbnailFile}
+                    currentFile={thumbnailFile}
+                    label="Thumbnail Image *"
+                    description="JPG, PNG up to 5MB"
+                    maxSize={5}
+                    previewUrl={thumbnailPreview}
+                  />
+                  
+                  <DragDropUpload
+                    accept="video/*"
+                    onFileSelect={setVideoFile}
+                    currentFile={videoFile}
+                    label="Video File *"
+                    description="MP4, MOV, AVI up to 2GB"
+                    maxSize={2048}
+                  />
+                </div>
+
+                {videoFile && (
+                  <div className="flex items-center gap-3 text-text-secondary text-sm bg-muted/20 p-3 rounded">
+                    <video ref={videoProbeRef} className="hidden" />
+                    <span>⏱️ Detected duration: {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, "0")}</span>
                   </div>
-                </div>
-              </div>
+                )}
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="thumb">Thumbnail (JPG/PNG)</Label>
-                  <Input id="thumb" type="file" accept="image/*" onChange={(e) => setThumbnailFile(e.target.files?.[0] || null)} />
+                <div className="pt-4">
+                  <Button 
+                    type="submit" 
+                    disabled={!canSubmit}
+                    className="w-full md:w-auto px-8"
+                    size="lg"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" /> 
+                        {currentStep === 'validation' && "Validating..."}
+                        {currentStep === 'thumbnail-upload' && "Uploading thumbnail..."}
+                        {currentStep === 'video-upload' && "Uploading video..."}
+                        {currentStep === 'processing' && "Processing..."}
+                        {currentStep === 'complete' && "Complete!"}
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" /> Submit Content
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <div>
-                  <Label htmlFor="video">Video (MP4/HLS)</Label>
-                  <Input id="video" type="file" accept="video/*" onChange={(e) => setVideoFile(e.target.files?.[0] || null)} />
-                </div>
-              </div>
+              </form>
+            </div>
 
-              <div className="flex items-center gap-3 text-text-secondary">
-                <video ref={videoProbeRef} className="hidden" />
-                <span>Detected duration: {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, "0")}</span>
+            {/* Upload Progress (shown when uploading) */}
+            {submitting && (
+              <div className="bg-card-background border border-gray-700 rounded-lg p-6">
+                <UploadProgress 
+                  currentStep={currentStep}
+                  progress={uploadProgress}
+                  error={uploadError}
+                />
               </div>
+            )}
 
-              <div className="pt-2">
-                <Button type="submit" disabled={!canSubmit || submitting}>
-                  {submitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Uploading…
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" /> Submit Content
-                    </>
-                  )}
-                </Button>
+            {/* File Validation */}
+            {!submitting && (
+              <div className="bg-card-background border border-gray-700 rounded-lg p-6">
+                <FileValidation
+                  thumbnailFile={thumbnailFile}
+                  videoFile={videoFile}
+                  title={title}
+                  category={categoryId || newCategoryName}
+                />
               </div>
-            </form>
+            )}
           </div>
 
           <aside className="bg-card-background border border-gray-700 rounded p-6">
