@@ -168,7 +168,7 @@ Always be helpful and engaging while focusing on the available content.`;
 
   } catch (error) {
     console.error('Error in flixbuddy-chat function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

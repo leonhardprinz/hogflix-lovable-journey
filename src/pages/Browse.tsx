@@ -6,6 +6,8 @@ import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
 import Hero from '@/components/Hero';
 import { ResumeWatchingCarousel } from '@/components/ResumeWatchingCarousel';
+import { PopularCarousel } from '@/components/PopularCarousel';
+import { TrendingCarousel } from '@/components/TrendingCarousel';
 import { Button } from '@/components/ui/button';
 import { 
   Carousel,
@@ -190,6 +192,12 @@ const Browse = () => {
 
         {/* Resume Watching Section */}
         <ResumeWatchingCarousel />
+
+        {/* Popular Content Section */}
+        <PopularCarousel />
+
+        {/* Trending Content Section */}
+        <TrendingCarousel />
 
         {/* Dynamic Categories and Videos */}
         <div className="space-y-16">
