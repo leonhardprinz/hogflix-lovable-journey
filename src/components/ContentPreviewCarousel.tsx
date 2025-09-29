@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Clock, PlayCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Link } from 'react-router-dom';
 
 interface Video {
   id: string;
@@ -15,6 +18,7 @@ interface Video {
 const ContentPreviewCarousel = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -61,7 +65,7 @@ const ContentPreviewCarousel = () => {
         <div className="overflow-x-auto scrollbar-hide">
           <div className="flex gap-4 pb-4" style={{ width: 'max-content' }}>
             {videos.map((video) => (
-              <Card key={video.id} className="w-64 bg-card border-border hover:scale-105 transition-transform duration-200 group cursor-pointer">
+              <Card key={video.id} className="w-64 bg-card border-border hover:scale-105 transition-transform duration-200 group cursor-pointer relative">
                 <CardContent className="p-0">
                   <div className="relative">
                     <img
@@ -70,7 +74,16 @@ const ContentPreviewCarousel = () => {
                       className="w-full aspect-video object-cover rounded-t-lg"
                     />
                     <div className="absolute inset-0 bg-background/0 group-hover:bg-background/20 transition-colors duration-200 rounded-t-lg flex items-center justify-center">
-                      <PlayCircle className="w-12 h-12 text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                      {user ? (
+                        <PlayCircle className="w-12 h-12 text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                      ) : (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center gap-2">
+                          <PlayCircle className="w-12 h-12 text-primary" />
+                          <Button asChild size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                            <Link to="/signup">Sign Up to Watch</Link>
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     <div className="absolute bottom-2 right-2">
                       <Badge variant="secondary" className="bg-background/80 text-foreground">
@@ -84,28 +97,17 @@ const ContentPreviewCarousel = () => {
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {video.description || 'No description available'}
                     </p>
+                    {!user && (
+                      <div className="mt-2">
+                        <Button asChild size="sm" variant="outline" className="w-full">
+                          <Link to="/signup">Sign Up to Watch</Link>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             ))}
-            
-            {/* PostHog Demos Coming Soon Card */}
-            <Card className="w-64 bg-primary/10 border-primary/30 hover:scale-105 transition-transform duration-200 group cursor-pointer">
-              <CardContent className="p-0">
-                <div className="relative aspect-video bg-gradient-to-br from-primary/20 to-primary/5 rounded-t-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <PlayCircle className="w-12 h-12 text-primary mx-auto mb-2" />
-                    <Badge variant="outline" className="border-primary text-primary">Coming Soon</Badge>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <h3 className="font-semibold text-foreground mb-2">PostHog Demos</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Interactive feature demonstrations showcasing PostHog's analytics capabilities
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
