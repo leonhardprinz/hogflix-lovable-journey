@@ -1,5 +1,5 @@
 // Floating Hedgehog Widget for Global FlixBuddy Access
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { Button } from '@/components/ui/button';
@@ -12,17 +12,31 @@ const FloatingHedgehog = () => {
   const location = useLocation();
   const posthog = usePostHog();
 
+  // Feature Flag: Control widget visibility
+  const isWidgetEnabled = posthog.isFeatureEnabled('floating-hedgehog-enabled');
+
   // Don't show on FlixBuddy page
   if (location.pathname === '/flixbuddy') {
+    return null;
+  }
+
+  // Don't show if feature flag is disabled
+  if (isWidgetEnabled === false) {
+    // Track flag evaluation
+    posthog.capture('feature_flag:floating_hedgehog_disabled', {
+      current_page: location.pathname,
+      timestamp: new Date().toISOString()
+    });
     return null;
   }
 
   const handleClick = () => {
     setIsClicked(true);
     
-    // Track widget engagement
+    // Track widget engagement with feature flag context
     posthog.capture('hedgehog_widget:clicked', {
       current_page: location.pathname,
+      feature_flag_variant: 'enabled',
       timestamp: new Date().toISOString()
     });
 
@@ -32,6 +46,15 @@ const FloatingHedgehog = () => {
     // Reset click state after navigation
     setTimeout(() => setIsClicked(false), 200);
   };
+
+  // Track widget impression when mounted
+  useEffect(() => {
+    posthog.capture('hedgehog_widget:impression', {
+      current_page: location.pathname,
+      feature_flag_variant: 'enabled',
+      timestamp: new Date().toISOString()
+    });
+  }, [location.pathname, posthog]);
 
   return (
     <div className="fixed bottom-6 left-6 z-50">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Carousel,
@@ -27,6 +28,7 @@ interface Video {
 export const PopularCarousel = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const posthog = usePostHog();
 
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -41,6 +43,18 @@ export const PopularCarousel = () => {
   useEffect(() => {
     fetchPopularVideos();
   }, []);
+
+  const handleVideoClick = (video: Video, position: number) => {
+    const sectionPriorityVariant = posthog.getFeatureFlag('section-priority-test');
+    posthog.capture('popular_section:video_clicked', {
+      video_id: video.id,
+      video_title: video.title,
+      position_in_carousel: position,
+      popularity_score: video.popularity_score,
+      section_priority_variant: sectionPriorityVariant || 'popular-first',
+      timestamp: new Date().toISOString()
+    });
+  };
 
   const fetchPopularVideos = async () => {
     try {
@@ -136,10 +150,11 @@ export const PopularCarousel = () => {
         }}
       >
         <CarouselContent className="-ml-4">
-          {videos.map((video) => (
+          {videos.map((video, index) => (
             <CarouselItem key={video.id} className="pl-4 basis-80">
               <Link
                 to={`/watch/${video.id}`}
+                onClick={() => handleVideoClick(video, index + 1)}
                 data-ph-capture-attribute-video-id={video.id}
               >
                 <div className="w-full bg-card-background rounded card-hover cursor-pointer group">

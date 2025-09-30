@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
@@ -89,10 +89,14 @@ const Browse = () => {
         return;
       }
 
-      // Fire PostHog analytics for page view
+      // Get feature flag variants
+      const sectionPriorityVariant = posthog.getFeatureFlag('section-priority-test');
+
+      // Fire PostHog analytics for page view with feature flag context
       posthog.capture('page:viewed_browse', {
         profile_id: selectedProfile.id,
-        profile_name: selectedProfile.display_name || selectedProfile.email
+        profile_name: selectedProfile.display_name || selectedProfile.email,
+        section_priority_variant: sectionPriorityVariant || 'control'
       });
 
       // Fetch categories and videos
@@ -193,11 +197,8 @@ const Browse = () => {
         {/* Resume Watching Section */}
         <ResumeWatchingCarousel />
 
-        {/* Popular Content Section */}
-        <PopularCarousel />
-
-        {/* Trending Content Section */}
-        <TrendingCarousel />
+        {/* Dynamic Sections - Order controlled by feature flag */}
+        <DynamicSections posthog={posthog} selectedProfile={selectedProfile} />
 
         {/* Dynamic Categories and Videos */}
         <div className="space-y-16">
@@ -274,6 +275,57 @@ const Browse = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Component to handle dynamic section ordering based on feature flag
+const DynamicSections = ({ posthog, selectedProfile }: { posthog: any; selectedProfile: any }) => {
+  const sectionPriorityVariant = posthog.getFeatureFlag('section-priority-test');
+  
+  // Track section order impression
+  useEffect(() => {
+    posthog.capture('feature_flag:section_priority_impression', {
+      variant: sectionPriorityVariant || 'popular-first',
+      profile_id: selectedProfile?.id,
+      timestamp: new Date().toISOString()
+    });
+  }, [sectionPriorityVariant, posthog, selectedProfile]);
+
+  // Track section interactions
+  const handleSectionView = (sectionName: string, position: number) => {
+    posthog.capture('section:viewed', {
+      section_name: sectionName,
+      section_position: position,
+      variant: sectionPriorityVariant || 'popular-first',
+      profile_id: selectedProfile?.id,
+      timestamp: new Date().toISOString()
+    });
+  };
+
+  // Determine section order based on feature flag
+  const sections = useMemo(() => {
+    if (sectionPriorityVariant === 'trending-first') {
+      return [
+        { component: <TrendingCarousel key="trending" />, name: 'Trending Now', position: 1 },
+        { component: <PopularCarousel key="popular" />, name: 'Popular on HogFlix', position: 2 }
+      ];
+    }
+    
+    // Default: popular-first (control)
+    return [
+      { component: <PopularCarousel key="popular" />, name: 'Popular on HogFlix', position: 1 },
+      { component: <TrendingCarousel key="trending" />, name: 'Trending Now', position: 2 }
+    ];
+  }, [sectionPriorityVariant]);
+
+  return (
+    <>
+      {sections.map(({ component, name, position }) => (
+        <div key={name} onMouseEnter={() => handleSectionView(name, position)}>
+          {component}
+        </div>
+      ))}
+    </>
   );
 };
 
