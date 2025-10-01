@@ -8,35 +8,69 @@ import { Bot, MessageCircle, X } from 'lucide-react';
 const FloatingHedgehog = () => {
   const [isHovered, setIsHovered] = useState(false);
   const [isClicked, setIsClicked] = useState(false);
+  const [shouldShow, setShouldShow] = useState<boolean | null>(null);
+  const [flagVariant, setFlagVariant] = useState<string>('control');
   const navigate = useNavigate();
   const location = useLocation();
   const posthog = usePostHog();
-
-  // Feature Flag: Control widget visibility
-  const isWidgetEnabled = posthog.isFeatureEnabled('floating-hedgehog-enabled');
 
   // Don't show on FlixBuddy page
   if (location.pathname === '/flixbuddy') {
     return null;
   }
 
-  // Don't show if feature flag is disabled
-  if (isWidgetEnabled === false) {
-    // Track flag evaluation
-    posthog.capture('feature_flag:floating_hedgehog_disabled', {
-      current_page: location.pathname,
-      timestamp: new Date().toISOString()
+  // Feature Flag: Control widget visibility
+  useEffect(() => {
+    posthog.onFeatureFlags(() => {
+      const flagKey = 'FloatingHedgehog_Widget_Visibility_UXUI_Test';
+      const variant = posthog.getFeatureFlag(flagKey) as string;
+      setFlagVariant(variant || 'control');
+
+      // Determine if widget should show based on variant
+      let showWidget = false;
+      if (variant === 'show_all') {
+        showWidget = true;
+      } else if (variant === 'show_on_pages') {
+        // Show only on Browse, MyList, and Index pages
+        const allowedPages = ['/', '/browse', '/mylist'];
+        showWidget = allowedPages.includes(location.pathname);
+      } else if (variant === 'hide_all') {
+        showWidget = false;
+      } else {
+        // Control/default: show on all pages
+        showWidget = true;
+      }
+
+      setShouldShow(showWidget);
+
+      // Fire impression event when widget is shown
+      if (showWidget) {
+        posthog.capture('floatinghedgehog_impression', {
+          variant: variant || 'control',
+          current_page: location.pathname,
+          timestamp: new Date().toISOString()
+        });
+      }
     });
+  }, [location.pathname, posthog]);
+
+  // Don't render until flag is evaluated
+  if (shouldShow === null) {
+    return null;
+  }
+
+  // Don't show if flag determined we shouldn't
+  if (!shouldShow) {
     return null;
   }
 
   const handleClick = () => {
     setIsClicked(true);
     
-    // Track widget engagement with feature flag context
-    posthog.capture('hedgehog_widget:clicked', {
+    // Track widget click with feature flag context
+    posthog.capture('flixbuddy_click_through', {
+      variant: flagVariant,
       current_page: location.pathname,
-      feature_flag_variant: 'enabled',
       timestamp: new Date().toISOString()
     });
 
@@ -46,15 +80,6 @@ const FloatingHedgehog = () => {
     // Reset click state after navigation
     setTimeout(() => setIsClicked(false), 200);
   };
-
-  // Track widget impression when mounted
-  useEffect(() => {
-    posthog.capture('hedgehog_widget:impression', {
-      current_page: location.pathname,
-      feature_flag_variant: 'enabled',
-      timestamp: new Date().toISOString()
-    });
-  }, [location.pathname, posthog]);
 
   return (
     <div className="fixed bottom-6 left-6 z-50">
@@ -69,6 +94,7 @@ const FloatingHedgehog = () => {
           onClick={handleClick}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
+          data-flixbuddy="open"
           className={`relative w-14 h-14 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 ${
             isHovered ? 'scale-110' : 'scale-100'
           } ${

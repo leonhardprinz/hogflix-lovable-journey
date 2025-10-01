@@ -4,31 +4,38 @@ This document describes the feature flags implemented in HogFlix and how to set 
 
 ## Implemented Feature Flags
 
-### 1. `floating-hedgehog-enabled`
-**Type:** Boolean flag  
+### 1. `FloatingHedgehog_Widget_Visibility_UXUI_Test`
+**Type:** Multivariate flag  
 **Purpose:** Controls visibility of the FloatingHedgehog widget (AI assistant access button)
 
 #### How to Create in PostHog:
 1. Go to Feature Flags in your PostHog dashboard
 2. Click "New Feature Flag"
-3. **Key:** `floating-hedgehog-enabled`
-4. **Name:** Floating Hedgehog Widget
-5. **Description:** Controls whether the floating FlixBuddy AI assistant button appears on pages
-6. **Flag Type:** Boolean
-7. **Rollout:** Set to 100% for "enabled" or 0% for "disabled"
+3. **Key:** `FloatingHedgehog_Widget_Visibility_UXUI_Test`
+4. **Name:** Floating Hedgehog Widget Visibility (UX/UI Test)
+5. **Description:** Controls whether and where the floating FlixBuddy AI assistant button appears
+6. **Flag Type:** Multiple variants (Multivariate)
+7. **Variants:**
+   - `show_all` (Control): Show widget on all pages
+   - `show_on_pages` (Test A): Show widget only on Browse, MyList, and Index pages
+   - `hide_all` (Test B): Hide widget completely
+   - `control` (Fallback): Default behavior (show on all pages)
+8. **Rollout:** Split evenly between variants for A/B/C testing
 
 #### Analytics Events Tracked:
-- `feature_flag:floating_hedgehog_disabled` - When flag is disabled and widget doesn't show
-- `hedgehog_widget:impression` - When widget is displayed to user (includes page context)
-- `hedgehog_widget:clicked` - When user clicks the widget (includes page context)
+- `floatinghedgehog_impression` - When widget is displayed to user (includes variant, page context)
+- `flixbuddy_click_through` - When user clicks the widget to open FlixBuddy (includes variant, page context)
 
 #### Testing Strategy:
-- **Variant A (Control - Enabled):** Show widget on all pages
-- **Variant B (Test - Disabled):** Hide widget completely
+- **Variant A (show_all):** Widget visible on all pages
+- **Variant B (show_on_pages):** Widget visible only on key pages (Browse, MyList, Index)
+- **Variant C (hide_all):** Widget completely hidden
 - **Success Metrics:** 
+  - FlixBuddy click-through rate (CTR)
   - FlixBuddy page visit rate
   - User engagement with AI features
-  - Overall session quality
+  - Page-specific widget performance
+  - Overall session quality and navigation patterns
 
 ---
 
@@ -142,10 +149,16 @@ Create these cohorts in PostHog for deeper analysis:
 
 ### Feature Flag Evaluation
 ```typescript
-// Boolean flags
-const isEnabled = posthog.isFeatureEnabled('floating-hedgehog-enabled');
+// Multivariate flags with onFeatureFlags pattern
+useEffect(() => {
+  posthog.onFeatureFlags(() => {
+    const flagKey = 'FloatingHedgehog_Widget_Visibility_UXUI_Test';
+    const variant = posthog.getFeatureFlag(flagKey);
+    // Use variant to control UI
+  });
+}, [posthog]);
 
-// Multivariate flags
+// Direct multivariate flag check (for non-critical paths)
 const variant = posthog.getFeatureFlag('section-priority-test');
 ```
 
@@ -189,8 +202,14 @@ Before launching feature flags to production:
 
 To test feature flags locally, use PostHog's feature flag overrides in your browser console:
 ```javascript
-// Override floating hedgehog to disabled
-posthog.featureFlags.override({'floating-hedgehog-enabled': false});
+// Override floating hedgehog to show on all pages
+posthog.featureFlags.override({'FloatingHedgehog_Widget_Visibility_UXUI_Test': 'show_all'});
+
+// Override floating hedgehog to show only on specific pages
+posthog.featureFlags.override({'FloatingHedgehog_Widget_Visibility_UXUI_Test': 'show_on_pages'});
+
+// Override floating hedgehog to hide completely
+posthog.featureFlags.override({'FloatingHedgehog_Widget_Visibility_UXUI_Test': 'hide_all'});
 
 // Override section priority to trending-first
 posthog.featureFlags.override({'section-priority-test': 'trending-first'});
