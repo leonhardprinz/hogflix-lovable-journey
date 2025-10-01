@@ -14,13 +14,14 @@ const FloatingHedgehog = () => {
   const location = useLocation();
   const posthog = usePostHog();
 
-  // Don't show on FlixBuddy page
-  if (location.pathname === '/flixbuddy') {
-    return null;
-  }
-
-  // Feature Flag: Control widget visibility
+  // Feature Flag: Control widget visibility - ALL HOOKS MUST BE CALLED BEFORE ANY RETURNS
   useEffect(() => {
+    // Don't evaluate flag on FlixBuddy page
+    if (location.pathname === '/flixbuddy') {
+      setShouldShow(false);
+      return;
+    }
+
     posthog.onFeatureFlags(() => {
       const flagKey = 'FloatingHedgehog_Widget_Visibility_UXUI_Test';
       const variant = posthog.getFeatureFlag(flagKey) as string;
@@ -54,13 +55,8 @@ const FloatingHedgehog = () => {
     });
   }, [location.pathname, posthog]);
 
-  // Don't render until flag is evaluated
-  if (shouldShow === null) {
-    return null;
-  }
-
-  // Don't show if flag determined we shouldn't
-  if (!shouldShow) {
+  // Don't render until flag is evaluated or if flag determined we shouldn't
+  if (shouldShow === null || !shouldShow) {
     return null;
   }
 
