@@ -1,6 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
+import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.21.0';
+import { PostHog } from 'https://esm.sh/posthog-node@4.2.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +27,15 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Initialize PostHog for LLM analytics
+    const posthog = new PostHog(
+      'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
+      { host: 'https://eu.i.posthog.com' }
+    );
+
+    // Initialize Gemini with PostHog tracking
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
     // Get conversation history
     const { data: messages } = await supabase
@@ -105,35 +116,59 @@ Always be helpful and engaging while focusing on the available content.`;
       parts: [{ text: message }]
     });
 
-    // Call Gemini API
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: systemPrompt }]
-          },
-          ...conversationHistory
-        ],
-        generationConfig: {
-          temperature: 0.8,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        },
-      }),
+    // Track LLM request start with PostHog
+    const requestStartTime = Date.now();
+    posthog.capture({
+      distinctId: userId || 'anonymous',
+      event: 'llm_request_started',
+      properties: {
+        conversationId,
+        profileId,
+        model: 'gemini-1.5-flash',
+        messageLength: message.length,
+      }
     });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
-    }
+    // Call Gemini API with PostHog tracking
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: systemPrompt }]
+        },
+        ...conversationHistory
+      ],
+      generationConfig: {
+        temperature: 0.8,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      },
+    });
 
-    const data = await response.json();
-    const assistantMessage = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
+    const response = result.response;
+    const assistantMessage = response.text() || 'Sorry, I could not generate a response.';
+    
+    // Track LLM request completion with PostHog
+    const responseTime = Date.now() - requestStartTime;
+    const tokenUsage = response.usageMetadata || {};
+    
+    posthog.capture({
+      distinctId: userId || 'anonymous',
+      event: 'llm_request_completed',
+      properties: {
+        conversationId,
+        profileId,
+        model: 'gemini-1.5-flash',
+        responseTime,
+        promptTokens: tokenUsage.promptTokenCount || 0,
+        completionTokens: tokenUsage.candidatesTokenCount || 0,
+        totalTokens: tokenUsage.totalTokenCount || 0,
+        responseLength: assistantMessage.length,
+      }
+    });
 
     // Save user message
     await supabase
@@ -159,6 +194,9 @@ Always be helpful and engaging while focusing on the available content.`;
 
     console.log('Chat response generated successfully');
 
+    // Flush PostHog events
+    await posthog.shutdown();
+
     return new Response(JSON.stringify({ 
       message: assistantMessage,
       conversationId 
@@ -168,6 +206,25 @@ Always be helpful and engaging while focusing on the available content.`;
 
   } catch (error) {
     console.error('Error in flixbuddy-chat function:', error);
+    
+    // Track LLM request failure with PostHog if available
+    try {
+      const posthog = new PostHog(
+        'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
+        { host: 'https://eu.i.posthog.com' }
+      );
+      posthog.capture({
+        distinctId: 'system',
+        event: 'llm_request_failed',
+        properties: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      });
+      await posthog.shutdown();
+    } catch (phError) {
+      console.error('Failed to track error in PostHog:', phError);
+    }
+    
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
