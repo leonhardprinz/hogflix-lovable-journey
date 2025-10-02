@@ -45,13 +45,18 @@ export const PopularCarousel = () => {
   }, []);
 
   const handleVideoClick = (video: Video, position: number) => {
-    const sectionPriorityVariant = posthog.getFeatureFlag('section-priority-test');
-    posthog.capture('popular_section:video_clicked', {
+    const sectionPriorityVariant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test');
+    
+    // Store source section for video player tracking
+    sessionStorage.setItem('video_source_section', 'popular');
+    
+    posthog.capture('home_section_click', {
+      section: 'popular',
       video_id: video.id,
       video_title: video.title,
       position_in_carousel: position,
       popularity_score: video.popularity_score,
-      section_priority_variant: sectionPriorityVariant || 'popular-first',
+      variant: sectionPriorityVariant || 'popular-first',
       timestamp: new Date().toISOString()
     });
   };

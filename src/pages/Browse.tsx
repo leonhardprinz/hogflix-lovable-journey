@@ -89,14 +89,16 @@ const Browse = () => {
         return;
       }
 
-      // Get feature flag variants
-      const sectionPriorityVariant = posthog.getFeatureFlag('section-priority-test');
+      // Load feature flags before capturing events
+      posthog.onFeatureFlags(() => {
+        const sectionPriorityVariant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test');
 
-      // Fire PostHog analytics for page view with feature flag context
-      posthog.capture('page:viewed_browse', {
-        profile_id: selectedProfile.id,
-        profile_name: selectedProfile.display_name || selectedProfile.email,
-        section_priority_variant: sectionPriorityVariant || 'control'
+        // Fire PostHog analytics for page view with feature flag context
+        posthog.capture('page:viewed_browse', {
+          profile_id: selectedProfile.id,
+          profile_name: selectedProfile.display_name || selectedProfile.email,
+          section_priority_variant: sectionPriorityVariant || 'popular-first'
+        });
       });
 
       // Fetch categories and videos
@@ -280,22 +282,27 @@ const Browse = () => {
 
 // Component to handle dynamic section ordering based on feature flag
 const DynamicSections = ({ posthog, selectedProfile }: { posthog: any; selectedProfile: any }) => {
-  const sectionPriorityVariant = posthog.getFeatureFlag('section-priority-test');
+  const [sectionPriorityVariant, setSectionPriorityVariant] = useState<string | null>(null);
   
-  // Track section order impression
+  // Load feature flag and track section order impression
   useEffect(() => {
-    posthog.capture('feature_flag:section_priority_impression', {
-      variant: sectionPriorityVariant || 'popular-first',
-      profile_id: selectedProfile?.id,
-      timestamp: new Date().toISOString()
+    posthog.onFeatureFlags(() => {
+      const variant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test') as string || 'popular-first';
+      setSectionPriorityVariant(variant);
+      
+      posthog.capture('feature_flag:section_priority_impression', {
+        variant: variant,
+        profile_id: selectedProfile?.id,
+        timestamp: new Date().toISOString()
+      });
     });
-  }, [sectionPriorityVariant, posthog, selectedProfile]);
+  }, [posthog, selectedProfile]);
 
   // Track section interactions
   const handleSectionView = (sectionName: string, position: number) => {
-    posthog.capture('section:viewed', {
-      section_name: sectionName,
-      section_position: position,
+    posthog.capture('home_section_impression', {
+      section: sectionName.toLowerCase().includes('popular') ? 'popular' : 'trending',
+      position: position,
       variant: sectionPriorityVariant || 'popular-first',
       profile_id: selectedProfile?.id,
       timestamp: new Date().toISOString()

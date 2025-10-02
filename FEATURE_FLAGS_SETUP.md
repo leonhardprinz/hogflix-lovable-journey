@@ -39,16 +39,16 @@ This document describes the feature flags implemented in HogFlix and how to set 
 
 ---
 
-### 2. `section-priority-test`
+### 2. `Popular_vs_Trending_Priority_Algo_Test`
 **Type:** Multivariate flag  
-**Purpose:** A/B test the order of Popular vs Trending sections on the Browse page
+**Purpose:** A/B test the order of Popular vs Trending sections on the Browse page to determine optimal algorithm priority
 
 #### How to Create in PostHog:
 1. Go to Feature Flags in your PostHog dashboard
 2. Click "New Feature Flag"
-3. **Key:** `section-priority-test`
-4. **Name:** Browse Section Priority Test
-5. **Description:** Tests whether Popular or Trending section should appear first
+3. **Key:** `Popular_vs_Trending_Priority_Algo_Test`
+4. **Name:** Popular vs Trending Priority (Algorithm Test)
+5. **Description:** Tests whether Popular or Trending section should appear first on Browse page
 6. **Flag Type:** Multiple variants (Multivariate)
 7. **Variants:**
    - `popular-first` (Control): Popular section appears before Trending
@@ -58,18 +58,20 @@ This document describes the feature flags implemented in HogFlix and how to set 
 #### Analytics Events Tracked:
 - `page:viewed_browse` - Includes `section_priority_variant` property
 - `feature_flag:section_priority_impression` - When section order is determined
-- `section:viewed` - When user hovers over a section (includes section name, position)
-- `popular_section:video_clicked` - When user clicks video in Popular section
-- `trending_section:video_clicked` - When user clicks video in Trending section
+- `home_section_impression` - When user views a section (includes `section` and `position` properties)
+- `home_section_click` - When user clicks video in a section (includes `section` property)
+- `content_start` - When video playback begins (includes `source_section` context)
+- `content_complete` - When video playback completes (includes `source_section`, `completion_pct`, and `watch_seconds`)
 
 #### Testing Strategy:
 - **Variant A (Control - popular-first):** Popular → Trending
 - **Variant B (Test - trending-first):** Trending → Popular
 - **Success Metrics:**
-  - Click-through rate per section
+  - Click-through rate per section (home_section_click / home_section_impression)
   - Time to first video click
   - Overall engagement per variant
-  - Watch completion rates
+  - Watch completion rates per source section
+  - Average watch duration per source section
 
 ---
 
@@ -212,7 +214,10 @@ posthog.featureFlags.override({'FloatingHedgehog_Widget_Visibility_UXUI_Test': '
 posthog.featureFlags.override({'FloatingHedgehog_Widget_Visibility_UXUI_Test': 'hide_all'});
 
 // Override section priority to trending-first
-posthog.featureFlags.override({'section-priority-test': 'trending-first'});
+posthog.featureFlags.override({'Popular_vs_Trending_Priority_Algo_Test': 'trending-first'});
+
+// Override section priority to popular-first (control)
+posthog.featureFlags.override({'Popular_vs_Trending_Priority_Algo_Test': 'popular-first'});
 
 // Reset overrides
 posthog.featureFlags.override(false);

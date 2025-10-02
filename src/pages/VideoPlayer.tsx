@@ -100,11 +100,23 @@ const VideoPlayer = () => {
 
         // Track completion
         if (progressPercentage >= 95) {
+          const sourceSection = sessionStorage.getItem('video_source_section') || 'unknown';
+          
           posthog.capture('video:completed', {
             video_id: video.id,
             session_id: sessionId,
             profile_id: selectedProfile.id,
             total_duration: duration
+          });
+          
+          // Content complete event for A/B test tracking
+          posthog.capture('content_complete', {
+            content_id: video.id,
+            source_section: sourceSection,
+            completion_pct: Math.round(progressPercentage),
+            watch_seconds: Math.round(currentTime),
+            profile_id: selectedProfile.id,
+            session_id: sessionId
           });
         }
       }
@@ -185,6 +197,9 @@ const VideoPlayer = () => {
           console.log('📺 Resume message set for', resumeTime, 'seconds');
         }
 
+        // Get source section from session storage
+        const sourceSection = sessionStorage.getItem('video_source_section') || 'unknown';
+        
         // PostHog analytics
         posthog.capture('video:session_started', {
           video_id: videoId,
@@ -192,6 +207,14 @@ const VideoPlayer = () => {
           profile_id: selectedProfile?.id,
           session_id: sessionId,
           has_resume_point: !!(progressData && progressData.progress_seconds > 0)
+        });
+        
+        // Content start event for A/B test tracking
+        posthog.capture('content_start', {
+          content_id: videoId,
+          source_section: sourceSection,
+          profile_id: selectedProfile?.id,
+          session_id: sessionId
         });
 
       } catch (err) {
