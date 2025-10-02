@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
-import { GoogleGenAI } from 'https://esm.sh/@posthog/ai@0.1.0';
+import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.21.0';
 import { PostHog } from 'https://esm.sh/posthog-node@4.2.1';
 
 const corsHeaders = {
@@ -34,11 +34,8 @@ serve(async (req) => {
       { host: 'https://eu.i.posthog.com' }
     );
 
-    // Initialize Gemini with PostHog-wrapped client for automatic $ai_generation events
-    const genAI = new GoogleGenAI({
-      apiKey: GEMINI_API_KEY,
-      posthog: posthog
-    });
+    // Initialize Gemini (standard SDK for Deno compatibility)
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
     // Get conversation history
     const { data: messages } = await supabase
@@ -119,7 +116,10 @@ Always be helpful and engaging while focusing on the available content.`;
       parts: [{ text: message }]
     });
 
-    // Call Gemini API with PostHog-wrapped client (automatic $ai_generation events)
+    // Track LLM request start
+    const requestStartTime = Date.now();
+
+    // Call Gemini API
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     
     const result = await model.generateContent({
@@ -136,17 +136,42 @@ Always be helpful and engaging while focusing on the available content.`;
         topP: 0.95,
         maxOutputTokens: 1024,
       },
-      // PostHog enrichment for automatic $ai_generation events
-      posthogDistinctId: userId || 'anonymous',
-      posthogProperties: {
-        conversationId,
-        profileId,
-        messageLength: message.length,
-      },
     });
 
     const response = result.response;
     const assistantMessage = response.text() || 'Sorry, I could not generate a response.';
+    
+    // Calculate latency in seconds
+    const latencySeconds = (Date.now() - requestStartTime) / 1000;
+    const tokenUsage = response.usageMetadata || {};
+
+    // Manually capture $ai_generation event for PostHog LLM analytics
+    posthog.capture({
+      distinctId: userId || 'anonymous',
+      event: '$ai_generation',
+      properties: {
+        $ai_trace_id: conversationId,
+        $ai_model: 'gemini-1.5-flash',
+        $ai_provider: 'gemini',
+        $ai_input: conversationHistory.map(msg => ({
+          role: msg.role === 'model' ? 'assistant' : msg.role,
+          content: msg.parts.map(p => ({ type: 'text', text: p.text }))
+        })),
+        $ai_input_tokens: tokenUsage.promptTokenCount || 0,
+        $ai_output_choices: [{
+          role: 'assistant',
+          content: [{ type: 'text', text: assistantMessage }]
+        }],
+        $ai_output_tokens: tokenUsage.candidatesTokenCount || 0,
+        $ai_latency: latencySeconds,
+        $ai_temperature: 0.8,
+        $ai_max_tokens: 1024,
+        // Custom properties
+        conversationId,
+        profileId,
+        messageLength: message.length,
+      }
+    });
 
     // Save user message
     await supabase
