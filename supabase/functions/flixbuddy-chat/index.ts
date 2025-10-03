@@ -2,7 +2,6 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.21.0';
-import { PostHog } from 'https://esm.sh/posthog-node@4.2.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,24 +16,22 @@ serve(async (req) => {
 
   try {
     const { message, conversationId, userId, profileId } = await req.json();
+    console.log('FlixBuddy chat request:', { conversationId, userId, profileId, messageLength: message?.length });
     
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Missing environment variables');
       throw new Error('Missing required environment variables');
     }
 
+    console.log('Environment variables loaded successfully');
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Initialize PostHog for LLM analytics
-    const posthog = new PostHog(
-      'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
-      { host: 'https://eu.i.posthog.com' }
-    );
-
-    // Initialize Gemini (standard SDK for Deno compatibility)
+    // Initialize Gemini
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
     // Get conversation history
@@ -140,19 +137,27 @@ Always be helpful and engaging while focusing on the available content.`;
 
     const response = result.response;
     const assistantMessage = response.text() || 'Sorry, I could not generate a response.';
+    console.log('Gemini response received, length:', assistantMessage.length);
     
     // Calculate latency in seconds
     const latencySeconds = (Date.now() - requestStartTime) / 1000;
     const tokenUsage = response.usageMetadata || {};
 
-    // Manually capture $ai_generation event for PostHog LLM analytics
-    posthog.capture({
-      distinctId: userId || 'anonymous',
+    console.log('Token usage:', { 
+      promptTokens: tokenUsage.promptTokenCount, 
+      completionTokens: tokenUsage.candidatesTokenCount,
+      latency: latencySeconds 
+    });
+
+    // Send $ai_generation event to PostHog via HTTP API
+    const posthogEvent = {
+      api_key: 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
       event: '$ai_generation',
       properties: {
+        distinct_id: userId || 'anonymous',
         $ai_trace_id: conversationId,
         $ai_model: 'gemini-1.5-flash',
-        $ai_provider: 'gemini',
+        $ai_provider: 'google',
         $ai_input: conversationHistory.map(msg => ({
           role: msg.role === 'model' ? 'assistant' : msg.role,
           content: msg.parts.map(p => ({ type: 'text', text: p.text }))
@@ -171,6 +176,19 @@ Always be helpful and engaging while focusing on the available content.`;
         profileId,
         messageLength: message.length,
       }
+    };
+
+    console.log('Sending event to PostHog...');
+    
+    // Send to PostHog HTTP API (non-blocking)
+    fetch('https://eu.i.posthog.com/capture/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(posthogEvent)
+    }).then(res => {
+      console.log('PostHog event sent, status:', res.status);
+    }).catch(err => {
+      console.error('PostHog event failed:', err);
     });
 
     // Save user message
@@ -197,10 +215,7 @@ Always be helpful and engaging while focusing on the available content.`;
 
     console.log('Chat response generated successfully');
 
-    // Flush PostHog events
-    await posthog.shutdown();
-
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       message: assistantMessage,
       conversationId 
     }), {
