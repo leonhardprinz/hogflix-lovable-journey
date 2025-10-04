@@ -149,7 +149,15 @@ const FlixBuddy = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      if (!data || !data.message) {
+        console.error('Invalid response data:', data);
+        throw new Error('Invalid response from FlixBuddy');
+      }
 
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -172,9 +180,12 @@ const FlixBuddy = () => {
 
     } catch (error) {
       console.error('Error sending message:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Detailed error:', errorMessage);
+      
       toast({
-        title: "Error", 
-        description: "Failed to send message. Please try again.",
+        title: "FlixBuddy Error", 
+        description: `Failed to get response: ${errorMessage}. Please check the console for details.`,
         variant: "destructive",
       });
     } finally {

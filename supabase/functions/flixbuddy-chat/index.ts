@@ -117,8 +117,8 @@ Always be helpful and engaging while focusing on the available content.`;
     const requestStartTime = Date.now();
 
     // Call Gemini API
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
-    console.log('Using Gemini model: gemini-1.5-flash-latest');
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    console.log('Using Gemini model: gemini-1.5-flash');
     
     const result = await model.generateContent({
       contents: [
@@ -157,7 +157,7 @@ Always be helpful and engaging while focusing on the available content.`;
       properties: {
         distinct_id: userId || 'anonymous',
         $ai_trace_id: conversationId,
-        $ai_model: 'gemini-1.5-flash-latest',
+        $ai_model: 'gemini-1.5-flash',
         $ai_provider: 'google',
         $ai_input: conversationHistory.map(msg => ({
           role: msg.role === 'model' ? 'assistant' : msg.role,
