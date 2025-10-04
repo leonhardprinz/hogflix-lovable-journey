@@ -1,7 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
-import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.21.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,9 +30,6 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Initialize Gemini
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
     // Get conversation history
     const { data: messages } = await supabase
       .from('chat_messages')
@@ -59,12 +55,6 @@ serve(async (req) => {
       .select('video_id, rating')
       .eq('user_id', userId)
       .eq('profile_id', profileId);
-
-    // Build conversation context
-    const conversationHistory = messages?.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    })) || [];
 
     // Create system prompt with video context
     const videoContext = videos?.map(v => 
@@ -107,42 +97,66 @@ Would you like more details about any of these, or should I look for something d
 
 Always be helpful and engaging while focusing on the available content.`;
 
-    // Add current user message
-    conversationHistory.push({
-      role: 'user',
-      parts: [{ text: message }]
-    });
+    // Build conversation history for REST API format
+    const conversationHistory = messages?.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    })) || [];
+
+    // Add system prompt as first user message
+    const contents = [
+      {
+        role: 'user',
+        parts: [{ text: systemPrompt }]
+      },
+      ...conversationHistory,
+      {
+        role: 'user',
+        parts: [{ text: message }]
+      }
+    ];
 
     // Track LLM request start
     const requestStartTime = Date.now();
 
-    // Call Gemini API
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    console.log('Using Gemini model: gemini-1.5-flash');
+    // Call Gemini REST API directly
+    console.log('Calling Gemini API with model: gemini-1.5-flash');
     
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: systemPrompt }]
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        ...conversationHistory
-      ],
-      generationConfig: {
-        temperature: 0.8,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024,
-      },
-    });
+        body: JSON.stringify({
+          contents: contents,
+          generationConfig: {
+            temperature: 0.8,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          },
+        }),
+      }
+    );
 
-    const response = result.response;
-    const assistantMessage = response.text() || 'Sorry, I could not generate a response.';
-    console.log('Gemini response received, length:', assistantMessage.length);
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error('Gemini API error:', geminiResponse.status, errorText);
+      throw new Error(`Gemini API error: ${geminiResponse.status} - ${errorText}`);
+    }
+
+    const geminiData = await geminiResponse.json();
+    console.log('Gemini API response received');
+
+    // Parse response
+    const assistantMessage = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
+    console.log('Assistant message length:', assistantMessage.length);
     
     // Calculate latency in seconds
     const latencySeconds = (Date.now() - requestStartTime) / 1000;
-    const tokenUsage = response.usageMetadata || {};
+    const tokenUsage = geminiData.usageMetadata || {};
 
     console.log('Token usage:', { 
       promptTokens: tokenUsage.promptTokenCount, 
@@ -159,8 +173,8 @@ Always be helpful and engaging while focusing on the available content.`;
         $ai_trace_id: conversationId,
         $ai_model: 'gemini-1.5-flash',
         $ai_provider: 'google',
-        $ai_input: conversationHistory.map(msg => ({
-          role: msg.role === 'model' ? 'assistant' : msg.role,
+        $ai_input: contents.map(msg => ({
+          role: msg.role === 'model' ? 'assistant' : 'user',
           content: msg.parts.map(p => ({ type: 'text', text: p.text }))
         })),
         $ai_input_tokens: tokenUsage.promptTokenCount || 0,
