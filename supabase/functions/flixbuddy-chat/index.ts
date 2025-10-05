@@ -103,18 +103,39 @@ Always be helpful and engaging while focusing on the available content.`;
       parts: [{ text: msg.content }]
     })) || [];
 
-    // Add system prompt as first user message
-    const contents = [
-      {
-        role: 'user',
-        parts: [{ text: systemPrompt }]
-      },
-      ...conversationHistory,
-      {
-        role: 'user',
-        parts: [{ text: message }]
-      }
-    ];
+    // Structure contents based on conversation state
+    let contents;
+    
+    if (conversationHistory.length === 0) {
+      // First message: combine system prompt with user message to avoid consecutive user roles
+      console.log('First message - combining system prompt with user message');
+      contents = [
+        {
+          role: 'user',
+          parts: [{ text: `${systemPrompt}\n\nUser: ${message}` }]
+        }
+      ];
+    } else {
+      // Subsequent messages: use existing history + new message (history already has proper alternation)
+      console.log('Continuing conversation - using history');
+      contents = [
+        ...conversationHistory,
+        {
+          role: 'user',
+          parts: [{ text: message }]
+        }
+      ];
+    }
+
+    // Log contents structure for debugging
+    console.log('Contents structure:', JSON.stringify(
+      contents.map(c => ({ 
+        role: c.role, 
+        textLength: c.parts[0].text.length 
+      })), 
+      null, 
+      2
+    ));
 
     // Track LLM request start
     const requestStartTime = Date.now();
