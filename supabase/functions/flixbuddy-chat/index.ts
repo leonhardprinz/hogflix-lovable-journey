@@ -97,60 +97,37 @@ Would you like more details about any of these, or should I look for something d
 
 Always be helpful and engaging while focusing on the available content.`;
 
-    // Build conversation history for REST API format
+    // Build conversation history for Gemini API format
     const conversationHistory = messages?.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }]
     })) || [];
 
-    // Structure contents based on conversation state
-    let contents;
-    
-    if (conversationHistory.length === 0) {
-      // First message: combine system prompt with user message to avoid consecutive user roles
-      console.log('First message - combining system prompt with user message');
-      contents = [
-        {
-          role: 'user',
-          parts: [{ text: `${systemPrompt}\n\nUser: ${message}` }]
-        }
-      ];
-    } else {
-      // Subsequent messages: use existing history + new message (history already has proper alternation)
-      console.log('Continuing conversation - using history');
-      contents = [
-        ...conversationHistory,
-        {
-          role: 'user',
-          parts: [{ text: message }]
-        }
-      ];
-    }
+    // Add the new user message to the conversation
+    const contents = [
+      ...conversationHistory,
+      {
+        role: 'user',
+        parts: [{ text: message }]
+      }
+    ];
 
-    // Log contents structure for debugging
-    console.log('Contents structure:', JSON.stringify(
-      contents.map(c => ({ 
-        role: c.role, 
-        textLength: c.parts[0].text.length 
-      })), 
-      null, 
-      2
-    ));
+    console.log('Conversation length:', contents.length);
 
-    // Track LLM request start
-    const requestStartTime = Date.now();
-
-    // Call Gemini REST API directly
+    // Call Gemini API with system_instruction parameter
     console.log('Calling Gemini API with model: gemini-1.5-flash');
     
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: systemPrompt }]
+          },
           contents: contents,
           generationConfig: {
             temperature: 0.8,
@@ -173,59 +150,7 @@ Always be helpful and engaging while focusing on the available content.`;
 
     // Parse response
     const assistantMessage = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
-    console.log('Assistant message length:', assistantMessage.length);
-    
-    // Calculate latency in seconds
-    const latencySeconds = (Date.now() - requestStartTime) / 1000;
-    const tokenUsage = geminiData.usageMetadata || {};
-
-    console.log('Token usage:', { 
-      promptTokens: tokenUsage.promptTokenCount, 
-      completionTokens: tokenUsage.candidatesTokenCount,
-      latency: latencySeconds 
-    });
-
-    // Send $ai_generation event to PostHog via HTTP API
-    const posthogEvent = {
-      api_key: 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
-      event: '$ai_generation',
-      properties: {
-        distinct_id: userId || 'anonymous',
-        $ai_trace_id: conversationId,
-        $ai_model: 'gemini-1.5-flash',
-        $ai_provider: 'google',
-        $ai_input: contents.map(msg => ({
-          role: msg.role === 'model' ? 'assistant' : 'user',
-          content: msg.parts.map(p => ({ type: 'text', text: p.text }))
-        })),
-        $ai_input_tokens: tokenUsage.promptTokenCount || 0,
-        $ai_output_choices: [{
-          role: 'assistant',
-          content: [{ type: 'text', text: assistantMessage }]
-        }],
-        $ai_output_tokens: tokenUsage.candidatesTokenCount || 0,
-        $ai_latency: latencySeconds,
-        $ai_temperature: 0.8,
-        $ai_max_tokens: 1024,
-        // Custom properties
-        conversationId,
-        profileId,
-        messageLength: message.length,
-      }
-    };
-
-    console.log('Sending event to PostHog...');
-    
-    // Send to PostHog HTTP API (non-blocking)
-    fetch('https://eu.i.posthog.com/capture/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(posthogEvent)
-    }).then(res => {
-      console.log('PostHog event sent, status:', res.status);
-    }).catch(err => {
-      console.error('PostHog event failed:', err);
-    });
+    console.log('Assistant message generated successfully, length:', assistantMessage.length);
 
     // Save user message
     await supabase
