@@ -112,6 +112,9 @@ FlixBuddy:`;
 
     console.log('Calling Gemini API with single prompt structure');
     
+    // Track timing for analytics
+    const startTime = Date.now();
+    
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
       {
@@ -142,11 +145,21 @@ FlixBuddy:`;
     }
 
     const geminiData = await geminiResponse.json();
-    console.log('Gemini API response received');
+    const latency = Date.now() - startTime;
+    console.log('Gemini API response received, latency:', latency, 'ms');
 
     // Parse response
     const assistantMessage = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
     console.log('Assistant message generated successfully, length:', assistantMessage.length);
+
+    // Extract token usage for analytics
+    const usageMetadata = geminiData.usageMetadata || {};
+    const tokenUsage = {
+      input: usageMetadata.promptTokenCount || 0,
+      output: usageMetadata.candidatesTokenCount || 0,
+      total: usageMetadata.totalTokenCount || 0
+    };
+    console.log('Token usage:', tokenUsage);
 
     // Save user message
     await supabase
@@ -174,7 +187,12 @@ FlixBuddy:`;
 
     return new Response(JSON.stringify({
       message: assistantMessage,
-      conversationId 
+      conversationId,
+      metadata: {
+        tokens: tokenUsage,
+        latency,
+        model: 'gemini-2.0-flash-exp'
+      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

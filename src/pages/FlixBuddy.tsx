@@ -133,12 +133,17 @@ const FlixBuddy = () => {
     setIsLoading(true);
 
     try {
-      // Track message sent
-      posthog.capture('flixbuddy:message_sent', {
-        conversation_id: conversationId,
-        message_length: message.length,
-        profile_id: selectedProfile.id
-      });
+      // Track LLM generation start (PostHog LLM Analytics)
+      try {
+        posthog.capture('$ai_generation', {
+          $ai_model: 'gemini-2.0-flash-exp',
+          $ai_input: message,
+          $ai_conversation_id: conversationId,
+          profile_id: selectedProfile.id
+        });
+      } catch (e) {
+        console.error('PostHog tracking error:', e);
+      }
 
       const { data, error } = await supabase.functions.invoke('flixbuddy-chat', {
         body: {
@@ -171,12 +176,21 @@ const FlixBuddy = () => {
       // Extract and update recommended videos from response
       await updateRecommendedVideos(data.message);
 
-      // Track assistant response
-      posthog.capture('flixbuddy:response_received', {
-        conversation_id: conversationId,
-        response_length: data.message.length,
-        profile_id: selectedProfile.id
-      });
+      // Track LLM generation complete (PostHog LLM Analytics)
+      try {
+        posthog.capture('$ai_generation_complete', {
+          $ai_model: 'gemini-2.0-flash-exp',
+          $ai_output: data.message,
+          $ai_input_tokens: data.metadata?.tokens?.input || 0,
+          $ai_output_tokens: data.metadata?.tokens?.output || 0,
+          $ai_total_tokens: data.metadata?.tokens?.total || 0,
+          $ai_latency: data.metadata?.latency || 0,
+          $ai_conversation_id: conversationId,
+          profile_id: selectedProfile.id
+        });
+      } catch (e) {
+        console.error('PostHog tracking error:', e);
+      }
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -208,6 +222,19 @@ const FlixBuddy = () => {
       ).slice(0, 6);
 
       setRecommendedVideos(mentionedVideos);
+
+      // Track AI recommendations (PostHog LLM Analytics)
+      if (mentionedVideos.length > 0) {
+        try {
+          posthog.capture('$ai_recommendation', {
+            $ai_recommended_videos: mentionedVideos.map(v => v.id),
+            $ai_recommendation_count: mentionedVideos.length,
+            $ai_conversation_id: conversationId
+          });
+        } catch (e) {
+          console.error('PostHog tracking error:', e);
+        }
+      }
     } catch (error) {
       console.error('Error updating recommended videos:', error);
     }
