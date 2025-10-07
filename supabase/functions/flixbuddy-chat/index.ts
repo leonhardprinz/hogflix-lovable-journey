@@ -67,7 +67,13 @@ serve(async (req) => {
       return acc;
     }, {} as Record<string, number>) || {};
 
-    const systemPrompt = `You are FlixBuddy, the AI assistant for HogFlix streaming service. Your role is to help users discover movies and series that match their preferences.
+    // Build conversation history as formatted text
+    const conversationText = messages?.map(msg => 
+      `${msg.role === 'user' ? 'User' : 'FlixBuddy'}: ${msg.content}`
+    ).join('\n\n') || '';
+
+    // Build a single prompt string with everything
+    const fullPrompt = `You are FlixBuddy, the AI assistant for HogFlix streaming service. Your role is to help users discover movies and series that match their preferences.
 
 AVAILABLE CONTENT:
 ${videoContext}
@@ -95,42 +101,32 @@ When recommending content, structure your response like this:
 
 Would you like more details about any of these, or should I look for something different?"
 
-Always be helpful and engaging while focusing on the available content.`;
+Always be helpful and engaging while focusing on the available content.
 
-    // Build conversation history for Gemini API format
-    const conversationHistory = messages?.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    })) || [];
+CONVERSATION HISTORY:
+${conversationText}
 
-    // Add the new user message to the conversation
-    const contents = [
-      ...conversationHistory,
-      {
-        role: 'user',
-        parts: [{ text: message }]
-      }
-    ];
+User: ${message}
 
-    console.log('Conversation length:', contents.length);
+FlixBuddy:`;
 
-    // Call Gemini API with system_instruction parameter
-    console.log('Calling Gemini API with model: gemini-1.5-flash');
+    console.log('Calling Gemini API with single prompt structure');
     
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: systemPrompt }]
-          },
-          contents: contents,
+          contents: [{
+            parts: [{
+              text: fullPrompt
+            }]
+          }],
           generationConfig: {
-            temperature: 0.8,
+            temperature: 0.7,
             topK: 40,
             topP: 0.95,
             maxOutputTokens: 1024,
