@@ -91,6 +91,18 @@ const FlixBuddy = () => {
           profile_id: selectedProfile.id
         });
 
+        // Track AI trace for new conversation (PostHog LLM Analytics)
+        try {
+          posthog.capture('$ai_trace', {
+            $ai_trace_id: conversation.id,
+            $ai_provider: 'google',
+            $ai_model: 'gemini-2.0-flash-exp',
+            profile_id: selectedProfile.id
+          });
+        } catch (e) {
+          console.error('PostHog tracking error:', e);
+        }
+
         // If there's an initial query, send it automatically
         if (initialQuery) {
           await sendMessage(initialQuery);
@@ -136,9 +148,11 @@ const FlixBuddy = () => {
       // Track LLM generation start (PostHog LLM Analytics)
       try {
         posthog.capture('$ai_generation', {
+          $ai_provider: 'google',
           $ai_model: 'gemini-2.0-flash-exp',
           $ai_input: message,
           $ai_conversation_id: conversationId,
+          $ai_trace_id: conversationId,
           profile_id: selectedProfile.id
         });
       } catch (e) {
@@ -179,13 +193,16 @@ const FlixBuddy = () => {
       // Track LLM generation complete (PostHog LLM Analytics)
       try {
         posthog.capture('$ai_generation_complete', {
+          $ai_provider: 'google',
           $ai_model: 'gemini-2.0-flash-exp',
           $ai_output: data.message,
           $ai_input_tokens: data.metadata?.tokens?.input || 0,
           $ai_output_tokens: data.metadata?.tokens?.output || 0,
           $ai_total_tokens: data.metadata?.tokens?.total || 0,
+          $ai_cost: data.metadata?.cost || 0,
           $ai_latency: data.metadata?.latency || 0,
           $ai_conversation_id: conversationId,
+          $ai_trace_id: conversationId,
           profile_id: selectedProfile.id
         });
       } catch (e) {
@@ -196,6 +213,20 @@ const FlixBuddy = () => {
       console.error('Error sending message:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Detailed error:', errorMessage);
+      
+      // Track LLM generation error (PostHog LLM Analytics)
+      try {
+        posthog.capture('$ai_generation_error', {
+          $ai_error: errorMessage,
+          $ai_provider: 'google',
+          $ai_model: 'gemini-2.0-flash-exp',
+          $ai_conversation_id: conversationId,
+          $ai_trace_id: conversationId,
+          profile_id: selectedProfile.id
+        });
+      } catch (e) {
+        console.error('PostHog tracking error:', e);
+      }
       
       toast({
         title: "FlixBuddy Error", 
