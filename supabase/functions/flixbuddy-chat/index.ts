@@ -161,8 +161,10 @@ FlixBuddy:`;
     };
     console.log('Token usage:', tokenUsage);
 
-    // Calculate cost (Gemini 2.0 Flash pricing: $0.075 per 1M input, $0.30 per 1M output)
-    const cost = (tokenUsage.input / 1_000_000) * 0.075 + (tokenUsage.output / 1_000_000) * 0.30;
+    // Calculate cost breakdown (Gemini 2.0 Flash pricing: $0.075 per 1M input, $0.30 per 1M output)
+    const inputCost = (tokenUsage.input / 1_000_000) * 0.075;
+    const outputCost = (tokenUsage.output / 1_000_000) * 0.30;
+    const totalCost = inputCost + outputCost;
 
     // Save user message
     await supabase
@@ -194,7 +196,11 @@ FlixBuddy:`;
       metadata: {
         tokens: tokenUsage,
         latency,
-        cost,
+        cost: {
+          input: inputCost,
+          output: outputCost,
+          total: totalCost
+        },
         model: 'gemini-2.0-flash-exp'
       }
     }), {
