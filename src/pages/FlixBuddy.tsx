@@ -145,20 +145,6 @@ const FlixBuddy = () => {
     setIsLoading(true);
 
     try {
-      // Track LLM generation start (PostHog LLM Analytics)
-      try {
-        posthog.capture('$ai_generation', {
-          $ai_provider: 'google',
-          $ai_model: 'gemini-2.0-flash-exp',
-          $ai_input: message,
-          $ai_conversation_id: conversationId,
-          $ai_trace_id: conversationId,
-          profile_id: selectedProfile.id
-        });
-      } catch (e) {
-        console.error('PostHog tracking error:', e);
-      }
-
       const { data, error } = await supabase.functions.invoke('flixbuddy-chat', {
         body: {
           message,
@@ -189,6 +175,28 @@ const FlixBuddy = () => {
 
       // Extract and update recommended videos from response
       await updateRecommendedVideos(data.message);
+
+      // Track LLM generation (PostHog LLM Analytics) - with cost data
+      try {
+        posthog.capture('$ai_generation', {
+          $ai_provider: 'google',
+          $ai_model: 'gemini-2.0-flash-exp',
+          $ai_input: message,
+          $ai_output: data.message,
+          $ai_input_tokens: data.metadata?.tokens?.input || 0,
+          $ai_output_tokens: data.metadata?.tokens?.output || 0,
+          $ai_total_tokens: data.metadata?.tokens?.total || 0,
+          $ai_input_cost_usd: data.metadata?.cost?.input || 0,
+          $ai_output_cost_usd: data.metadata?.cost?.output || 0,
+          $ai_total_cost_usd: data.metadata?.cost?.total || 0,
+          $ai_latency: data.metadata?.latency || 0,
+          $ai_conversation_id: conversationId,
+          $ai_trace_id: conversationId,
+          profile_id: selectedProfile.id
+        });
+      } catch (e) {
+        console.error('PostHog tracking error:', e);
+      }
 
       // Track LLM generation complete (PostHog LLM Analytics)
       try {
