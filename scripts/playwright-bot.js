@@ -1,5 +1,11 @@
+// scripts/playwright-bot.js
+// ESM. Drives real sessions to produce autocapture + session replays.
+// Env: RUNS=2 (how many separate browsing sessions to run in this job)
+
 import { chromium, devices } from 'playwright'
 import { randomUUID } from 'crypto'
+
+const RUNS = Number(process.env.RUNS || 2)
 
 const personas = [
   { persona: 'binge_watcher', device: devices['Desktop Chrome'] },
@@ -34,26 +40,24 @@ async function runOnce() {
   // Land with UTM params
   await page.goto(`https://hogflix-demo.lovable.app/?utm_source=${u.utm_source}&utm_medium=${u.utm_medium}&utm_campaign=${u.utm_campaign}`, { waitUntil: 'domcontentloaded' })
 
-  // Identify + person properties in browser (so recordings carry them)
+  // Identify & set props in the browser so replays carry them
   await page.evaluate(
     ({ id, persona, company, u }) => {
-      const setProps = () => {
+      function setProps() {
         const ph = window.posthog
         if (!ph) return
-        try {
-          ph.identify(id, {
-            persona,
-            device_type: /iPhone|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
-            company_id: company.id,
-            company_name: company.name,
-            company_plan: company.plan, // Basic | Standard | Premium
-            utm_source: u.utm_source,
-            utm_medium: u.utm_medium,
-            utm_campaign: u.utm_campaign,
-            source: 'hogflix-bot',
-            is_synthetic: true,
-          })
-        } catch {}
+        ph.identify(id, {
+          persona,
+          device_type: /iPhone|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
+          company_id: company.id,
+          company_name: company.name,
+          company_plan: company.plan, // Basic | Standard | Premium
+          utm_source: u.utm_source,
+          utm_medium: u.utm_medium,
+          utm_campaign: u.utm_campaign,
+          source: 'hogflix-bot',
+          is_synthetic: true,
+        })
       }
       if (document.readyState === 'complete') setProps()
       else window.addEventListener('load', setProps)
@@ -61,7 +65,7 @@ async function runOnce() {
     { id: distinctId, persona: p.persona, company: c, u }
   )
 
-  // Browse around
+  // Browse
   await page.waitForTimeout(800 + Math.random()*800)
   await page.getByRole('link', { name: /Popular/i }).click().catch(()=>{})
   await page.waitForTimeout(600 + Math.random()*600)
@@ -88,4 +92,8 @@ async function runOnce() {
   await browser.close()
 }
 
-runOnce().catch((e)=>{ console.error(e); process.exit(1) })
+;(async () => {
+  for (let i=0; i<RUNS; i++) {
+    await runOnce()
+  }
+})().catch(e => { console.error(e); process.exit(1) })
