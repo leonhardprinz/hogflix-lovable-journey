@@ -2,7 +2,7 @@ name: HogFlix Synthetic Engagement
 
 on:
   schedule:
-    - cron: "*/30 7-20 * * 1-5"  # every 30m, weekdays (UTC)
+    - cron: "*/30 7-20 * * 1-5"   # every 30m, 07:00–20:59 UTC, weekdays
   workflow_dispatch:
 
 jobs:
@@ -14,12 +14,16 @@ jobs:
         with:
           node-version: 20
       - run: npm i posthog-node @faker-js/faker
-      - name: Run synthetic event generator
+      - name: Run synthetic event generator (LIVE)
         run: node scripts/synthetic-traffic.js
         env:
           PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.PH_HOST }}
-          SESSIONS: 24
+          BASE_SESSIONS: 28
+          WEEKLY_GROWTH_PCT: 2
+          WEEKEND_DAMPEN: 0.65
+          EOM_DROOP_PCT: 15
+          NOISE_PCT: 25
 
   browser_flows:
     runs-on: ubuntu-latest
@@ -32,3 +36,5 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Run Playwright bot (real sessions)
         run: node scripts/playwright-bot.js
+        env:
+          RUNS: 2
