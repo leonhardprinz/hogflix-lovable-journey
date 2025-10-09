@@ -1,4 +1,5 @@
-const { chromium, devices } = require('playwright')
+import { chromium, devices } from 'playwright'
+
 const personas = [devices['Desktop Chrome'], devices['iPhone 13']]
 
 async function runOnce() {
@@ -10,13 +11,19 @@ async function runOnce() {
   await page.goto('https://hogflix-demo.lovable.app/', { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(800 + Math.random() * 800)
 
+  // Try nav links by accessible name
   await page.getByRole('link', { name: /Popular/i }).click().catch(() => {})
   await page.waitForTimeout(600 + Math.random() * 600)
 
-  const candidateSelectors = [
-    '[data-test*="title"]','[data-test*="card"]','a[href*="/title"]','.card a','a:has-text("Play")',
+  // Click a few candidate "cards"
+  const sels = [
+    '[data-test*="title"]',
+    '[data-test*="card"]',
+    'a[href*="/title"]',
+    '.card a',
+    'a:has-text("Play")',
   ]
-  for (const sel of candidateSelectors) {
+  for (const sel of sels) {
     const count = await page.locator(sel).count()
     if (count > 0) {
       for (let i = 0; i < Math.min(3, count); i++) {
