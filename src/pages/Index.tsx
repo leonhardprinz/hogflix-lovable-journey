@@ -68,11 +68,16 @@ const Index = () => {
               Ready to explore? Create your account and dive into our unique streaming experience.
             </p>
             
-            {/* CTA Button */}
-            <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '0.8s' : '0' }}>
-              <Link to="/signup">
+            {/* CTA Buttons */}
+            <div className={`flex flex-col sm:flex-row gap-4 justify-center ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.8s' : '0' }}>
+              <Link to="/pricing">
                 <Button className="btn-primary text-lg sm:text-xl px-8 sm:px-12 py-3 sm:py-4 text-white hover:bg-primary-red/90 transition-colors">
-                  Sign Up Now
+                  View Pricing
+                </Button>
+              </Link>
+              <Link to="/signup">
+                <Button variant="outline" className="text-lg sm:text-xl px-8 sm:px-12 py-3 sm:py-4 border-2 border-text-secondary text-text-primary hover:border-primary-red hover:text-primary-red transition-colors">
+                  Sign Up Free
                 </Button>
               </Link>
             </div>

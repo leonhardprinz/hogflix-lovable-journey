@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, CheckCircle, Mail, Lock, ArrowRight, UserPlus } from 'lucide-react';
 
 const Signup = () => {
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,6 +18,7 @@ const Signup = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [step, setStep] = useState('form'); // 'form', 'processing', 'success', 'verify'
+  const [selectedPlan] = useState(searchParams.get('plan') || 'basic');
   
   const navigate = useNavigate();
   const posthog = usePostHog();
@@ -55,7 +58,10 @@ const Signup = () => {
 
       // Capture signup event
       if (data.user) {
-        posthog.capture('user:signed_up', { signup_method: 'email' });
+        posthog.capture('user:signed_up', { 
+          signup_method: 'email',
+          selected_plan: selectedPlan
+        });
       }
 
       if (data.session?.user) {
@@ -69,11 +75,16 @@ const Signup = () => {
         
         toast({
           title: "Account created successfully!",
-          description: "Welcome to HogFlix! Redirecting to your profiles...",
+          description: "Welcome to HogFlix! Redirecting...",
         });
         
         setTimeout(() => {
-          navigate('/profiles');
+          // Redirect based on plan
+          if (selectedPlan === 'basic') {
+            navigate('/profiles');
+          } else {
+            navigate(`/checkout?plan=${selectedPlan}`);
+          }
         }, 2000);
       } else {
         setStep('verify');
@@ -115,11 +126,16 @@ const Signup = () => {
              step === 'verify' ? 'Check Your Email' : 
              'Join HogFlix'}
           </h2>
-          <p className="text-text-secondary">
+          <p className="text-text-secondary mb-3">
             {step === 'success' ? 'Your account has been created successfully' :
              step === 'verify' ? 'We sent you a confirmation link' :
              'Create your secure account to start streaming'}
           </p>
+          {selectedPlan && step !== 'success' && step !== 'verify' && (
+            <Badge variant="outline" className="mt-2">
+              Selected: {selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)} Plan
+            </Badge>
+          )}
         </div>
 
         <div className="bg-background-dark/60 backdrop-blur-sm border border-gray-800/50 rounded-xl p-8 shadow-2xl">

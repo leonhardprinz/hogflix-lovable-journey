@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Footer from "@/components/Footer";
 import Index from "./pages/Index";
@@ -20,6 +21,8 @@ import Admin from "./pages/Admin";
 import SubmitContent from "./pages/SubmitContent";
 import FlixBuddy from "./pages/FlixBuddy";
 import NotFound from "./pages/NotFound";
+import Pricing from "./pages/Pricing";
+import Checkout from "./pages/Checkout";
 import FloatingHedgehog from "./components/FloatingHedgehog";
 
 const queryClient = new QueryClient();
@@ -33,6 +36,7 @@ const AppContent = () => {
       <div className="flex-1">
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/profiles" element={
@@ -48,6 +52,11 @@ const AppContent = () => {
           <Route path="/my-list" element={
             <ProtectedRoute>
               <MyList />
+            </ProtectedRoute>
+          } />
+          <Route path="/checkout" element={
+            <ProtectedRoute>
+              <Checkout />
             </ProtectedRoute>
           } />
           <Route path="/watch/:videoId" element={
@@ -87,11 +96,13 @@ const App = () => (
       <AuthProvider>
         <ProfileProvider>
           <WatchlistProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppContent />
-            </BrowserRouter>
+            <SubscriptionProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <AppContent />
+              </BrowserRouter>
+            </SubscriptionProvider>
           </WatchlistProvider>
         </ProfileProvider>
       </AuthProvider>

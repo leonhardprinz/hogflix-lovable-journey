@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Button } from '@/components/ui/button';
-import { User, Plus, Edit3 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { User, Plus, Edit3, Loader2 } from 'lucide-react';
 import NewProfileModal from '@/components/NewProfileModal';
 import EditProfileModal from '@/components/EditProfileModal';
 
@@ -27,6 +29,7 @@ const Profiles = () => {
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { setSelectedProfile } = useProfile();
+  const { subscription, loading: subLoading } = useSubscription();
 
   const fetchProfiles = async (userId: string) => {
     try {
@@ -103,10 +106,13 @@ const Profiles = () => {
     }
   };
 
-  if (loading) {
+  if (loading || subLoading) {
     return (
       <div className="min-h-screen bg-background-dark flex items-center justify-center">
-        <div className="text-text-primary">Loading profiles...</div>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary-red" />
+          <p className="text-text-secondary">Loading profiles...</p>
+        </div>
       </div>
     );
   }
@@ -118,9 +124,14 @@ const Profiles = () => {
           <h1 className="text-5xl font-bold text-text-primary mb-4 font-manrope">
             Who's Watching?
           </h1>
-          <p className="text-text-secondary font-manrope">
+          <p className="text-text-secondary font-manrope mb-3">
             Select your profile to continue
           </p>
+          {subscription && (
+            <Badge variant="outline" className="text-base">
+              {subscription.plan_display_name} Plan
+            </Badge>
+          )}
         </div>
 
         <div className="flex flex-wrap justify-center gap-8 max-w-4xl mx-auto">

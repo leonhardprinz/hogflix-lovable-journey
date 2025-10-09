@@ -162,6 +162,45 @@ export type Database = {
           },
         ]
       }
+      subscription_plans: {
+        Row: {
+          created_at: string
+          display_name: string
+          features: Json
+          id: string
+          is_default: boolean
+          max_profiles: number
+          name: string
+          price_monthly: number
+          updated_at: string
+          video_quality: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          features?: Json
+          id?: string
+          is_default?: boolean
+          max_profiles?: number
+          name: string
+          price_monthly?: number
+          updated_at?: string
+          video_quality?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          features?: Json
+          id?: string
+          is_default?: boolean
+          max_profiles?: number
+          name?: string
+          price_monthly?: number
+          updated_at?: string
+          video_quality?: string
+        }
+        Relationships: []
+      }
       subtitles: {
         Row: {
           created_at: string
@@ -259,6 +298,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          payment_intent: string | null
+          plan_id: string
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          payment_intent?: string | null
+          plan_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          payment_intent?: string | null
+          plan_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_watchlist: {
         Row: {
@@ -541,6 +624,22 @@ export type Database = {
       get_user_role: {
         Args: { _user_id?: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      get_user_subscription: {
+        Args: { _user_id?: string }
+        Returns: {
+          expires_at: string
+          features: Json
+          max_profiles: number
+          plan_display_name: string
+          plan_id: string
+          plan_name: string
+          price_monthly: number
+          started_at: string
+          status: string
+          subscription_id: string
+          video_quality: string
+        }[]
       }
       get_user_video_rating: {
         Args: { profile_id_param: string; video_id_param: string }
