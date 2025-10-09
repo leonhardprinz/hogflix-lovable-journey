@@ -1,0 +1,23 @@
+name: HogFlix Backfill (one-time)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm i posthog-node @faker-js/faker
+      - name: Run server backfill
+        run: node scripts/synthetic-traffic.js
+        env:
+          PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          PH_HOST: ${{ secrets.PH_HOST }}
+          BACKFILL_WEEKS: 8         # <- change as you like
+          USERS_PER_WEEK: 40
+          WEEKLY_GROWTH_PCT: 3
+          RETURN_RATE: 0.45
