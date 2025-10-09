@@ -74,7 +74,12 @@ const Pricing = () => {
   ];
 
   const handlePlanSelect = async (planName: string) => {
-    posthog?.capture('pricing:plan_selected', { plan: planName });
+    // Find the plan to get the display name
+    const plan = plans.find(p => p.name === planName);
+    const displayName = plan?.displayName || planName;
+    
+    posthog?.capture('plan_selected', { plan: displayName });
+    posthog?.setPersonProperties({ company_plan: displayName });
     
     // If not logged in, go to signup
     if (!user) {
