@@ -1,14 +1,20 @@
-import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Header from '@/components/Header';
 import { usePostHog } from 'posthog-js/react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const Pricing = () => {
   const posthog = usePostHog();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     document.title = "Pricing – HogFlix";
@@ -67,8 +73,54 @@ const Pricing = () => {
     }
   ];
 
-  const handlePlanSelect = (planName: string) => {
+  const handlePlanSelect = async (planName: string) => {
     posthog?.capture('pricing:plan_selected', { plan: planName });
+    
+    // If not logged in, go to signup
+    if (!user) {
+      navigate(`/signup?plan=${planName}`);
+      return;
+    }
+
+    // If logged in and selecting Basic plan, auto-assign it
+    if (planName === 'basic') {
+      setLoading(true);
+      try {
+        // Fetch the Basic plan ID
+        const { data: planData, error: planError } = await supabase
+          .from('subscription_plans')
+          .select('id')
+          .eq('name', 'basic')
+          .single();
+
+        if (planError) throw planError;
+
+        // Create or update user subscription
+        const { error: subError } = await supabase
+          .from('user_subscriptions')
+          .upsert({
+            user_id: user.id,
+            plan_id: planData.id,
+            status: 'active'
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (subError) throw subError;
+
+        toast.success('Basic plan activated!');
+        navigate('/profiles');
+      } catch (error) {
+        console.error('Error activating Basic plan:', error);
+        toast.error('Failed to activate plan. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // If logged in and selecting paid plan, go to checkout
+    navigate(`/checkout?plan=${planName}`);
   };
 
   return (
@@ -122,16 +174,15 @@ const Pricing = () => {
                 ))}
               </ul>
 
-              <Link to={`/signup?plan=${plan.name}`} className="w-full">
-                <Button
-                  className="w-full"
-                  variant={plan.popular ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => handlePlanSelect(plan.name)}
-                >
-                  {plan.cta}
-                </Button>
-              </Link>
+              <Button
+                className="w-full"
+                variant={plan.popular ? 'default' : 'outline'}
+                size="lg"
+                onClick={() => handlePlanSelect(plan.name)}
+                disabled={loading}
+              >
+                {loading ? 'Processing...' : plan.cta}
+              </Button>
             </Card>
           ))}
         </div>
