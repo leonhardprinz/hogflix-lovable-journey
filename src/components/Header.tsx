@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useHybridSearch } from '@/hooks/useHybridSearch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,9 +17,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { User, ChevronDown, LogOut, Search, Play, Info } from 'lucide-react';
+import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
 const Header = () => {
@@ -63,6 +65,7 @@ const Header = () => {
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { selectedProfile } = useProfile();
+  const { subscription, isFreePlan } = useSubscription();
 
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -205,6 +208,20 @@ const Header = () => {
                         Admin Panel
                       </Link>
                     )}
+                    
+                    {/* Upgrade button for Basic plan users */}
+                    {isFreePlan && (
+                      <Link to="/pricing">
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          className="bg-gradient-to-r from-primary-red to-red-600 hover:from-primary-red/90 hover:to-red-600/90 text-white font-semibold"
+                        >
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Upgrade
+                        </Button>
+                      </Link>
+                    )}
                   </div>
 
                 {/* Hybrid Search Input */}
@@ -290,6 +307,14 @@ const Header = () => {
                     align="end" 
                     className="w-56 bg-background-dark border-gray-700 z-50"
                   >
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/pricing')}
+                      className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Pricing & Plans
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-gray-700" />
                     <DropdownMenuItem 
                       onClick={handleLogout}
                       disabled={loading}
