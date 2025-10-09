@@ -1,5 +1,5 @@
-const { PostHog } = require('posthog-node')
-const { faker } = require('@faker-js/faker')
+import { PostHog } from 'posthog-node'
+import { faker } from '@faker-js/faker'
 
 const PROJECT_API_KEY = process.env.PH_PROJECT_API_KEY
 const PH_HOST = process.env.PH_HOST || 'https://eu.i.posthog.com'
@@ -17,8 +17,7 @@ const PERSONAS = [
   { persona: 'casual_mobile', device: 'mobile' },
   { persona: 'searcher', device: 'desktop' },
 ]
-
-function pick(xs) { return xs[Math.floor(Math.random() * xs.length)] }
+const pick = (xs) => xs[Math.floor(Math.random() * xs.length)]
 
 async function simulateOneSession() {
   const p = pick(PERSONAS)
@@ -28,7 +27,14 @@ async function simulateOneSession() {
   await client.capture({
     distinctId,
     event: '$identify',
-    properties: { $set: { persona: p.persona, device_type: p.device, is_synthetic: true, source: 'hogflix-bot' } },
+    properties: {
+      $set: {
+        persona: p.persona,
+        device_type: p.device,
+        is_synthetic: true,
+        source: 'hogflix-bot',
+      },
+    },
     timestamp: now,
   })
 
@@ -60,7 +66,9 @@ async function simulateOneSession() {
   }
 }
 
-;(async () => {
+async function run() {
   for (let i = 0; i < SESSIONS; i++) await simulateOneSession()
   await client.shutdown()
-})()
+}
+
+run().catch((e) => { console.error(e); process.exit(1) })
