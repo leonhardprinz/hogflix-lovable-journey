@@ -6,7 +6,8 @@ import { useProfile } from '@/contexts/ProfileContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { User, Plus, Edit3, Loader2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { User, Plus, Edit3, Loader2, Settings, Check, Calendar } from 'lucide-react';
 import NewProfileModal from '@/components/NewProfileModal';
 import EditProfileModal from '@/components/EditProfileModal';
 
@@ -117,20 +118,77 @@ const Profiles = () => {
     );
   }
 
+  const getNextBillingDate = () => {
+    const today = new Date();
+    const nextBilling = new Date(today);
+    nextBilling.setMonth(today.getMonth() + 1);
+    return nextBilling.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background-dark">
       <div className="container-netflix py-16">
-        <div className="text-center mb-16">
+        <div className="text-center mb-8">
           <h1 className="text-5xl font-bold text-text-primary mb-4 font-manrope">
             Who's Watching?
           </h1>
-          <p className="text-text-secondary font-manrope mb-3">
+          <p className="text-text-secondary font-manrope mb-6">
             Select your profile to continue
           </p>
+          
+          {/* Enhanced Subscription Display */}
           {subscription && (
-            <Badge variant="outline" className="text-base">
-              {subscription.plan_display_name} Plan
-            </Badge>
+            <Card className="max-w-2xl mx-auto mb-8 bg-card/50 backdrop-blur">
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
+                      <Check className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-xl font-bold">
+                          {subscription.plan_display_name} Plan
+                        </h3>
+                        <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500">
+                          Active
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <span className="font-semibold text-foreground">{subscription.video_quality}</span> Quality
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <span className="font-semibold text-foreground">{profiles.length}</span> of{' '}
+                          <span className="font-semibold text-foreground">{subscription.max_profiles}</span> profiles
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          Next: {getNextBillingDate()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      posthog?.capture('subscription:manage_clicked');
+                      navigate('/pricing');
+                    }}
+                    className="whitespace-nowrap"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Manage Subscription
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
 

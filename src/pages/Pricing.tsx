@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Info } from 'lucide-react';
+import { Check, Info, ArrowRight, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import Header from '@/components/Header';
 import { usePostHog } from 'posthog-js/react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -15,6 +16,7 @@ const Pricing = () => {
   const posthog = usePostHog();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { subscription } = useSubscription();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -76,10 +78,61 @@ const Pricing = () => {
     }
   ];
 
+  const isCurrentPlan = (planName: string) => {
+    return subscription?.plan_name === planName;
+  };
+
+  const getButtonText = (plan: any) => {
+    if (!user) return plan.cta;
+    
+    const currentPlan = subscription?.plan_name;
+    if (currentPlan === plan.name) {
+      return 'Current Plan ✓';
+    }
+    
+    const planOrder = { basic: 0, standard: 1, premium: 2 };
+    const currentOrder = planOrder[currentPlan as keyof typeof planOrder] || 0;
+    const targetOrder = planOrder[plan.name as keyof typeof planOrder] || 0;
+    
+    if (targetOrder > currentOrder) {
+      return `Upgrade to ${plan.displayName}`;
+    } else if (targetOrder < currentOrder) {
+      return `Downgrade to ${plan.displayName}`;
+    }
+    
+    return plan.cta;
+  };
+
   const handlePlanSelect = async (planName: string) => {
+    // Prevent selecting current plan
+    if (isCurrentPlan(planName)) {
+      toast.info("You're already on this plan!");
+      return;
+    }
+
     // Find the plan to get the display name
     const plan = plans.find(p => p.name === planName);
     const displayName = plan?.displayName || planName;
+    
+    // Track upgrade/downgrade
+    const currentPlan = subscription?.plan_name;
+    if (currentPlan) {
+      const planOrder = { basic: 0, standard: 1, premium: 2 };
+      const currentOrder = planOrder[currentPlan as keyof typeof planOrder] || 0;
+      const targetOrder = planOrder[planName as keyof typeof planOrder] || 0;
+      
+      if (targetOrder > currentOrder) {
+        posthog?.capture('subscription:upgrade_clicked', { 
+          from: currentPlan, 
+          to: planName 
+        });
+      } else {
+        posthog?.capture('subscription:downgrade_clicked', { 
+          from: currentPlan, 
+          to: planName 
+        });
+      }
+    }
     
     posthog?.capture('plan_selected', { plan: displayName });
     posthog?.setPersonProperties({ company_plan: displayName });
@@ -156,20 +209,30 @@ const Pricing = () => {
 
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {plans.map((plan) => (
-            <Card
-              key={plan.name}
-              className={`relative p-8 flex flex-col ${
-                plan.popular
-                  ? 'border-primary shadow-lg scale-105 md:scale-110'
-                  : 'border-border'
-              }`}
-            >
-              {plan.popular && (
-                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">
-                  Most Popular
-                </Badge>
-              )}
+          {plans.map((plan) => {
+            const isCurrent = isCurrentPlan(plan.name);
+            
+            return (
+              <Card
+                key={plan.name}
+                className={`relative p-8 flex flex-col ${
+                  isCurrent
+                    ? 'border-green-500 shadow-lg shadow-green-500/20 scale-105'
+                    : plan.popular
+                    ? 'border-primary shadow-lg scale-105 md:scale-110'
+                    : 'border-border'
+                }`}
+              >
+                {isCurrent && (
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500">
+                    ✓ Current Plan
+                  </Badge>
+                )}
+                {!isCurrent && plan.popular && (
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">
+                    Most Popular
+                  </Badge>
+                )}
 
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-bold mb-2">{plan.displayName}</h3>
@@ -192,15 +255,26 @@ const Pricing = () => {
 
               <Button
                 className="w-full"
-                variant={plan.popular ? 'default' : 'outline'}
+                variant={isCurrent ? 'outline' : plan.popular ? 'default' : 'outline'}
                 size="lg"
                 onClick={() => handlePlanSelect(plan.name)}
-                disabled={loading}
+                disabled={loading || isCurrent}
               >
-                {loading ? 'Processing...' : plan.cta}
+                {loading ? 'Processing...' : getButtonText(plan)}
+                {!isCurrent && subscription && (
+                  <>
+                    {plan.name === 'premium' && subscription.plan_name !== 'premium' && (
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    )}
+                    {plan.name === 'basic' && subscription.plan_name !== 'basic' && (
+                      <ArrowDown className="w-4 h-4 ml-2" />
+                    )}
+                  </>
+                )}
               </Button>
             </Card>
-          ))}
+            );
+          })}
         </div>
 
         {/* FAQ Section */}
