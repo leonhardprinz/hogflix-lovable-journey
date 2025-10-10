@@ -38,7 +38,8 @@ const Checkout = () => {
       id: 'stripedhedge',
       name: 'StripedHedge',
       description: 'Secure hedgehog transactions',
-      emoji: '🦔'
+      emoji: 'S',
+      isLetter: true
     },
     {
       id: 'applehog',
@@ -107,6 +108,8 @@ const Checkout = () => {
             plan_id: planDetails.id,
             status: 'active',
             payment_intent: paymentIntent
+          }, {
+            onConflict: 'user_id'
           });
 
         if (error) throw error;
@@ -238,7 +241,9 @@ const Checkout = () => {
                     )}
                     
                     <div className="text-center space-y-3">
-                      <div className="text-4xl mb-2">{method.emoji}</div>
+                      <div className={`text-4xl mb-2 ${method.isLetter ? 'font-bold text-purple-600 bg-purple-100 dark:bg-purple-950 dark:text-purple-400 rounded-full w-16 h-16 flex items-center justify-center mx-auto text-3xl' : ''}`}>
+                        {method.emoji}
+                      </div>
                       <h3 className="font-semibold">{method.name}</h3>
                       <p className="text-xs text-muted-foreground">{method.description}</p>
                       <Button 
