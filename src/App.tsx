@@ -23,6 +23,7 @@ import FlixBuddy from "./pages/FlixBuddy";
 import NotFound from "./pages/NotFound";
 import Pricing from "./pages/Pricing";
 import Checkout from "./pages/Checkout";
+import CheckoutSuccess from "./pages/CheckoutSuccess";
 import FloatingHedgehog from "./components/FloatingHedgehog";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,11 @@ const AppContent = () => {
           <Route path="/checkout" element={
             <ProtectedRoute>
               <Checkout />
+            </ProtectedRoute>
+          } />
+          <Route path="/checkout/success" element={
+            <ProtectedRoute>
+              <CheckoutSuccess />
             </ProtectedRoute>
           } />
           <Route path="/watch/:videoId" element={

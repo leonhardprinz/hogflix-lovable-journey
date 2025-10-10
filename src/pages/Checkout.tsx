@@ -4,6 +4,7 @@ import { usePostHog } from 'posthog-js/react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Check, CreditCard, Loader2, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -19,8 +20,22 @@ const Checkout = () => {
   const [processing, setProcessing] = useState(false);
   const [processingMethod, setProcessingMethod] = useState<string>('');
   const [success, setSuccess] = useState(false);
+  const [showStripeWarning, setShowStripeWarning] = useState(false);
+
+  const stripeCheckoutUrls: { [key: string]: string } = {
+    standard: 'https://buy.stripe.com/test_6oUfZh1cdfGh1Yq9Ve',
+    premium: 'https://buy.stripe.com/test_dRmcN58EF8dPfPg7cf'
+  };
 
   const paymentMethods = [
+    {
+      id: 'stripe',
+      name: 'Pay with Stripe',
+      icon: CreditCard,
+      description: 'Secure payment via Stripe (Sandbox)',
+      emoji: '💳',
+      isPrimary: true
+    },
     {
       id: 'card',
       name: 'Pay with Card',
@@ -71,6 +86,25 @@ const Checkout = () => {
       .single();
     
     if (data) setPlanDetails(data);
+  };
+
+  const handleStripeCheckout = () => {
+    posthog?.capture('checkout:stripe_redirect', { plan });
+    
+    // Redirect to Stripe checkout
+    const stripeUrl = stripeCheckoutUrls[plan];
+    if (stripeUrl) {
+      window.location.href = stripeUrl;
+    }
+  };
+
+  const handlePaymentMethodClick = (methodId: string) => {
+    if (methodId === 'stripe') {
+      posthog?.capture('checkout:stripe_selected', { plan });
+      setShowStripeWarning(true);
+    } else {
+      handlePaymentMethod(methodId);
+    }
   };
 
   const handlePaymentMethod = async (methodId: string) => {
@@ -176,10 +210,17 @@ const Checkout = () => {
         <h1 className="text-3xl font-bold mb-4">Complete Your Order</h1>
         
         {/* Demo Environment Alert */}
-        <Alert className="mb-8">
-          <Info className="h-4 w-4" />
+        <Alert className="mb-8 border-amber-500 bg-amber-500/10">
+          <Info className="h-4 w-4 text-amber-600" />
           <AlertDescription>
-            🎭 <strong>Demo Environment:</strong> This is a showcase for PostHog analytics. No actual billing occurs - simply choose any payment method to continue!
+            <strong>🎭 Demo Environment Options:</strong>
+            <ul className="mt-2 space-y-1 text-sm">
+              <li>• <strong>Stripe (Recommended):</strong> Experience a real checkout flow in Stripe's sandbox. Use test card <code className="bg-background px-1 rounded">4242 4242 4242 4242</code></li>
+              <li>• <strong>Demo Methods:</strong> Simulate payment instantly without leaving this page</li>
+            </ul>
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-500">
+              ⚠️ <strong>NEVER enter real credit card information</strong> - this is a TEST environment only!
+            </p>
           </AlertDescription>
         </Alert>
         
@@ -228,12 +269,16 @@ const Checkout = () => {
               </p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {paymentMethods.map((method) => (
-                  <Card 
-                    key={method.id}
-                    className="p-6 hover:border-primary/50 transition-colors cursor-pointer relative"
-                    onClick={() => !processing && handlePaymentMethod(method.id)}
-                  >
+            {paymentMethods.map((method) => (
+              <Card 
+                key={method.id}
+                className={`p-6 transition-colors cursor-pointer relative ${
+                  method.isPrimary 
+                    ? 'border-primary bg-primary/5 hover:bg-primary/10' 
+                    : 'hover:border-primary/50'
+                }`}
+                onClick={() => !processing && handlePaymentMethodClick(method.id)}
+              >
                     {processing && processingMethod === method.id && (
                       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-lg flex items-center justify-center z-10">
                         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -273,6 +318,40 @@ const Checkout = () => {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showStripeWarning} onOpenChange={setShowStripeWarning}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                ⚠️ Stripe Sandbox Environment
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <p className="font-semibold text-amber-600 dark:text-amber-500">
+                  DO NOT ENTER REAL CREDIT CARD INFORMATION
+                </p>
+                <p>
+                  You're about to be redirected to Stripe's test/sandbox environment. This is for demonstration purposes only.
+                </p>
+                <div className="bg-muted p-3 rounded-md space-y-2 text-sm">
+                  <p className="font-semibold">Use these test card details:</p>
+                  <p>Card Number: <code className="bg-background px-2 py-1 rounded">4242 4242 4242 4242</code></p>
+                  <p>Expiry: Any future date (e.g., 12/34)</p>
+                  <p>CVC: Any 3 digits (e.g., 123)</p>
+                  <p>ZIP: Any 5 digits (e.g., 12345)</p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This demo showcases PostHog's e-commerce analytics. No real transactions will occur.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleStripeCheckout}>
+                I Understand - Continue to Stripe
+              </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </div>
   );
 };
