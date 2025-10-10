@@ -37,29 +37,15 @@ const Checkout = () => {
       isPrimary: true
     },
     {
-      id: 'card',
-      name: 'Pay with Card',
-      icon: CreditCard,
-      description: 'Traditional card payment demo',
-      emoji: '💳'
-    },
-    {
       id: 'hedgepal',
       name: 'HedgePal',
-      description: 'The hedgehog payment network',
+      description: 'Instant demo checkout - completes immediately for testing',
       emoji: '🦔'
-    },
-    {
-      id: 'stripedhedge',
-      name: 'StripedHedge',
-      description: 'Secure hedgehog transactions',
-      emoji: 'S',
-      isLetter: true
     },
     {
       id: 'applehog',
       name: 'AppleHog',
-      description: 'One-tap hedgehog checkout',
+      description: 'One-click demo payment - activates subscription instantly',
       emoji: '🍎'
     }
   ];
@@ -286,7 +272,7 @@ const Checkout = () => {
                     )}
                     
                     <div className="text-center space-y-3">
-                      <div className={`text-4xl mb-2 ${method.isLetter ? 'font-bold text-purple-600 bg-purple-100 dark:bg-purple-950 dark:text-purple-400 rounded-full w-16 h-16 flex items-center justify-center mx-auto text-3xl' : ''}`}>
+                      <div className="text-4xl mb-2">
                         {method.emoji}
                       </div>
                       <h3 className="font-semibold">{method.name}</h3>
