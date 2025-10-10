@@ -22,7 +22,6 @@ const CheckoutSuccess = () => {
   const posthog = usePostHog();
   const plan = searchParams.get('plan') || 'standard';
   const [planDetails, setPlanDetails] = useState<PlanDetails | null>(null);
-  const [redirectSeconds, setRedirectSeconds] = useState(5);
 
   useEffect(() => {
     document.title = "Payment Successful - HogFlix";
@@ -94,17 +93,6 @@ const CheckoutSuccess = () => {
     activateSubscription();
   }, [navigate, plan, posthog]);
 
-  // Countdown timer for redirect
-  useEffect(() => {
-    if (redirectSeconds > 0) {
-      const timer = setTimeout(() => {
-        setRedirectSeconds(redirectSeconds - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else {
-      navigate('/profiles');
-    }
-  }, [redirectSeconds, navigate]);
 
   const getNextBillingDate = () => {
     const today = new Date();
@@ -208,10 +196,6 @@ const CheckoutSuccess = () => {
                 </Button>
               </div>
 
-              {/* Redirect Message */}
-              <p className="text-sm text-center text-muted-foreground">
-                Automatically redirecting in {redirectSeconds} second{redirectSeconds !== 1 ? 's' : ''}...
-              </p>
             </>
           ) : (
             <div className="text-center py-8">
