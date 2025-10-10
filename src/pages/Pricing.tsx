@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Header from '@/components/Header';
 import { usePostHog } from 'posthog-js/react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,7 +33,8 @@ const Pricing = () => {
         '1 profile',
         'Standard support',
         'Watch on any device',
-        'Ad-supported content'
+        'Ad-supported content',
+        'FlixBuddy AI assistant'
       ],
       cta: 'Get Started',
       popular: false
@@ -48,9 +50,10 @@ const Pricing = () => {
         'Priority support',
         'Watch on any device',
         'Ad-free experience',
-        'Download for offline viewing'
+        'Download for offline viewing',
+        'FlixBuddy AI assistant'
       ],
-      cta: 'Start Free Trial',
+      cta: 'Preview Subscription (No Charge)',
       popular: true
     },
     {
@@ -68,7 +71,7 @@ const Pricing = () => {
         'Early access to new content',
         'FlixBuddy AI assistant'
       ],
-      cta: 'Start Free Trial',
+      cta: 'Preview Subscription (No Charge)',
       popular: false
     }
   ];
@@ -134,14 +137,22 @@ const Pricing = () => {
       
       <main className="container mx-auto px-4 py-12 md:py-20">
         {/* Hero Section */}
-        <div className="text-center mb-16">
+        <div className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
             Choose Your Plan
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Start with Basic for free or upgrade for premium features. Cancel anytime.
+            Experience our complete subscription flow with PostHog analytics. This is a demo environment - no real charges occur.
           </p>
         </div>
+
+        {/* Demo Environment Alert */}
+        <Alert className="mb-16 max-w-4xl mx-auto">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            🎭 <strong>Demo Environment:</strong> This is a showcase application for PostHog analytics features. No actual billing or payment processing occurs - feel free to explore the entire subscription flow!
+          </AlertDescription>
+        </Alert>
 
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -197,6 +208,12 @@ const Pricing = () => {
           <h2 className="text-2xl font-bold mb-4">Frequently Asked Questions</h2>
           <div className="space-y-4 text-left">
             <div>
+              <h3 className="font-semibold mb-2">Is this real billing?</h3>
+              <p className="text-muted-foreground">
+                No! This is a demonstration environment built to showcase PostHog's powerful analytics capabilities. You can safely explore the entire checkout and subscription flow without any actual charges or payment processing. Feel free to test all features!
+              </p>
+            </div>
+            <div>
               <h3 className="font-semibold mb-2">Can I change plans later?</h3>
               <p className="text-muted-foreground">
                 Yes, you can upgrade or downgrade your plan at any time from your account settings.
@@ -206,12 +223,6 @@ const Pricing = () => {
               <h3 className="font-semibold mb-2">What payment methods do you accept?</h3>
               <p className="text-muted-foreground">
                 We accept all major credit cards and PayPal.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-2">Is there a free trial?</h3>
-              <p className="text-muted-foreground">
-                Yes! Standard and Premium plans come with a 7-day free trial. No credit card required for Basic.
               </p>
             </div>
           </div>
