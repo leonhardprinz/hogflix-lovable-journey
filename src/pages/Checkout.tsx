@@ -23,8 +23,8 @@ const Checkout = () => {
   const [showStripeWarning, setShowStripeWarning] = useState(false);
 
   const stripeCheckoutUrls: { [key: string]: string } = {
-    standard: 'https://buy.stripe.com/test_6oUfZh1cdfGh1Yq9Ve',
-    premium: 'https://buy.stripe.com/test_dRmcN58EF8dPfPg7cf'
+    standard: 'https://buy.stripe.com/test_6oUfZh1cdfGh1Yqcwz9Ve00',
+    premium: 'https://buy.stripe.com/test_dRmcN58EF8dPfPg7cf9Ve01'
   };
 
   const paymentMethods = [
