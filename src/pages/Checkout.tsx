@@ -3,9 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Check, CreditCard, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Check, CreditCard, Loader2, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,18 +17,36 @@ const Checkout = () => {
   const [plan, setPlan] = useState<string>('');
   const [planDetails, setPlanDetails] = useState<any>(null);
   const [processing, setProcessing] = useState(false);
+  const [processingMethod, setProcessingMethod] = useState<string>('');
   const [success, setSuccess] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    cardNumber: '',
-    expiry: '',
-    cvv: '',
-    street: '',
-    city: '',
-    state: '',
-    zip: ''
-  });
+
+  const paymentMethods = [
+    {
+      id: 'card',
+      name: 'Pay with Card',
+      icon: CreditCard,
+      description: 'Traditional card payment demo',
+      emoji: '💳'
+    },
+    {
+      id: 'hedgepal',
+      name: 'HedgePal',
+      description: 'The hedgehog payment network',
+      emoji: '🦔'
+    },
+    {
+      id: 'stripedhedge',
+      name: 'StripedHedge',
+      description: 'Secure hedgehog transactions',
+      emoji: '🦔'
+    },
+    {
+      id: 'applehog',
+      name: 'AppleHog',
+      description: 'One-tap hedgehog checkout',
+      emoji: '🍎'
+    }
+  ];
 
   useEffect(() => {
     document.title = "Checkout – HogFlix";
@@ -55,46 +72,18 @@ const Checkout = () => {
     if (data) setPlanDetails(data);
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const formatCardNumber = (value: string) => {
-    const cleaned = value.replace(/\s/g, '');
-    const chunks = cleaned.match(/.{1,4}/g);
-    return chunks ? chunks.join(' ') : cleaned;
-  };
-
-  const validateForm = () => {
-    if (!formData.name || !formData.cardNumber || !formData.expiry || !formData.cvv) {
-      toast({
-        title: "Missing information",
-        description: "Please fill in all payment details",
-        variant: "destructive"
-      });
-      return false;
-    }
-    
-    if (formData.cardNumber.replace(/\s/g, '').length !== 16) {
-      toast({
-        title: "Invalid card number",
-        description: "Please enter a valid 16-digit card number",
-        variant: "destructive"
-      });
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-
+  const handlePaymentMethod = async (methodId: string) => {
     setProcessing(true);
+    setProcessingMethod(methodId);
+    
+    posthog?.capture('checkout:payment_method_selected', { 
+      plan,
+      method: methodId
+    });
+    
     posthog?.capture('checkout:payment_processing', { 
       plan,
+      method: methodId,
       amount: planDetails?.price_monthly 
     });
 
@@ -107,8 +96,8 @@ const Checkout = () => {
           throw new Error('User not authenticated');
         }
 
-        // Generate fake payment intent
-        const paymentIntent = `pi_fake_${Date.now()}_${user.id.slice(0, 8)}`;
+        // Generate fake payment intent with method
+        const paymentIntent = `pi_fake_${methodId}_${Date.now()}`;
 
         // Create subscription
         const { error } = await supabase
@@ -124,11 +113,13 @@ const Checkout = () => {
 
         posthog?.capture('checkout:payment_success', { 
           plan,
+          method: methodId,
           amount: planDetails?.price_monthly 
         });
         posthog?.capture('subscription:created', { 
           plan,
           tier: planDetails?.display_name,
+          payment_method: methodId,
           is_paid: true
         });
 
@@ -146,8 +137,9 @@ const Checkout = () => {
           variant: "destructive"
         });
         setProcessing(false);
+        setProcessingMethod('');
       }
-    }, 2500);
+    }, 1500);
   };
 
   if (!planDetails) {
@@ -178,7 +170,15 @@ const Checkout = () => {
   return (
     <div className="min-h-screen bg-background py-12">
       <div className="container mx-auto px-4 max-w-5xl">
-        <h1 className="text-3xl font-bold mb-8">Complete Your Order</h1>
+        <h1 className="text-3xl font-bold mb-4">Complete Your Order</h1>
+        
+        {/* Demo Environment Alert */}
+        <Alert className="mb-8">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            🎭 <strong>Demo Environment:</strong> This is a showcase for PostHog analytics. No actual billing occurs - simply choose any payment method to continue!
+          </AlertDescription>
+        </Alert>
         
         <div className="grid md:grid-cols-2 gap-8">
           {/* Order Summary */}
@@ -216,135 +216,54 @@ const Checkout = () => {
             </Card>
           </div>
 
-          {/* Payment Form */}
+          {/* Payment Methods */}
           <div>
             <Card className="p-6">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Cardholder Name</Label>
-                  <Input
-                    id="name"
-                    placeholder="John Doe"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    disabled={processing}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="cardNumber">Card Number</Label>
-                  <div className="relative">
-                    <CreditCard className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      id="cardNumber"
-                      placeholder="1234 5678 9012 3456"
-                      value={formData.cardNumber}
-                      onChange={(e) => handleInputChange('cardNumber', formatCardNumber(e.target.value))}
-                      className="pl-10"
-                      maxLength={19}
-                      disabled={processing}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="expiry">Expiry Date</Label>
-                    <Input
-                      id="expiry"
-                      placeholder="MM/YY"
-                      value={formData.expiry}
-                      onChange={(e) => handleInputChange('expiry', e.target.value)}
-                      maxLength={5}
-                      disabled={processing}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="cvv">CVV</Label>
-                    <Input
-                      id="cvv"
-                      placeholder="123"
-                      value={formData.cvv}
-                      onChange={(e) => handleInputChange('cvv', e.target.value)}
-                      maxLength={3}
-                      disabled={processing}
-                    />
-                  </div>
-                </div>
-
-                <div className="border-t pt-4 mt-4">
-                  <h3 className="font-semibold mb-4">Billing Address</h3>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="street">Street Address</Label>
-                      <Input
-                        id="street"
-                        placeholder="123 Main St"
-                        value={formData.street}
-                        onChange={(e) => handleInputChange('street', e.target.value)}
-                        disabled={processing}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="city">City</Label>
-                        <Input
-                          id="city"
-                          placeholder="San Francisco"
-                          value={formData.city}
-                          onChange={(e) => handleInputChange('city', e.target.value)}
-                          disabled={processing}
-                        />
+              <h2 className="text-xl font-bold mb-2">Choose Payment Method</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                All payment methods are simulated for demonstration purposes
+              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {paymentMethods.map((method) => (
+                  <Card 
+                    key={method.id}
+                    className="p-6 hover:border-primary/50 transition-colors cursor-pointer relative"
+                    onClick={() => !processing && handlePaymentMethod(method.id)}
+                  >
+                    {processing && processingMethod === method.id && (
+                      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-lg flex items-center justify-center z-10">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
                       </div>
-                      <div>
-                        <Label htmlFor="state">State</Label>
-                        <Input
-                          id="state"
-                          placeholder="CA"
-                          value={formData.state}
-                          onChange={(e) => handleInputChange('state', e.target.value)}
-                          maxLength={2}
-                          disabled={processing}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="zip">ZIP Code</Label>
-                      <Input
-                        id="zip"
-                        placeholder="94102"
-                        value={formData.zip}
-                        onChange={(e) => handleInputChange('zip', e.target.value)}
-                        maxLength={5}
+                    )}
+                    
+                    <div className="text-center space-y-3">
+                      <div className="text-4xl mb-2">{method.emoji}</div>
+                      <h3 className="font-semibold">{method.name}</h3>
+                      <p className="text-xs text-muted-foreground">{method.description}</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full mt-2"
                         disabled={processing}
-                      />
+                      >
+                        {processing && processingMethod === method.id ? (
+                          <>
+                            <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          'Select'
+                        )}
+                      </Button>
                     </div>
-                  </div>
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  size="lg"
-                  disabled={processing}
-                >
-                  {processing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Processing Payment...
-                    </>
-                  ) : (
-                    `Pay $${planDetails.price_monthly}`
-                  )}
-                </Button>
-
-                <p className="text-xs text-center text-muted-foreground">
-                  This is a demo payment form. No real charges will be made.
-                </p>
-              </form>
+                  </Card>
+                ))}
+              </div>
+              
+              <p className="text-xs text-center text-muted-foreground mt-6">
+                💡 Click any payment method to continue - no real charges will be made
+              </p>
             </Card>
           </div>
         </div>
