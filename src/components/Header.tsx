@@ -19,9 +19,16 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles } from 'lucide-react';
+import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
+
+interface Profile {
+  id: string;
+  display_name: string;
+  is_kids_profile: boolean;
+}
 
 const Header = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -30,6 +37,7 @@ const Header = () => {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showInstantResults, setShowInstantResults] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const [userProfiles, setUserProfiles] = useState<Profile[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
   
   // Use hybrid search hook
@@ -64,7 +72,7 @@ const Header = () => {
   
   const navigate = useNavigate();
   const posthog = usePostHog();
-  const { selectedProfile } = useProfile();
+  const { selectedProfile, setSelectedProfile } = useProfile();
   const { subscription, isFreePlan } = useSubscription();
 
   const formatDuration = (seconds: number) => {
@@ -133,6 +141,42 @@ const Header = () => {
     };
     fetchRole();
   }, [user]);
+
+  // Fetch user profiles
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      if (!user) {
+        setUserProfiles([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .rpc('get_my_profiles_public');
+
+      if (data && !error) {
+        setUserProfiles(data);
+      }
+    };
+
+    fetchProfiles();
+  }, [user]);
+
+  const handleProfileSwitch = (profile: Profile) => {
+    // Create a compatible profile object for context
+    const profileForContext = {
+      id: profile.id,
+      display_name: profile.display_name,
+      is_kids_profile: profile.is_kids_profile,
+      email: user?.email || '',
+      user_id: user?.id || ''
+    };
+    setSelectedProfile(profileForContext);
+    posthog?.capture('profile:switched', {
+      profile_id: profile.id,
+      profile_name: profile.display_name,
+      is_kids: profile.is_kids_profile
+    });
+  };
 
   const handleLogout = async () => {
     setLoading(true);
@@ -307,6 +351,39 @@ const Header = () => {
                     align="end" 
                     className="w-56 bg-background-dark border-gray-700 z-50"
                   >
+                    {userProfiles.length > 0 && (
+                      <>
+                        <DropdownMenuLabel className="text-text-secondary text-xs uppercase">
+                          Profiles
+                        </DropdownMenuLabel>
+                        {userProfiles.map((profile) => (
+                          <DropdownMenuItem
+                            key={profile.id}
+                            onClick={() => handleProfileSwitch(profile)}
+                            className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                          >
+                            <User className="h-4 w-4 mr-2" />
+                            <span className="flex-1">
+                              {profile.display_name}
+                              {profile.is_kids_profile && (
+                                <span className="text-xs text-muted-foreground ml-2">(Kids)</span>
+                              )}
+                            </span>
+                            {selectedProfile?.id === profile.id && (
+                              <Check className="h-4 w-4 text-green-500" />
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuItem 
+                          onClick={() => navigate('/profiles')}
+                          className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                        >
+                          <Users className="h-4 w-4 mr-2" />
+                          Manage Profiles
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="bg-gray-700" />
+                      </>
+                    )}
                     <DropdownMenuItem 
                       onClick={() => navigate('/pricing')}
                       className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"

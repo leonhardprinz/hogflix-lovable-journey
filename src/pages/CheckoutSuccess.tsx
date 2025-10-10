@@ -26,72 +26,79 @@ const CheckoutSuccess = () => {
   useEffect(() => {
     document.title = "Payment Successful - HogFlix";
     
-    const activateSubscription = async () => {
+    const verifyAndActivateSubscription = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (!user) {
+        if (!session) {
           toast.error('Please log in to continue');
           navigate('/login');
           return;
         }
 
-        // Fetch plan details
-        const { data: planData } = await supabase
-          .from('subscription_plans')
-          .select('*')
-          .eq('name', plan)
-          .single();
+        console.log('Verifying subscription with backend...');
 
-        if (planData) {
-          // Set plan details for display
-          setPlanDetails({
-            display_name: planData.display_name,
-            price_monthly: planData.price_monthly,
-            features: Array.isArray(planData.features) 
-              ? (planData.features as string[])
-              : [],
-            video_quality: planData.video_quality,
-            max_profiles: planData.max_profiles
-          });
+        // Call verify-subscription edge function to securely check subscription
+        const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+          'verify-subscription',
+          {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          }
+        );
 
-          // Update subscription
-          await supabase
-            .from('user_subscriptions')
-            .upsert({
-              user_id: user.id,
-              plan_id: planData.id,
-              status: 'active',
-              payment_intent: `stripe_test_${Date.now()}`
-            }, {
-              onConflict: 'user_id'
+        if (verifyError) {
+          console.error('Verification error:', verifyError);
+          toast.error('Failed to verify subscription. Please contact support.');
+          return;
+        }
+
+        console.log('Verification response:', verifyData);
+
+        if (verifyData.hasSubscription && verifyData.subscription) {
+          const sub = verifyData.subscription;
+          
+          // Fetch full plan details for display
+          const { data: planData } = await supabase
+            .from('subscription_plans')
+            .select('*')
+            .eq('name', sub.plan_name)
+            .single();
+
+          if (planData) {
+            setPlanDetails({
+              display_name: planData.display_name,
+              price_monthly: planData.price_monthly,
+              features: Array.isArray(planData.features) 
+                ? (planData.features as string[])
+                : [],
+              video_quality: planData.video_quality,
+              max_profiles: planData.max_profiles
             });
 
-          // Track success
-          posthog?.capture('checkout:payment_success', { 
-            plan,
-            method: 'stripe',
-            amount: planData.price_monthly 
-          });
-          posthog?.capture('subscription:created', { 
-            plan,
-            tier: planData.display_name,
-            payment_method: 'stripe',
-            is_paid: true
-          });
-          posthog?.capture('checkout:success_viewed');
+            // Track success events
+            posthog?.capture('checkout:payment_verified', { 
+              plan: sub.plan_name,
+              tier: planData.display_name
+            });
+            posthog?.capture('checkout:success_viewed');
 
-          toast.success('Subscription activated successfully!');
+            toast.success('Subscription verified successfully!');
+          }
+        } else {
+          console.warn('No active subscription found after payment');
+          toast.warning('Payment received, but subscription not yet active. Please refresh or contact support.');
         }
 
       } catch (error) {
-        console.error('Error activating subscription:', error);
+        console.error('Error verifying subscription:', error);
         toast.error('Something went wrong. Please contact support.');
       }
     };
 
-    activateSubscription();
-  }, [navigate, plan, posthog]);
+    verifyAndActivateSubscription();
+  }, [navigate, posthog]);
 
 
   const getNextBillingDate = () => {
