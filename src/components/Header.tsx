@@ -407,10 +407,9 @@ const Header = () => {
               /* Unauthenticated Navigation */
               <Link to="/login">
                 <Button 
-                  variant="ghost" 
-                  className="text-text-primary hover:text-primary-red font-manrope"
+                  className="bg-primary-red hover:bg-primary-red/90 text-white font-manrope font-semibold px-6 py-2"
                 >
-                  Sign In
+                  Log In
                 </Button>
               </Link>
             )}

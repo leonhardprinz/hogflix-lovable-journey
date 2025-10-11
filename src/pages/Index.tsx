@@ -35,8 +35,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background-dark">
-      {/* Hero Section */}
-      <div className="relative h-screen bg-gradient-to-br from-primary-red/20 via-background-dark to-background-dark">
+      {/* Hero Section - Compact */}
+      <div className="relative min-h-[60vh] lg:min-h-[70vh] bg-gradient-to-br from-primary-red/20 via-background-dark to-background-dark pt-12 pb-16">
         {/* Background Pattern */}
         <div 
           className="absolute inset-0 opacity-10"
@@ -47,98 +47,96 @@ const Index = () => {
         />
         
         {/* Hero Content */}
-        <div className="relative container-netflix h-full flex flex-col justify-center items-center text-center px-4">
+        <div className="relative container-netflix flex flex-col justify-center items-center text-center px-4">
           <div className="max-w-4xl w-full">
             {/* Logo */}
-            <h1 className={`text-4xl sm:text-6xl lg:text-8xl font-bold text-primary-red mb-4 sm:mb-6 font-manrope ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`}>
+            <h1 className={`text-4xl sm:text-5xl lg:text-7xl font-bold text-primary-red mb-3 sm:mb-4 font-manrope ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`}>
               HogFlix
             </h1>
             
             {/* Main Headline */}
-            <h2 className={`text-2xl sm:text-4xl lg:text-6xl font-bold text-text-primary mb-6 sm:mb-8 font-manrope leading-tight px-2 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.2s' : '0' }}>
+            <h2 className={`text-xl sm:text-3xl lg:text-5xl font-bold text-text-primary mb-4 sm:mb-6 font-manrope leading-tight px-2 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.2s' : '0' }}>
               Unlimited movies, TV shows, and more
             </h2>
             
             {/* Subheadline */}
-            <p className={`text-lg sm:text-xl lg:text-2xl text-text-secondary mb-3 sm:mb-4 font-manrope max-w-2xl mx-auto px-4 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.4s' : '0' }}>
+            <p className={`text-base sm:text-lg lg:text-xl text-text-secondary mb-6 sm:mb-8 font-manrope max-w-2xl mx-auto px-4 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.4s' : '0' }}>
               From hedgehog adventures to PostHog demos - discover content that entertains and educates.
             </p>
             
-            <p className={`text-base sm:text-lg text-text-tertiary mb-8 sm:mb-12 font-manrope px-4 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.6s' : '0' }}>
-              Ready to explore? Create your account and dive into our unique streaming experience.
-            </p>
-            
-            {/* CTA Buttons */}
-            <div className={`flex flex-col sm:flex-row gap-4 justify-center ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.8s' : '0' }}>
-              <Link to="/pricing">
-                <Button className="btn-primary text-lg sm:text-xl px-8 sm:px-12 py-3 sm:py-4 text-white hover:bg-primary-red/90 transition-colors">
-                  View Pricing
-                </Button>
-              </Link>
-              <Link to="/signup">
-                <Button variant="outline" className="text-lg sm:text-xl px-8 sm:px-12 py-3 sm:py-4 border-2 border-text-secondary text-text-primary hover:border-primary-red hover:text-primary-red transition-colors">
+            {/* CTA Buttons - Sign Up Free FIRST */}
+            <div className={`flex flex-col sm:flex-row gap-4 justify-center mb-8 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.6s' : '0' }}>
+              <Link to="/signup" className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto bg-primary-red hover:bg-primary-red/90 text-white text-lg sm:text-xl px-10 sm:px-16 py-4 sm:py-6 font-bold shadow-lg shadow-primary-red/30 transition-all hover:scale-105">
                   Sign Up Free
                 </Button>
               </Link>
+              <Link to="/pricing" className="w-full sm:w-auto">
+                <Button variant="outline" className="w-full sm:w-auto text-lg sm:text-xl px-10 sm:px-16 py-4 sm:py-6 border-2 border-text-secondary/50 text-text-primary hover:border-text-primary hover:bg-white/5 transition-all">
+                  View Pricing
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
         
-        {/* Features Section */}
-        <div className="absolute bottom-4 sm:bottom-20 left-0 right-0">
-          <div className="container-netflix px-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-8 text-center">
-              <div className={`${hasAnimated ? 'animate-fade-in' : 'opacity-0'} hidden sm:block`} style={{ animationDelay: hasAnimated ? '1s' : '0' }}>
-                <div className="flex justify-center mb-2 sm:mb-4">
-                  <Play className="h-8 sm:h-12 w-8 sm:w-12 text-primary-red" />
-                </div>
-                <h3 className="text-sm sm:text-lg font-semibold text-text-primary mb-1 sm:mb-2 font-manrope">
-                  Watch Instantly
-                </h3>
-                <p className="text-xs sm:text-base text-text-secondary font-manrope">
-                  Stream on any device, see analytics in real-time
-                </p>
-              </div>
-              
-              <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '1.2s' : '0' }}>
-                <div className="flex justify-center mb-2 sm:mb-4">
-                  <Star className="h-8 sm:h-12 w-8 sm:w-12 text-primary-red" />
-                </div>
-                <h3 className="text-sm sm:text-lg font-semibold text-text-primary mb-1 sm:mb-2 font-manrope">
-                  Premium Content
-                </h3>
-                <p className="text-xs sm:text-base text-text-secondary font-manrope">
-                  From hedgehog blockbusters to PostHog demos
-                </p>
-              </div>
-              
-              <div className={`${hasAnimated ? 'animate-fade-in' : 'opacity-0'} hidden sm:block`} style={{ animationDelay: hasAnimated ? '1.4s' : '0' }}>
-                <div className="flex justify-center mb-2 sm:mb-4">
-                  <Users className="h-8 sm:h-12 w-8 sm:w-12 text-primary-red" />
-                </div>
-                <h3 className="text-sm sm:text-lg font-semibold text-text-primary mb-1 sm:mb-2 font-manrope">
-                  Multiple Profiles
-                </h3>
-                <p className="text-xs sm:text-base text-text-secondary font-manrope">
-                  Experience personalized analytics insights
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Login Link */}
-        <div className="absolute top-4 sm:top-8 right-4 sm:right-8">
-          <Link to="/login">
-            <Button variant="ghost" className="text-text-primary hover:text-primary-red font-manrope text-sm sm:text-base">
-              Sign In
-            </Button>
-          </Link>
-        </div>
       </div>
 
-      {/* Content Preview Section */}
-      <ContentPreviewCarousel />
+      {/* Content Preview Section - Above the fold */}
+      <div className="py-8 sm:py-12 bg-background-dark/50">
+        <div className="container-netflix mb-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-text-primary text-center mb-2">
+            Watch Now - No Account Needed to Preview
+          </h2>
+          <p className="text-sm sm:text-base text-text-secondary text-center">
+            Browse our collection and sign up to start watching
+          </p>
+        </div>
+        <ContentPreviewCarousel />
+      </div>
+
+      {/* Features Section */}
+      <div className="py-12 sm:py-16 bg-card/30">
+        <div className="container-netflix px-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 text-center">
+            <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '1s' : '0' }}>
+              <div className="flex justify-center mb-3 sm:mb-4">
+                <Play className="h-10 sm:h-12 w-10 sm:w-12 text-primary-red" />
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-2 font-manrope">
+                Watch Instantly
+              </h3>
+              <p className="text-sm sm:text-base text-text-secondary font-manrope">
+                Stream on any device, see analytics in real-time
+              </p>
+            </div>
+            
+            <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '1.2s' : '0' }}>
+              <div className="flex justify-center mb-3 sm:mb-4">
+                <Star className="h-10 sm:h-12 w-10 sm:w-12 text-primary-red" />
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-2 font-manrope">
+                Premium Content
+              </h3>
+              <p className="text-sm sm:text-base text-text-secondary font-manrope">
+                From hedgehog blockbusters to PostHog demos
+              </p>
+            </div>
+            
+            <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '1.4s' : '0' }}>
+              <div className="flex justify-center mb-3 sm:mb-4">
+                <Users className="h-10 sm:h-12 w-10 sm:w-12 text-primary-red" />
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-2 font-manrope">
+                Multiple Profiles
+              </h3>
+              <p className="text-sm sm:text-base text-text-secondary font-manrope">
+                Experience personalized analytics insights
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* What You'll Find Section */}
       <div className="py-16 bg-card">
