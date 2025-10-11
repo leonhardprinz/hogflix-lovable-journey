@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.verify-subscription]
 verify_jwt = true
+
+[functions.create-stripe-checkout]
+verify_jwt = true

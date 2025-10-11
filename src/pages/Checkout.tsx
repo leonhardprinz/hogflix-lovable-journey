@@ -22,10 +22,6 @@ const Checkout = () => {
   const [success, setSuccess] = useState(false);
   const [showStripeWarning, setShowStripeWarning] = useState(false);
 
-  const stripeCheckoutUrls: { [key: string]: string } = {
-    standard: 'https://buy.stripe.com/test_6oUfZh1cdfGh1Yqcwz9Ve00',
-    premium: 'https://buy.stripe.com/test_dRmcN58EF8dPfPg7cf9Ve01'
-  };
 
   const paymentMethods = [
     {
@@ -74,13 +70,34 @@ const Checkout = () => {
     if (data) setPlanDetails(data);
   };
 
-  const handleStripeCheckout = () => {
-    posthog?.capture('checkout:stripe_redirect', { plan });
+  const handleStripeCheckout = async () => {
+    setProcessing(true);
+    setProcessingMethod('stripe');
     
-    // Redirect to Stripe checkout
-    const stripeUrl = stripeCheckoutUrls[plan];
-    if (stripeUrl) {
-      window.location.href = stripeUrl;
+    try {
+      posthog?.capture('checkout:stripe_redirect', { plan });
+      
+      // Create Stripe checkout session with metadata
+      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
+        body: { plan_name: plan }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      toast({
+        title: "Checkout failed",
+        description: "Could not create checkout session. Please try again.",
+        variant: "destructive"
+      });
+      setProcessing(false);
+      setProcessingMethod('');
     }
   };
 
