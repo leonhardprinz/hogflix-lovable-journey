@@ -63,7 +63,7 @@ serve(async (req) => {
         },
       ],
       mode: 'subscription',
-      success_url: `${origin}/checkout-success?plan=${plan_name}`,
+      success_url: `${origin}/checkout/success?plan=${plan_name}`,
       cancel_url: `${origin}/pricing`,
       metadata: {
         user_id: user.id,
