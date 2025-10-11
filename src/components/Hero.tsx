@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Play, Info } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { useAnimateOnce } from '@/hooks/useAnimateOnce';
 
 interface Video {
@@ -111,7 +111,7 @@ const Hero = () => {
             </p>
           )}
           
-          {/* Action Buttons */}
+          {/* Action Button */}
           <div className={`flex gap-4 transition-all duration-500 ${
             buttonsAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}>
@@ -124,14 +124,6 @@ const Hero = () => {
                 <Play size={20} fill="currentColor" />
                 Play
               </Link>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="lg"
-              className="text-lg px-8 py-3 flex items-center gap-2 bg-background/20 border-border/30 text-foreground hover:bg-background/40"
-            >
-              <Info size={20} />
-              More Info
             </Button>
           </div>
         </div>
