@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -11,6 +11,25 @@ const Index = () => {
   const navigate = useNavigate();
   const { selectedProfile } = useProfile();
   const hasAnimated = useAnimateOnce(100);
+  const [featuredVideo, setFeaturedVideo] = useState<any>(null);
+
+  // Fetch featured video for background
+  useEffect(() => {
+    const fetchFeaturedVideo = async () => {
+      const { data } = await supabase
+        .from('videos')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (data) {
+        setFeaturedVideo(data);
+      }
+    };
+
+    fetchFeaturedVideo();
+  }, []);
 
   // Auth check and redirect effect
   useEffect(() => {
@@ -36,18 +55,41 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background-dark">
       {/* Hero Section - Compact */}
-      <div className="relative min-h-[60vh] lg:min-h-[70vh] bg-gradient-to-br from-primary-red/20 via-background-dark to-background-dark pt-12 pb-16">
-        {/* Background Pattern */}
-        <div 
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: `radial-gradient(circle at 25% 25%, #e50914 0%, transparent 50%),
-                              radial-gradient(circle at 75% 75%, #221f1f 0%, transparent 50%)`,
-          }}
-        />
+      <div className="relative min-h-[60vh] lg:min-h-[70vh] overflow-hidden pt-12 pb-16">
+        {/* Background Video */}
+        {featuredVideo?.video_url && (
+          <>
+            <video
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster={featuredVideo.thumbnail_url}
+              className="absolute inset-0 w-full h-full object-cover opacity-30"
+            >
+              <source src={featuredVideo.video_url} type="video/mp4" />
+            </video>
+            {/* Gradient Overlays for Text Readability */}
+            <div className="absolute inset-0 bg-gradient-to-r from-background-dark via-background-dark/90 to-background-dark/70" />
+            <div className="absolute inset-0 bg-gradient-to-t from-background-dark/80 via-transparent to-transparent" />
+          </>
+        )}
+        
+        {/* Fallback Gradient */}
+        {!featuredVideo?.video_url && (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-red/20 via-background-dark to-background-dark">
+            <div 
+              className="absolute inset-0 opacity-10"
+              style={{
+                backgroundImage: `radial-gradient(circle at 25% 25%, #e50914 0%, transparent 50%),
+                                  radial-gradient(circle at 75% 75%, #221f1f 0%, transparent 50%)`,
+              }}
+            />
+          </div>
+        )}
         
         {/* Hero Content */}
-        <div className="relative container-netflix flex flex-col justify-center items-center text-center px-4">
+        <div className="relative container-netflix flex flex-col justify-center items-center text-center px-4 z-10">
           <div className="max-w-4xl w-full">
             {/* Logo */}
             <h1 className={`text-4xl sm:text-5xl lg:text-7xl font-bold text-primary-red mb-3 sm:mb-4 font-manrope ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`}>
