@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useAnimateOnce } from '@/hooks/useAnimateOnce';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import ContentPreviewCarousel from '@/components/ContentPreviewCarousel';
 import { Play, Star, Users, BarChart3, Eye, Zap } from 'lucide-react';
@@ -11,20 +12,51 @@ const Index = () => {
   const navigate = useNavigate();
   const { selectedProfile } = useProfile();
   const hasAnimated = useAnimateOnce(100);
+  const isMobile = useIsMobile();
   const [featuredVideo, setFeaturedVideo] = useState<any>(null);
+  const [videoLoading, setVideoLoading] = useState(true);
+  const [videoError, setVideoError] = useState(false);
 
-  // Fetch featured video for background
+  // Fetch featured video for background with signed URL
   useEffect(() => {
     const fetchFeaturedVideo = async () => {
-      const { data } = await supabase
-        .from('videos')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (data) {
-        setFeaturedVideo(data);
+      try {
+        // Fetch video metadata (prefer shorter videos for backgrounds)
+        const { data: videoData, error: videoError } = await supabase
+          .from('videos')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .lte('duration', 60) // Prefer videos under 60 seconds
+          .limit(1)
+          .single();
+        
+        if (videoError || !videoData) {
+          console.log('No suitable video found for background');
+          setVideoLoading(false);
+          return;
+        }
+
+        // Get signed URL from edge function
+        const { data: urlData, error: urlError } = await supabase.functions.invoke('get-video-url', {
+          body: { videoId: videoData.id }
+        });
+
+        if (urlError || !urlData?.signedUrl) {
+          console.error('Failed to get signed URL:', urlError);
+          setVideoError(true);
+          setVideoLoading(false);
+          return;
+        }
+
+        console.log('✅ Got signed video URL for background');
+        setFeaturedVideo({
+          ...videoData,
+          signedVideoUrl: urlData.signedUrl
+        });
+      } catch (error) {
+        console.error('Error fetching featured video:', error);
+        setVideoError(true);
+        setVideoLoading(false);
       }
     };
 
@@ -57,17 +89,28 @@ const Index = () => {
       {/* Hero Section - Compact */}
       <div className="relative min-h-[60vh] lg:min-h-[70vh] overflow-hidden pt-12 pb-16">
         {/* Background Video */}
-        {featuredVideo?.video_url && (
+        {featuredVideo?.signedVideoUrl && !videoError && (
           <>
             <video
-              autoPlay
+              autoPlay={!isMobile}
               muted
               loop
               playsInline
+              preload={isMobile ? "metadata" : "auto"}
               poster={featuredVideo.thumbnail_url}
               className="absolute inset-0 w-full h-full object-cover opacity-30"
+              onLoadedData={() => {
+                setVideoLoading(false);
+                console.log('✅ Background video loaded successfully');
+              }}
+              onError={(e) => {
+                console.error('❌ Background video error:', e);
+                setVideoError(true);
+                setVideoLoading(false);
+              }}
+              onCanPlay={() => console.log('▶️ Video can play')}
             >
-              <source src={featuredVideo.video_url} type="video/mp4" />
+              <source src={featuredVideo.signedVideoUrl} type="video/mp4" />
             </video>
             {/* Gradient Overlays for Text Readability */}
             <div className="absolute inset-0 bg-gradient-to-r from-background-dark via-background-dark/90 to-background-dark/70" />
@@ -76,7 +119,7 @@ const Index = () => {
         )}
         
         {/* Fallback Gradient */}
-        {!featuredVideo?.video_url && (
+        {(!featuredVideo?.signedVideoUrl || videoError) && (
           <div className="absolute inset-0 bg-gradient-to-br from-primary-red/20 via-background-dark to-background-dark">
             <div 
               className="absolute inset-0 opacity-10"
