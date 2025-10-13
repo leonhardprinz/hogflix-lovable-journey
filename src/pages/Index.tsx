@@ -152,7 +152,7 @@ const Index = () => {
             {/* CTA Buttons - Sign Up Free FIRST */}
             <div className={`flex flex-col sm:flex-row gap-4 justify-center mb-8 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.6s' : '0' }}>
               <Link to="/signup" className="w-full sm:w-auto">
-                <Button className="w-full sm:w-auto bg-primary-red hover:bg-primary-red/90 text-white text-lg sm:text-xl px-10 sm:px-16 py-4 sm:py-6 font-bold shadow-lg shadow-primary-red/30 transition-all hover:scale-105">
+                <Button className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground text-lg sm:text-xl px-10 sm:px-16 py-4 sm:py-6 font-bold shadow-lg shadow-primary/30 transition-all hover:scale-105">
                   Sign Up Free
                 </Button>
               </Link>
