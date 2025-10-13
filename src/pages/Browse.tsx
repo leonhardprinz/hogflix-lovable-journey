@@ -4,7 +4,7 @@ import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
-import Hero from '@/components/Hero';
+import { HeroCarousel } from '@/components/HeroCarousel';
 import { ResumeWatchingCarousel } from '@/components/ResumeWatchingCarousel';
 import { PopularCarousel } from '@/components/PopularCarousel';
 import { TrendingCarousel } from '@/components/TrendingCarousel';
@@ -182,7 +182,7 @@ const Browse = () => {
       <Header />
       
       {/* Hero Section */}
-      <Hero />
+      <HeroCarousel />
 
       {/* Content Carousels Container */}
       <div className="container-netflix py-12 space-y-12">
