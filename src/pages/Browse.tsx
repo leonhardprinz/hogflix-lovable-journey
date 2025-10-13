@@ -309,19 +309,18 @@ const DynamicSections = ({ posthog, selectedProfile }: { posthog: any; selectedP
     });
   };
 
-  // Determine section order based on feature flag
+  // Show ONLY Popular OR Trending based on feature flag (50/50 split)
   const sections = useMemo(() => {
-    if (sectionPriorityVariant === 'trending-first') {
+    // Check if the variant contains 'trending' - show ONLY Trending
+    if (sectionPriorityVariant && sectionPriorityVariant.includes('trending')) {
       return [
-        { component: <TrendingCarousel key="trending" />, name: 'Trending Now', position: 1 },
-        { component: <PopularCarousel key="popular" />, name: 'Popular on HogFlix', position: 2 }
+        { component: <TrendingCarousel key="trending" />, name: 'Trending Now', position: 1 }
       ];
     }
     
-    // Default: popular-first (control)
+    // Default: show ONLY Popular (control)
     return [
-      { component: <PopularCarousel key="popular" />, name: 'Popular on HogFlix', position: 1 },
-      { component: <TrendingCarousel key="trending" />, name: 'Trending Now', position: 2 }
+      { component: <PopularCarousel key="popular" />, name: 'Popular on HogFlix', position: 1 }
     ];
   }, [sectionPriorityVariant]);
 
