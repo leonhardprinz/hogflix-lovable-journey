@@ -43,6 +43,8 @@ const VideoPlayer = () => {
   const [showStartOverButton, setShowStartOverButton] = useState(false);
   
   const hlsRef = useRef<Hls | null>(null);
+  const hasAppliedResume = useRef(false);
+  const initialProgressRef = useRef<typeof progress | null>(null);
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { user } = useAuth();
@@ -166,6 +168,7 @@ const VideoPlayer = () => {
         // Step 2: Load watch progress first
         console.log('📊 Loading watch progress...');
         const progressData = await loadProgress(videoId);
+        initialProgressRef.current = progressData; // Store in ref instead of triggering re-renders
         console.log('📊 Progress data:', progressData);
 
         // Step 3: Get video URL
@@ -188,8 +191,9 @@ const VideoPlayer = () => {
         await loadRatingData();
 
         // Step 5: Setup resume message if meaningful progress exists
-        if (progressData && progressData.progress_seconds > 3 && progressData.progress_percentage < 95) {
-          const resumeTime = progressData.progress_seconds;
+        const resumeProgress = initialProgressRef.current;
+        if (resumeProgress && resumeProgress.progress_seconds > 3 && resumeProgress.progress_percentage < 95) {
+          const resumeTime = resumeProgress.progress_seconds;
           const minutes = Math.floor(resumeTime / 60);
           const seconds = Math.floor(resumeTime % 60);
           setResumeMessage(`Resume from ${minutes}:${seconds.toString().padStart(2, '0')}?`);
@@ -258,15 +262,23 @@ const VideoPlayer = () => {
 
     console.log('🎥 Setting up video player');
 
-    const handleLoadedMetadata = async () => {
-      console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
-      
-      const videoElement = videoRef.current;
-      if (!videoElement) return;
+  const handleLoadedMetadata = async () => {
+    console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
+    
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
 
-      // Apply resume time if we have meaningful progress
-      if (progress && progress.progress_seconds > 3 && progress.progress_percentage < 95) {
-        const resumeTime = Math.min(progress.progress_seconds, videoElement.duration || 0);
+    // Don't interrupt if video is already playing
+    if (!videoElement.paused) {
+      console.log('⚠️ Video already playing, skipping setup');
+      return;
+    }
+
+    // Apply resume time if we have meaningful progress (ONLY ONCE)
+    const resumeProgress = initialProgressRef.current;
+    if (resumeProgress && resumeProgress.progress_seconds > 3 && resumeProgress.progress_percentage < 95 && !hasAppliedResume.current) {
+      hasAppliedResume.current = true;
+      const resumeTime = Math.min(resumeProgress.progress_seconds, videoElement.duration || 0);
         console.log('⏯️ Applying resume time:', resumeTime, 'seconds');
         
         if (resumeTime > 3) {
@@ -333,20 +345,14 @@ const VideoPlayer = () => {
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari native HLS support
         videoRef.current.src = videoUrl;
-        videoRef.current.addEventListener('loadedmetadata', handleLoadedMetadata);
+        // Don't add loadedmetadata listener - videoProps already has it
       }
     } else {
       // Regular MP4 video
       videoRef.current.src = videoUrl;
-      videoRef.current.addEventListener('loadedmetadata', handleLoadedMetadata);
+      // Don't add loadedmetadata listener - videoProps already has it
     }
-
-    return () => {
-      if (videoRef.current) {
-        videoRef.current.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      }
-    };
-  }, [videoUrl, isHLS, progress, videoId, sessionId, selectedProfile, posthog]);
+  }, [videoUrl, isHLS, videoId, sessionId, selectedProfile, posthog]);
 
   // Handle start over button
   const handleStartOver = () => {
@@ -363,9 +369,10 @@ const VideoPlayer = () => {
     const videoElement = videoRef.current;
     if (!videoElement) return;
 
-    // Apply resume time before playing
-    if (progress && progress.progress_seconds > 3) {
-      const resumeTime = Math.min(progress.progress_seconds, videoElement.duration || 0);
+    // Apply resume time before playing (using initial progress ref)
+    const resumeProgress = initialProgressRef.current;
+    if (resumeProgress && resumeProgress.progress_seconds > 3) {
+      const resumeTime = Math.min(resumeProgress.progress_seconds, videoElement.duration || 0);
       console.log('▶️ Continuing from:', resumeTime, 'seconds');
       
       if (isHLS) {

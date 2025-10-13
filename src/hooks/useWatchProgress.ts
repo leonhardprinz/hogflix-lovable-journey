@@ -131,12 +131,13 @@ export const useWatchProgress = (videoId?: string) => {
           error = insertError;
         }
 
-        if (!error) {
-          console.log('✅ Progress saved');
-          setProgress(progressData);
-          
-          // Track completion
-          if (isCompleted) {
+      if (!error) {
+        console.log('✅ Progress saved');
+        // Don't update state during playback to avoid re-renders
+        // setProgress(progressData); // REMOVED - prevents glitches
+        
+        // Track completion
+        if (isCompleted) {
             posthog.capture('video:completed', {
               video_id: id,
               session_id: sessionId,
