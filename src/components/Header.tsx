@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users } from 'lucide-react';
+import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface Profile {
@@ -390,6 +390,13 @@ const Header = () => {
                     >
                       <CreditCard className="h-4 w-4 mr-2" />
                       Pricing & Plans
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/newsletter-preferences')}
+                      className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      Newsletter Preferences
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-gray-700" />
                     <DropdownMenuItem 

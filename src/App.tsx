@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound";
 import Pricing from "./pages/Pricing";
 import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
+import NewsletterPreferences from "./pages/NewsletterPreferences";
 import FloatingHedgehog from "./components/FloatingHedgehog";
 
 const queryClient = new QueryClient();
@@ -84,6 +85,11 @@ const AppContent = () => {
           <Route path="/flixbuddy" element={
             <ProtectedRoute>
               <FlixBuddy />
+            </ProtectedRoute>
+          } />
+          <Route path="/newsletter-preferences" element={
+            <ProtectedRoute>
+              <NewsletterPreferences />
             </ProtectedRoute>
           } />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

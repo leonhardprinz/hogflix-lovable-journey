@@ -107,6 +107,7 @@ export type Database = {
           email: string | null
           id: string
           is_kids_profile: boolean
+          marketing_opt_in: boolean
           updated_at: string
           user_id: string
         }
@@ -116,6 +117,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_kids_profile?: boolean
+          marketing_opt_in?: boolean
           updated_at?: string
           user_id: string
         }
@@ -125,6 +127,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_kids_profile?: boolean
+          marketing_opt_in?: boolean
           updated_at?: string
           user_id?: string
         }

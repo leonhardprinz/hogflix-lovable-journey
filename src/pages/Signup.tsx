@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, CheckCircle, Mail, Lock, ArrowRight, UserPlus } from 'lucide-react';
+import NewsletterOptIn from '@/components/NewsletterOptIn';
 
 const Signup = () => {
   const [searchParams] = useSearchParams();
@@ -19,6 +20,7 @@ const Signup = () => {
   const [success, setSuccess] = useState(false);
   const [step, setStep] = useState('form'); // 'form', 'processing', 'success', 'verify'
   const [selectedPlan] = useState(searchParams.get('plan') || 'basic');
+  const [marketingOptIn, setMarketingOptIn] = useState(true);
   
   const navigate = useNavigate();
   const posthog = usePostHog();
@@ -58,10 +60,28 @@ const Signup = () => {
 
       // Capture signup event
       if (data.user) {
+        posthog.identify(data.user.id, {
+          email: data.user.email,
+          $email: data.user.email,
+          marketing_opt_in: marketingOptIn
+        });
+        
         posthog.capture('user:signed_up', { 
           signup_method: 'email',
-          selected_plan: selectedPlan
+          selected_plan: selectedPlan,
+          marketing_opt_in: marketingOptIn
         });
+        
+        posthog.capture('email_captured', {
+          source: 'signup',
+          marketing_opt_in: marketingOptIn
+        });
+
+        // Save marketing preference to profiles table
+        await supabase
+          .from('profiles')
+          .update({ marketing_opt_in: marketingOptIn })
+          .eq('user_id', data.user.id);
       }
 
       if (data.session?.user) {
@@ -200,6 +220,14 @@ const Signup = () => {
                   Choose a strong password with at least 8 characters
                 </p>
               </div>
+
+              {/* Newsletter Opt-In */}
+              <NewsletterOptIn
+                email={email}
+                checked={marketingOptIn}
+                onChange={setMarketingOptIn}
+                disabled={loading || success}
+              />
 
           {error && (
             <div className="p-3 bg-red-900/20 border border-red-600 rounded text-red-400 text-sm" role="alert" aria-live="assertive">
