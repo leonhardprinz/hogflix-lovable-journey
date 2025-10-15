@@ -519,6 +519,9 @@ export type Database = {
           description: string | null
           duration: number
           id: string
+          is_public: boolean | null
+          published_at: string | null
+          slug: string | null
           thumbnail_url: string
           title: string
           updated_at: string
@@ -530,6 +533,9 @@ export type Database = {
           description?: string | null
           duration?: number
           id?: string
+          is_public?: boolean | null
+          published_at?: string | null
+          slug?: string | null
           thumbnail_url: string
           title: string
           updated_at?: string
@@ -541,6 +547,9 @@ export type Database = {
           description?: string | null
           duration?: number
           id?: string
+          is_public?: boolean | null
+          published_at?: string | null
+          slug?: string | null
           thumbnail_url?: string
           title?: string
           updated_at?: string
