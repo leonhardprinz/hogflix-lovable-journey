@@ -31,7 +31,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const location = useLocation();
-  const hideFooter = location.pathname === '/login' || location.pathname === '/signup';
+  const hideFooter = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/flixbuddy';
 
   return (
     <div className="min-h-screen flex flex-col">
