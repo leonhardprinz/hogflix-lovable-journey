@@ -328,7 +328,7 @@ const FlixBuddy = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <div className="border-b border-border bg-background/95 backdrop-blur-md sticky top-0 z-50">
         <div className="container-netflix py-4 flex items-center justify-between">
@@ -354,11 +354,11 @@ const FlixBuddy = () => {
         </div>
       </div>
 
-      <div className="container-netflix py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
+      <div className="container-netflix flex-1 flex flex-col overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full py-6">
 
           {/* Chat Panel - Left Side */}
-          <div className="lg:col-span-2 flex flex-col bg-card rounded-lg border border-border max-h-[calc(100vh-180px)]">
+          <div className="lg:col-span-2 flex flex-col bg-card rounded-lg border border-border h-full overflow-hidden">
             {/* Messages Area */}
             <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message) => (
@@ -431,7 +431,7 @@ const FlixBuddy = () => {
           </div>
 
           {/* Recommendations Panel - Right Side */}
-          <div className="bg-card rounded-lg border border-border p-4 overflow-y-auto max-h-[calc(100vh-180px)]">
+          <div className="bg-card rounded-lg border border-border p-4 overflow-y-auto h-full">
             <h3 className="font-semibold text-foreground mb-4 flex items-center">
               <Play className="h-4 w-4 mr-2 text-primary" />
               Recommended for You
