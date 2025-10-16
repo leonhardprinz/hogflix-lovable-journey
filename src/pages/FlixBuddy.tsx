@@ -39,6 +39,7 @@ const FlixBuddy = () => {
   const { selectedProfile } = useProfile();
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   
   const initialQuery = searchParams.get('q');
 
@@ -57,9 +58,23 @@ const FlixBuddy = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Check if user is near the bottom of the chat
+  const shouldAutoScroll = () => {
+    const element = messagesContainerRef.current;
+    if (!element) return true; // Auto-scroll if ref not available yet
+    
+    const threshold = 100; // pixels from bottom
+    const isNearBottom = 
+      element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
+    
+    return isNearBottom;
+  };
+
   useEffect(() => {
-    // Only scroll to bottom if we have more than just the welcome message
-    if (messages.length > 1) {
+    // Only auto-scroll if:
+    // 1. We have messages beyond the welcome message
+    // 2. User is already near the bottom (actively chatting)
+    if (messages.length > 1 && shouldAutoScroll()) {
       scrollToBottom();
     }
   }, [messages]);
@@ -340,12 +355,12 @@ const FlixBuddy = () => {
       </div>
 
       <div className="container-netflix py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
 
           {/* Chat Panel - Left Side */}
-          <div className="lg:col-span-2 flex flex-col bg-card rounded-lg border border-border">
+          <div className="lg:col-span-2 flex flex-col bg-card rounded-lg border border-border max-h-[calc(100vh-180px)]">
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -416,7 +431,7 @@ const FlixBuddy = () => {
           </div>
 
           {/* Recommendations Panel - Right Side */}
-          <div className="bg-card rounded-lg border border-border p-4">
+          <div className="bg-card rounded-lg border border-border p-4 overflow-y-auto max-h-[calc(100vh-180px)]">
             <h3 className="font-semibold text-foreground mb-4 flex items-center">
               <Play className="h-4 w-4 mr-2 text-primary" />
               Recommended for You
