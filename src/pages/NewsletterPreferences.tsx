@@ -57,13 +57,27 @@ const NewsletterPreferences = () => {
     
     setSaving(true);
     try {
+      console.log('Saving preferences for user:', user.id);
+      console.log('Marketing opt-in value:', marketingOptIn);
+      
       // Update database
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update({ marketing_opt_in: marketingOptIn })
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .select();
 
-      if (error) throw error;
+      console.log('Update result:', { data, error });
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      // Check if any rows were actually updated
+      if (!data || data.length === 0) {
+        throw new Error('No profile found to update. Please contact support.');
+      }
 
       // Update PostHog person properties
       posthog.setPersonProperties({
@@ -84,11 +98,11 @@ const NewsletterPreferences = () => {
         title: "Preferences saved",
         description: "Your newsletter preferences have been updated successfully.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving preferences:', error);
       toast({
         title: "Error",
-        description: "Failed to save your preferences. Please try again.",
+        description: error.message || "Failed to save your preferences. Please try again.",
         variant: "destructive",
       });
     } finally {
