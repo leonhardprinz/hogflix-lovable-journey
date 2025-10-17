@@ -161,7 +161,15 @@ const Browse = () => {
 
       // Only show categories with videos
       const categoriesWithContent = categoriesWithVideos.filter(category => category.videos.length > 0);
-      setCategories(categoriesWithContent);
+      
+      // Prioritize PostHog Demo category to appear first
+      const sortedCategories = categoriesWithContent.sort((a, b) => {
+        if (a.name === 'PostHog Demo') return -1;
+        if (b.name === 'PostHog Demo') return 1;
+        return a.sort_order - b.sort_order;
+      });
+      
+      setCategories(sortedCategories);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
