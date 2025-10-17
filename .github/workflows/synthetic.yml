@@ -11,11 +11,9 @@ jobs:
     permissions:
       contents: write  # to push synthetic-state branch updates
     env:
-      # Site URL (can override)
       HOGFLIX_URL: https://hogflix-demo.lovable.app/
-      # PostHog env (for server-side script ONLY)
       POSTHOG_HOST: https://eu.i.posthog.com
-      POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }} # <-- set in repo Settings > Secrets
+      POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }} # set in repo Settings > Secrets
 
     steps:
       - name: Checkout
@@ -30,7 +28,7 @@ jobs:
 
       - name: Install deps
         run: |
-          npm i -D playwright ts-node typescript
+          npm i -D playwright tsx
           npx playwright install --with-deps chromium
 
       # Restore persona state from dedicated branch
@@ -46,8 +44,7 @@ jobs:
           fi
 
       - name: Run persona simulator
-        run: |
-          node -e "require('ts-node/register'); require('./scripts/synthetic/run.ts')"
+        run: npx tsx scripts/synthetic/run.ts
 
       # (Optional) Run server-side pings to smooth trends
       - name: Run server-side pings
