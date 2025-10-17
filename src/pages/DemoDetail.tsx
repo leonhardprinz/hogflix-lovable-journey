@@ -4,6 +4,7 @@ import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useSyntheticCheck } from '@/hooks/useSyntheticCheck';
 import Header from '@/components/Header';
 import { DemoVideoPlayer } from '@/components/DemoVideoPlayer';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ export default function DemoDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const posthog = usePostHog();
+  const isSynthetic = useSyntheticCheck();
   const { user } = useAuth();
   const { selectedProfile } = useProfile();
   const [video, setVideo] = useState<Video | null>(null);
@@ -84,15 +86,17 @@ export default function DemoDetail() {
         if (urlError) throw urlError;
         setSignedUrl(videoSignedUrl);
 
-        // Capture demo_video_opened event
-        posthog.capture('demo_video_opened', {
-          category: "PostHog Demo",
-          video_id: videoData.id,
-          video_title: videoData.title,
-          profile_id: selectedProfile.id,
-          duration_sec: videoData.duration,
-        });
-        console.log('📂 PostHog: demo_video_opened');
+        // Capture demo_video_opened event (skip if synthetic)
+        if (!isSynthetic) {
+          posthog.capture('demo_video_opened', {
+            category: "PostHog Demo",
+            video_id: videoData.id,
+            video_title: videoData.title,
+            profile_id: selectedProfile.id,
+            duration_sec: videoData.duration,
+          });
+          console.log('📂 PostHog: demo_video_opened');
+        }
 
         setLoading(false);
       } catch (err) {
@@ -103,7 +107,7 @@ export default function DemoDetail() {
     };
 
     fetchVideo();
-  }, [id, user, selectedProfile, navigate, posthog]);
+  }, [id, user, selectedProfile, navigate, posthog, isSynthetic]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
