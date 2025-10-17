@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { usePostHog } from 'posthog-js/react';
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
+import { useWatchProgress } from '@/hooks/useWatchProgress';
 import { Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
@@ -30,6 +31,9 @@ export const DemoVideoPlayer = ({
   const [showControls, setShowControls] = useState(true);
   const trackedDeciles = useRef(new Set<number>());
   const hasPlayedRef = useRef(false);
+  const sessionIdRef = useRef(crypto.randomUUID());
+
+  const { saveProgress } = useWatchProgress(videoId);
 
   const getSharedProperties = useCallback((progressPct: number, currentTimeS: number) => ({
     category: "PostHog Demo",
@@ -45,10 +49,13 @@ export const DemoVideoPlayer = ({
   const handleTimeUpdate = useCallback((currentTimeValue: number, durationValue: number) => {
     setCurrentTime(currentTimeValue);
     
+    // Save progress to database (for Continue Watching)
+    saveProgress(videoId, currentTimeValue, durationValue, sessionIdRef.current);
+    
     if (durationValue > 0) {
       const progressPct = Math.floor((currentTimeValue / durationValue) * 100);
       
-      // Track deciles (10, 20, 30...90)
+      // Track deciles (10, 20, 30...90) for PostHog
       for (let decile = 10; decile <= 90; decile += 10) {
         if (progressPct >= decile && !trackedDeciles.current.has(decile)) {
           trackedDeciles.current.add(decile);
@@ -57,7 +64,7 @@ export const DemoVideoPlayer = ({
         }
       }
     }
-  }, [posthog, getSharedProperties]);
+  }, [posthog, getSharedProperties, saveProgress, videoId]);
 
   const handlePlay = useCallback(() => {
     if (!hasPlayedRef.current) {
