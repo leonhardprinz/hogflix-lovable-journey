@@ -1,0 +1,46 @@
+name: Synthetic backfill (one-shot, historical)
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Start date (YYYY-MM-DD, inclusive, UTC)'
+        required: true
+        default: '2025-10-01'
+      end_date:
+        description: 'End date (YYYY-MM-DD, inclusive, UTC)'
+        required: true
+        default: '2025-10-16'
+      personas:
+        description: 'Persona pool size'
+        required: true
+        default: '400'
+      avg_events:
+        description: 'Avg events per active day (rough)'
+        required: true
+        default: '6'
+      dry_run:
+        description: 'Set true to log without sending'
+        required: false
+        default: 'false'
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    env:
+      POSTHOG_HOST: https://eu.i.posthog.com
+      POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+      START_DATE: ${{ inputs.start_date }}
+      END_DATE: ${{ inputs.end_date }}
+      PERSONAS: ${{ inputs.personas }}
+      AVG_EVENTS_PER_ACTIVE_DAY: ${{ inputs.avg_events }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run backfill
+        run: node scripts/backfill/backfill.js
