@@ -41,6 +41,7 @@ const VideoPlayer = () => {
   const [lastSaveTime, setLastSaveTime] = useState(0);
   const [resumeMessage, setResumeMessage] = useState<string | null>(null);
   const [showStartOverButton, setShowStartOverButton] = useState(false);
+  const [categoryName, setCategoryName] = useState<string>('Unknown');
   
   const hlsRef = useRef<Hls | null>(null);
   const hasAppliedResume = useRef(false);
@@ -75,7 +76,7 @@ const VideoPlayer = () => {
           posthog.capture('video:progress_milestone', {
             video_id: video.id,
             milestone: 25,
-            category: (video as any)?.categories?.name || 'Unknown',
+            category: categoryName,
             profile_id: selectedProfile.id,
             session_id: sessionId
           });
@@ -86,7 +87,7 @@ const VideoPlayer = () => {
           posthog.capture('video:progress_milestone', {
             video_id: video.id,
             milestone: 50,
-            category: (video as any)?.categories?.name || 'Unknown',
+            category: categoryName,
             profile_id: selectedProfile.id,
             session_id: sessionId
           });
@@ -97,7 +98,7 @@ const VideoPlayer = () => {
           posthog.capture('video:progress_milestone', {
             video_id: video.id,
             milestone: 75,
-            category: (video as any)?.categories?.name || 'Unknown',
+            category: categoryName,
             profile_id: selectedProfile.id,
             session_id: sessionId
           });
@@ -109,7 +110,7 @@ const VideoPlayer = () => {
           
           posthog.capture('video:completed', {
             video_id: video.id,
-            category: (video as any)?.categories?.name || 'Unknown',
+            category: categoryName,
             session_id: sessionId,
             profile_id: selectedProfile.id,
             total_duration: duration
@@ -118,7 +119,7 @@ const VideoPlayer = () => {
           // Content complete event for A/B test tracking
           posthog.capture('content_complete', {
             content_id: video.id,
-            category: (video as any)?.categories?.name || 'Unknown',
+            category: categoryName,
             source_section: sourceSection,
             completion_pct: Math.round(progressPercentage),
             watch_seconds: Math.round(currentTime),
@@ -157,12 +158,7 @@ const VideoPlayer = () => {
         // Step 1: Load video metadata
         const { data: videoData, error: videoError } = await supabase
           .from('videos')
-          .select(`
-            *,
-            categories (
-              name
-            )
-          `)
+          .select('*')
           .eq('id', videoId)
           .single();
 
@@ -175,8 +171,18 @@ const VideoPlayer = () => {
         console.log('📹 Video metadata loaded:', videoData.title);
         setVideo(videoData);
         
-        // Extract category name for event tracking
-        const categoryName = (videoData as any)?.categories?.name || 'Unknown';
+        // Fetch category name separately (no FK relationship exists)
+        let fetchedCategoryName = 'Unknown';
+        if (videoData.category_id) {
+          const { data: categoryData } = await supabase
+            .from('categories')
+            .select('name')
+            .eq('id', videoData.category_id)
+            .single();
+          
+          fetchedCategoryName = categoryData?.name || 'Unknown';
+        }
+        setCategoryName(fetchedCategoryName);
 
         // Step 2: Load watch progress first
         console.log('📊 Loading watch progress...');
@@ -221,7 +227,7 @@ const VideoPlayer = () => {
         posthog.capture('video:session_started', {
           video_id: videoId,
           video_title: videoData.title,
-          category: categoryName,
+          category: fetchedCategoryName,
           profile_id: selectedProfile?.id,
           session_id: sessionId,
           has_resume_point: !!(progressData && progressData.progress_seconds > 0)
@@ -230,7 +236,7 @@ const VideoPlayer = () => {
         // Content start event for A/B test tracking
         posthog.capture('content_start', {
           content_id: videoId,
-          category: categoryName,
+          category: fetchedCategoryName,
           source_section: sourceSection,
           profile_id: selectedProfile?.id,
           session_id: sessionId
@@ -320,7 +326,7 @@ const VideoPlayer = () => {
         
         posthog.capture('video:session_resumed', {
           video_id: videoId,
-          category: (video as any)?.categories?.name || 'Unknown',
+          category: categoryName,
           session_id: sessionId,
           resumed_at_seconds: resumeTime,
           profile_id: selectedProfile?.id
