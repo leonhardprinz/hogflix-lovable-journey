@@ -1,0 +1,43 @@
+name: Synthetic traffic (personas that return)
+on:
+  schedule:
+    - cron: '*/30 * * * *' # every 30 minutes
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # to persist persona state back to repo
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - run: npm i -D playwright
+      - run: npx playwright install --with-deps chromium
+
+      # Restore previous persona state from branch "synthetic-state"
+      - name: Restore persona state
+        run: |
+          git fetch origin synthetic-state || true
+          git checkout synthetic-state || git checkout -b synthetic-state
+          mkdir -p .personas
+          git checkout - # go back to default branch with code
+          git worktree add state synthetic-state
+          cp -r state/.personas .personas || true
+
+      - name: Run simulator
+        run: node scripts/synthetic/run.ts
+
+      # Persist updated state back to branch
+      - name: Save persona state
+        run: |
+          cp -r .personas state/.personas
+          cd state
+          git add .personas
+          git -c user.name="gh-bot" -c user.email="github-actions@users.noreply.github.com" \
+            commit -m "update personas $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "no changes"
+          git push origin synthetic-state || echo "pushed"
