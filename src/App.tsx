@@ -27,6 +27,7 @@ import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import NewsletterPreferences from "./pages/NewsletterPreferences";
 import FloatingHedgehog from "./components/FloatingHedgehog";
+import SyntheticMarker from "./components/SyntheticMarker";
 
 const queryClient = new QueryClient();
 
@@ -118,6 +119,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <BrowserRouter>
+                <SyntheticMarker />
                 <AppContent />
               </BrowserRouter>
             </SubscriptionProvider>
