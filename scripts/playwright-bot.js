@@ -1,99 +1,65 @@
 // scripts/playwright-bot.js
-// ESM. Drives real sessions to produce autocapture + session replays.
-// Env: RUNS=2 (how many separate browsing sessions to run in this job)
+// Purpose: legacy single-run bot. Keeps compatibility but now marks sessions synthetic
+// and avoids the Demo area entirely.
 
-import { chromium, devices } from 'playwright'
-import { randomUUID } from 'crypto'
+const { chromium } = require('playwright')
 
-const RUNS = Number(process.env.RUNS || 2)
-
-const personas = [
-  { persona: 'binge_watcher', device: devices['Desktop Chrome'] },
-  { persona: 'casual_mobile', device: devices['iPhone 13'] },
-  { persona: 'searcher',      device: devices['Desktop Chrome'] },
-]
-
-const companies = [
-  { id: 'acme-001', name: 'Acme Corp',      plan: 'Premium' },
-  { id: 'globex-002', name: 'Globex GmbH',  plan: 'Standard' },
-  { id: 'initech-003', name: 'Initech d.o.o.', plan: 'Basic' },
-]
-
-const utms = [
-  { utm_source: 'linkedin', utm_medium: 'paid',  utm_campaign: 'hogflix_launch' },
-  { utm_source: 'newsletter', utm_medium: 'email', utm_campaign: 'q4_updates' },
-  { utm_source: 'direct', utm_medium: 'none',  utm_campaign: 'none' },
-]
-
-const pick = (xs) => xs[Math.floor(Math.random()*xs.length)]
-
-async function runOnce() {
-  const p = pick(personas)
-  const c = pick(companies)
-  const u = pick(utms)
-  const distinctId = `syn_${p.persona}_${randomUUID().slice(0,8)}`
-
-  const browser = await chromium.launch()
-  const context = await browser.newContext({ ...p.device })
+async function runBot(user) {
+  const browser = await chromium.launch({ headless: true })
+  const context = await browser.newContext()
   const page = await context.newPage()
 
-  // Land with UTM params
-  await page.goto(`https://hogflix-demo.lovable.app/?utm_source=${u.utm_source}&utm_medium=${u.utm_medium}&utm_campaign=${u.utm_campaign}`, { waitUntil: 'domcontentloaded' })
+  const site = process.env.HOGFLIX_URL || 'https://hogflix-demo.lovable.app/'
+  const url = new URL(site)
+  url.searchParams.set('synthetic', '1')
+  url.searchParams.set('utm_source', user.utm_source || 'bot')
+  url.searchParams.set('utm_medium', user.utm_medium || 'script')
+  url.searchParams.set('utm_campaign', user.utm_campaign || 'legacy')
 
-  // Identify & set props in the browser so replays carry them
-  await page.evaluate(
-    ({ id, persona, company, u }) => {
-      function setProps() {
-        const ph = window.posthog
-        if (!ph) return
-        ph.identify(id, {
-          persona,
-          device_type: /iPhone|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
-          company_id: company.id,
-          company_name: company.name,
-          company_plan: company.plan, // Basic | Standard | Premium
-          utm_source: u.utm_source,
-          utm_medium: u.utm_medium,
-          utm_campaign: u.utm_campaign,
-          source: 'hogflix-bot',
-          is_synthetic: true,
-        })
+  await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: 60_000 })
+  await page.waitForLoadState('load')
+
+  await page.evaluate((distinctId) => {
+    function setProps() {
+      const ph = window.posthog
+      if (!ph) return
+      // person identify + flags
+      if (distinctId) {
+        ph.identify(distinctId, { is_synthetic: true, source: 'playwright-bot' })
       }
-      if (document.readyState === 'complete') setProps()
-      else window.addEventListener('load', setProps)
-    },
-    { id: distinctId, persona: p.persona, company: c, u }
-  )
-
-  // Browse
-  await page.waitForTimeout(800 + Math.random()*800)
-  await page.getByRole('link', { name: /Popular/i }).click().catch(()=>{})
-  await page.waitForTimeout(600 + Math.random()*600)
-
-  const sels = ['[data-test*="title"]','[data-test*="card"]','a[href*="/title"]','.card a','a:has-text("Play")']
-  for (const sel of sels) {
-    const count = await page.locator(sel).count()
-    if (count > 0) {
-      for (let i=0; i<Math.min(3,count); i++) {
-        await page.locator(sel).nth(i).click().catch(()=>{})
-        await page.waitForTimeout(500 + Math.random()*700)
-        await page.keyboard.press('Space').catch(()=>{})
-        await page.waitForTimeout(1000 + Math.random()*1500)
-        await page.goBack().catch(()=>{})
-      }
-      break
+      // session super-props
+      ph.register({ synthetic: true, is_synthetic: true, source: 'playwright-bot' })
     }
+    if (document.readyState === 'complete') setProps()
+    else window.addEventListener('load', setProps)
+  }, user.distinct_id || null)
+
+  // Click some non-demo links
+  const anchors = await page.$$eval('a[href]', (els) =>
+    els.map((a) => a.href).filter((h) => !!h && !h.includes('/demos') && !/\/demo(s)?\b/i.test(h))
+  )
+  const subset = anchors.sort(() => 0.5 - Math.random()).slice(0, 3)
+  for (const href of subset) {
+    try {
+      await page.goto(href, { waitUntil: 'domcontentloaded', timeout: 45_000 })
+      await page.waitForTimeout(1000 + Math.random() * 2000)
+    } catch {}
   }
 
-  await page.getByRole('link', { name: /Trending/i }).click().catch(()=>{})
-  await page.waitForTimeout(500 + Math.random()*600)
-
-  await context.storageState({ path: 'state.json' })
   await browser.close()
 }
 
-;(async () => {
-  for (let i=0; i<RUNS; i++) {
-    await runOnce()
+if (require.main === module) {
+  const user = {
+    distinct_id: `legacy-${Math.floor(Math.random() * 1e9)}`,
+    utm_source: 'legacy',
+    utm_medium: 'script',
+    utm_campaign: 'compat',
   }
-})().catch(e => { console.error(e); process.exit(1) })
+  runBot(user).catch((e) => {
+    console.error(e)
+    process.exit(1)
+  })
+}
+
+module.exports = { runBot }
