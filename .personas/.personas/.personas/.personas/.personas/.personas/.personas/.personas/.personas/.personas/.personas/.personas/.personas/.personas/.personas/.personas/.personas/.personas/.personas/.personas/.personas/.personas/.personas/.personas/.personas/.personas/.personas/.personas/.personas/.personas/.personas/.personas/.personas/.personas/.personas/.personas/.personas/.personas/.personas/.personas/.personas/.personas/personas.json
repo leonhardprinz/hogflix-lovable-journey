@@ -1,0 +1,1202 @@
+[
+  {
+    "id": "syn-1",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760913993765,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-2",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1761151569424,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-3",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760785766320,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-4",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760812621662,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-5",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760924343953,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-6",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760790336208,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-7",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760776561942,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-8",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1761289611797,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-9",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760937691923,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-10",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760780669692,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-11",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760696789896,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-12",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760705596939,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-13",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760704295203,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-14",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760700983856,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-15",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760699779211,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-16",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760704453174,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-17",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760698986062,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-18",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760698368437,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-19",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760699348859,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-20",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701141817,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-21",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760697731160,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-22",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760700705859,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-23",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760699657919,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-24",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760706132085,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-25",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760700803316,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-26",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760696495622,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-27",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760706820346,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-28",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701509767,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-29",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760703496685,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-30",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760696503839,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-31",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760698595808,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-32",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760696640032,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-33",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760702433676,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-34",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760700982100,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-35",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760699848791,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-36",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760705747854,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-37",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760702331885,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-38",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760699023145,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-39",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760700448276,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-40",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701515107,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-41",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760703841424,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-42",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760706128223,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-43",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760698278457,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-44",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760700563648,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-45",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760706651338,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-46",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760697884869,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-47",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760701454716,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-48",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760700683267,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-49",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760698299634,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-50",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701599172,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-51",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760706390369,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-52",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760703689443,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-53",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760700116382,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-54",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760702940402,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-55",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760699045162,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-56",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760697360895,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-57",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760697667575,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-58",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701686899,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-59",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760703869439,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-60",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760703059981,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-61",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760698104347,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-62",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760704430575,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-63",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760705375798,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-64",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760706260707,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-65",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760706361440,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-66",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760705578385,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-67",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760698619022,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-68",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760706626918,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-69",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760701685388,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-70",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760699809720,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-71",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760697890528,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-72",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760706700900,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-73",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760702688153,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-74",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760696982785,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-75",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760704205333,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-76",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760697243644,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-77",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760706382839,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-78",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760700232015,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-79",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760704074517,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-80",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760699373374,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-81",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760696434919,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-82",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760706439263,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-83",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760700624097,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-84",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760702791450,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-85",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760703344412,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-86",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760705248285,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-87",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760706244904,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-88",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701744686,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-89",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760704852055,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-90",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760697220336,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-91",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760699234998,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-92",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760706885079,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-93",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760697058863,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-94",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701229556,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-95",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760706453086,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-96",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760699480823,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-97",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760703415144,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-98",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701554675,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-99",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760706695235,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-100",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760696590370,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-101",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760698446728,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-102",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760702217252,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-103",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760703732444,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-104",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760702449143,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-105",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760705624347,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-106",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760700575697,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-107",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760703654120,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-108",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701756406,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-109",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760702546778,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-110",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760697793877,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-111",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760705437714,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-112",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760704104820,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-113",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760706111869,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-114",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760699484843,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-115",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "de-DE",
+    "nextVisitAt": 1760705790140,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-116",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760698289177,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-117",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760699162322,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-118",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760701974873,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  },
+  {
+    "id": "syn-119",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "de-DE",
+    "nextVisitAt": 1760701552358,
+    "affinity": [
+      "sci-fi",
+      "drama"
+    ]
+  },
+  {
+    "id": "syn-120",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+    "locale": "sl-SI",
+    "nextVisitAt": 1760700030329,
+    "affinity": [
+      "kids",
+      "family"
+    ]
+  }
+]
