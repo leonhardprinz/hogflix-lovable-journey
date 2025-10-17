@@ -75,6 +75,7 @@ const VideoPlayer = () => {
           posthog.capture('video:progress_milestone', {
             video_id: video.id,
             milestone: 25,
+            category: (video as any)?.categories?.name || 'Unknown',
             profile_id: selectedProfile.id,
             session_id: sessionId
           });
@@ -85,6 +86,7 @@ const VideoPlayer = () => {
           posthog.capture('video:progress_milestone', {
             video_id: video.id,
             milestone: 50,
+            category: (video as any)?.categories?.name || 'Unknown',
             profile_id: selectedProfile.id,
             session_id: sessionId
           });
@@ -95,6 +97,7 @@ const VideoPlayer = () => {
           posthog.capture('video:progress_milestone', {
             video_id: video.id,
             milestone: 75,
+            category: (video as any)?.categories?.name || 'Unknown',
             profile_id: selectedProfile.id,
             session_id: sessionId
           });
@@ -106,6 +109,7 @@ const VideoPlayer = () => {
           
           posthog.capture('video:completed', {
             video_id: video.id,
+            category: (video as any)?.categories?.name || 'Unknown',
             session_id: sessionId,
             profile_id: selectedProfile.id,
             total_duration: duration
@@ -114,6 +118,7 @@ const VideoPlayer = () => {
           // Content complete event for A/B test tracking
           posthog.capture('content_complete', {
             content_id: video.id,
+            category: (video as any)?.categories?.name || 'Unknown',
             source_section: sourceSection,
             completion_pct: Math.round(progressPercentage),
             watch_seconds: Math.round(currentTime),
@@ -152,7 +157,12 @@ const VideoPlayer = () => {
         // Step 1: Load video metadata
         const { data: videoData, error: videoError } = await supabase
           .from('videos')
-          .select('*')
+          .select(`
+            *,
+            categories (
+              name
+            )
+          `)
           .eq('id', videoId)
           .single();
 
@@ -164,6 +174,9 @@ const VideoPlayer = () => {
 
         console.log('📹 Video metadata loaded:', videoData.title);
         setVideo(videoData);
+        
+        // Extract category name for event tracking
+        const categoryName = (videoData as any)?.categories?.name || 'Unknown';
 
         // Step 2: Load watch progress first
         console.log('📊 Loading watch progress...');
@@ -208,6 +221,7 @@ const VideoPlayer = () => {
         posthog.capture('video:session_started', {
           video_id: videoId,
           video_title: videoData.title,
+          category: categoryName,
           profile_id: selectedProfile?.id,
           session_id: sessionId,
           has_resume_point: !!(progressData && progressData.progress_seconds > 0)
@@ -216,6 +230,7 @@ const VideoPlayer = () => {
         // Content start event for A/B test tracking
         posthog.capture('content_start', {
           content_id: videoId,
+          category: categoryName,
           source_section: sourceSection,
           profile_id: selectedProfile?.id,
           session_id: sessionId
@@ -305,6 +320,7 @@ const VideoPlayer = () => {
         
         posthog.capture('video:session_resumed', {
           video_id: videoId,
+          category: (video as any)?.categories?.name || 'Unknown',
           session_id: sessionId,
           resumed_at_seconds: resumeTime,
           profile_id: selectedProfile?.id
