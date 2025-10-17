@@ -15,6 +15,7 @@ import Login from "./pages/Login";
 import Profiles from "./pages/Profiles";
 import Browse from "./pages/Browse";
 import VideoPlayer from "./pages/VideoPlayer";
+import DemoDetail from "./pages/DemoDetail";
 import MyList from "./pages/MyList";
 import Support from "./pages/Support";
 import Admin from "./pages/Admin";
@@ -69,6 +70,11 @@ const AppContent = () => {
           <Route path="/watch/:videoId" element={
             <ProtectedRoute>
               <VideoPlayer />
+            </ProtectedRoute>
+          } />
+          <Route path="/demos/:id" element={
+            <ProtectedRoute>
+              <DemoDetail />
             </ProtectedRoute>
           } />
           <Route path="/support" element={<Support />} />
