@@ -20,7 +20,7 @@ on:
         required: true
         default: '6'
       dry_run:
-        description: 'Set true to log without sending'
+        description: 'Set true to log without sending (overrides auto fallback)'
         required: false
         default: 'false'
 
@@ -28,8 +28,9 @@ jobs:
   backfill:
     runs-on: ubuntu-latest
     env:
-      POSTHOG_HOST: https://eu.i.posthog.com
-      POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+      # Accept both your secret names and the generic ones inside the script
+      POSTHOG_HOST: ${{ secrets.PH_HOST || 'https://eu.i.posthog.com' }}
+      POSTHOG_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
       START_DATE: ${{ inputs.start_date }}
       END_DATE: ${{ inputs.end_date }}
       PERSONAS: ${{ inputs.personas }}
@@ -41,6 +42,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Auto-enable DRY_RUN if secret missing
+        run: |
+          if [ -z "${POSTHOG_API_KEY}" ] && [ "${DRY_RUN}" != "true" ]; then
+            echo "PH_PROJECT_API_KEY not set. Switching to DRY_RUN mode."
+            echo "DRY_RUN=true" >> $GITHUB_ENV
+          fi
 
       - name: Run backfill
         run: node scripts/backfill/backfill.js
