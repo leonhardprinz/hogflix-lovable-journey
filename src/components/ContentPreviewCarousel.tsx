@@ -13,6 +13,7 @@ interface Video {
   description: string | null;
   thumbnail_url: string;
   duration: number;
+  categories?: { name: string };
 }
 
 const ContentPreviewCarousel = () => {
@@ -25,7 +26,12 @@ const ContentPreviewCarousel = () => {
       try {
         const { data, error } = await supabase
           .from('videos')
-          .select('id, title, description, thumbnail_url, duration')
+          .select(`
+            id, title, description, thumbnail_url, duration,
+            categories!inner (
+              name
+            )
+          `)
           .order('created_at', { ascending: false })
           .limit(8);
 

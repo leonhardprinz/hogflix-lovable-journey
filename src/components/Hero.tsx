@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Play } from 'lucide-react';
 import { useAnimateOnce } from '@/hooks/useAnimateOnce';
+import { videoHrefFor } from '@/lib/videoRouting';
 
 interface Video {
   id: string;
@@ -12,6 +13,7 @@ interface Video {
   thumbnail_url: string;
   video_url: string;
   duration: number;
+  categories?: { name: string };
 }
 
 const Hero = () => {
@@ -26,10 +28,15 @@ const Hero = () => {
   useEffect(() => {
     const fetchFeaturedVideo = async () => {
       try {
-        // Fetch the most recently added video
+        // Fetch the most recently added video with category
         const { data: video, error } = await supabase
           .from('videos')
-          .select('*')
+          .select(`
+            *,
+            categories!inner (
+              name
+            )
+          `)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -120,7 +127,7 @@ const Hero = () => {
               size="lg" 
               className="text-lg px-8 py-3 flex items-center gap-2"
             >
-              <Link to={`/watch/${featuredVideo.id}`}>
+              <Link to={videoHrefFor((featuredVideo as any)?.categories?.name, featuredVideo.id)}>
                 <Play size={20} fill="currentColor" />
                 Play
               </Link>

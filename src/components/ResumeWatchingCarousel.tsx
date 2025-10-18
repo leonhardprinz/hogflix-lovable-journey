@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { X, Play, Clock } from 'lucide-react';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
+import { videoHrefFor } from '@/lib/videoRouting';
 
 interface VideoWithProgress {
   id: string;
@@ -22,6 +23,7 @@ interface VideoWithProgress {
   progress_seconds: number;
   progress_percentage: number;
   last_watched_at: string;
+  category_name?: string;
 }
 
 export const ResumeWatchingCarousel = () => {
@@ -131,7 +133,7 @@ export const ResumeWatchingCarousel = () => {
           {videos.map((video) => (
             <CarouselItem key={video.id} className="pl-4 basis-80">
               <Link
-                to={`/watch/${video.id}`}
+                to={videoHrefFor(video.category_name, video.id)}
                 onClick={() => handleVideoClick(video)}
                 className="block"
               >

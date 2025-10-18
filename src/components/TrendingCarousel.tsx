@@ -12,6 +12,7 @@ import {
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { Skeleton } from '@/components/ui/skeleton';
+import { videoHrefFor } from '@/lib/videoRouting';
 
 interface Video {
   id: string;
@@ -23,6 +24,7 @@ interface Video {
   average_rating: number;
   rating_count: number;
   trending_score: number;
+  categories?: { name: string };
 }
 
 export const TrendingCarousel = () => {
@@ -69,7 +71,12 @@ export const TrendingCarousel = () => {
 
       const { data: videosData, error } = await supabase
         .from('videos')
-        .select('*')
+        .select(`
+          *,
+          categories!inner (
+            name
+          )
+        `)
         .gte('created_at', thirtyDaysAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(50);
@@ -164,7 +171,7 @@ export const TrendingCarousel = () => {
           {videos.map((video, index) => (
             <CarouselItem key={video.id} className="pl-4 basis-80">
               <Link
-                to={`/watch/${video.id}`}
+                to={videoHrefFor((video as any)?.categories?.name, video.id)}
                 onClick={() => handleVideoClick(video, index + 1)}
                 data-ph-capture-attribute-video-id={video.id}
               >

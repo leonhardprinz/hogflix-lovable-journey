@@ -19,6 +19,7 @@ import {
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { Play, Info } from 'lucide-react';
 import { HedgehogRating } from '@/components/HedgehogRating';
+import { videoHrefFor } from '@/lib/videoRouting';
 
 interface Video {
   id: string;
@@ -232,7 +233,7 @@ const Browse = () => {
                   {category.videos.map((video) => (
                     <CarouselItem key={video.id} className="pl-4 basis-80">
                       <Link
-                        to={`/watch/${video.id}`}
+                        to={videoHrefFor(category.name, video.id)}
                         data-ph-capture-attribute-video-id={video.id}
                       >
                          <div className="w-full bg-card-background rounded card-hover cursor-pointer group">

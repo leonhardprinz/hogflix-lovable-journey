@@ -23,6 +23,7 @@ interface VideoWithProgress {
   progress_seconds: number;
   progress_percentage: number;
   last_watched_at: string;
+  category_name?: string;
 }
 
 export const useWatchProgress = (videoId?: string) => {
@@ -165,7 +166,7 @@ export const useWatchProgress = (videoId?: string) => {
     setLoading(true);
     
     try {
-      // Use a simpler direct JOIN query with lower thresholds
+      // Use a simpler direct JOIN query with lower thresholds and include category
       const { data, error } = await supabase
         .from('watch_progress')
         .select(`
@@ -178,7 +179,10 @@ export const useWatchProgress = (videoId?: string) => {
             description,
             thumbnail_url,
             video_url,
-            duration
+            duration,
+            categories!inner (
+              name
+            )
           )
         `)
         .eq('user_id', user.id)
@@ -219,6 +223,7 @@ export const useWatchProgress = (videoId?: string) => {
           progress_seconds: item.progress_seconds,
           progress_percentage: item.progress_percentage,
           last_watched_at: item.last_watched_at,
+          category_name: item.videos?.categories?.name,
         }));
 
       console.log('✅ Returning', resumeVideos.length, 'resume videos');

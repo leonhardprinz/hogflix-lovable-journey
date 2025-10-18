@@ -247,6 +247,7 @@ const VideoPlayer = () => {
 
         // Get source section from session storage
         const sourceSection = sessionStorage.getItem('video_source_section') || 'unknown';
+        const sectionPriorityVariant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test') || 'unknown';
         
         // PostHog analytics
         posthog.capture('video:session_started', {
@@ -255,7 +256,9 @@ const VideoPlayer = () => {
           category: fetchedCategoryName,
           profile_id: selectedProfile?.id,
           session_id: sessionId,
-          has_resume_point: !!(progressData && progressData.progress_seconds > 0)
+          has_resume_point: !!(progressData && progressData.progress_seconds > 0),
+          source_section: sourceSection,
+          source_section_variant: sectionPriorityVariant
         });
         
         // Content start event for A/B test tracking
@@ -263,6 +266,7 @@ const VideoPlayer = () => {
           content_id: videoId,
           category: fetchedCategoryName,
           source_section: sourceSection,
+          has_resume_point: !!(progressData && progressData.progress_seconds > 0),
           profile_id: selectedProfile?.id,
           session_id: sessionId
         });

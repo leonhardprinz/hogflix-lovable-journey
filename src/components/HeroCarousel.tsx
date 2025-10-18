@@ -4,6 +4,7 @@ import { Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { usePostHog } from 'posthog-js/react';
+import { videoHrefFor } from '@/lib/videoRouting';
 
 interface Video {
   id: string;
@@ -12,6 +13,7 @@ interface Video {
   thumbnail_url: string;
   video_url: string;
   duration: number;
+  categories?: { name: string };
 }
 
 export const HeroCarousel = () => {
@@ -37,7 +39,12 @@ export const HeroCarousel = () => {
     try {
       const { data: videos, error } = await supabase
         .from('videos')
-        .select('id, title, description, thumbnail_url, video_url, duration')
+        .select(`
+          id, title, description, thumbnail_url, video_url, duration,
+          categories!inner (
+            name
+          )
+        `)
         .order('created_at', { ascending: false })
         .limit(5);
 
@@ -163,7 +170,7 @@ export const HeroCarousel = () => {
                   {video.description}
                 </p>
               )}
-              <Link to={`/watch/${video.id}`} onClick={() => handleWatchNowClick(video.id)}>
+              <Link to={videoHrefFor((video as any)?.categories?.name, video.id)} onClick={() => handleWatchNowClick(video.id)}>
                 <Button
                   size="lg"
                   className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold transition-all duration-300 shadow-lg"
