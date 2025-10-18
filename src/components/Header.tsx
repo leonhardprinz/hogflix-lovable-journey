@@ -288,7 +288,7 @@ const Header = () => {
                   
                   {/* Instant search dropdown */}
                   {showInstantResults && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-background-dark border border-gray-700 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card/95 backdrop-blur-sm border border-border rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
                       {instantResults.slice(0, 4).map((video) => (
                         <div
                           key={video.id}
@@ -349,7 +349,7 @@ const Header = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent 
                     align="end" 
-                    className="w-56 bg-background-dark border-gray-700 z-50"
+                    className="w-56 bg-card/95 backdrop-blur-sm border-border"
                   >
                     {userProfiles.length > 0 && (
                       <>
@@ -426,7 +426,7 @@ const Header = () => {
 
       {/* Search Results Modal */}
       <Dialog open={showSearchResults} onOpenChange={setShowSearchResults}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-background-dark border-gray-700">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-text-primary font-manrope flex items-center gap-2">
               Search Results for "{searchQuery}"
