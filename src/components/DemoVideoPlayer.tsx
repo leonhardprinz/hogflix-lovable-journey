@@ -3,9 +3,9 @@ import { usePostHog } from 'posthog-js/react';
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
 import { useSyntheticCheck } from '@/hooks/useSyntheticCheck';
-import { Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
+import { VideoControls } from './VideoControls';
+import { Play } from 'lucide-react';
 import { Button } from './ui/button';
-import { Slider } from './ui/slider';
 
 interface DemoVideoPlayerProps {
   videoId: string;
@@ -31,9 +31,11 @@ export const DemoVideoPlayer = ({
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [showControls, setShowControls] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const trackedDeciles = useRef(new Set<number>());
   const hasPlayedRef = useRef(false);
   const sessionIdRef = useRef(crypto.randomUUID());
+  const isPiPSupported = 'pictureInPictureEnabled' in document;
 
   const { saveProgress } = useWatchProgress(videoId);
 
@@ -87,6 +89,11 @@ export const DemoVideoPlayer = ({
     pause,
     togglePlayPause,
     seekTo,
+    playbackRate,
+    changePlaybackRate,
+    skipBackward,
+    skipForward,
+    togglePiP,
   } = useVideoPlayer({
     onTimeUpdate: handleTimeUpdate,
     onPlay: handlePlay,
@@ -100,19 +107,19 @@ export const DemoVideoPlayer = ({
     }
   }, [posthog, getSharedProperties, duration, isSynthetic]);
 
-  const handleVolumeChange = (value: number[]) => {
-    const newVolume = value[0];
+  const handleVolumeChange = (newVolume: number) => {
     setVolume(newVolume);
+    setIsMuted(newVolume === 0);
     if (videoRef.current) {
       videoRef.current.volume = newVolume;
-      setIsMuted(newVolume === 0);
+      videoRef.current.muted = newVolume === 0;
     }
   };
 
-  const toggleMute = () => {
+  const handleMuteToggle = () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
     if (videoRef.current) {
-      const newMuted = !isMuted;
-      setIsMuted(newMuted);
       videoRef.current.muted = newMuted;
       if (newMuted) {
         setVolume(0);
@@ -122,13 +129,7 @@ export const DemoVideoPlayer = ({
     }
   };
 
-  const handleSeek = (value: number[]) => {
-    const newTime = value[0];
-    seekTo(newTime);
-    setCurrentTime(newTime);
-  };
-
-  const toggleFullscreen = () => {
+  const handleFullscreenToggle = () => {
     if (containerRef.current) {
       if (!document.fullscreenElement) {
         containerRef.current.requestFullscreen();
@@ -138,11 +139,15 @@ export const DemoVideoPlayer = ({
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  // Track fullscreen state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -167,84 +172,49 @@ export const DemoVideoPlayer = ({
         playsInline
       />
 
-      {/* Custom Controls */}
-      <div
-        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${
-          showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        {/* Progress Bar */}
-        <div className="mb-3">
-          <Slider
-            value={[currentTime]}
-            max={duration}
-            step={0.1}
-            onValueChange={handleSeek}
-            className="cursor-pointer"
-          />
-          <div className="flex justify-between text-xs text-white/70 mt-1">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
-          </div>
-        </div>
-
-        {/* Control Buttons */}
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={togglePlayPause}
-            className="text-white hover:bg-white/20"
-          >
-            {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-          </Button>
-
-          <div className="flex items-center gap-2">
+      {/* Unified Video Controls */}
+      <>
+        {/* Center Play Button */}
+        {!isPlaying && isReady && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <Button
+              onClick={play}
               variant="ghost"
-              size="icon"
-              onClick={toggleMute}
-              className="text-white hover:bg-white/20"
+              size="lg"
+              className="bg-white/20 hover:bg-white/30 text-white border-0 h-20 w-20 rounded-full pointer-events-auto backdrop-blur-sm"
             >
-              {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              <Play className="h-8 w-8 ml-1" />
             </Button>
-            <div className="w-20">
-              <Slider
-                value={[volume]}
-                max={1}
-                step={0.01}
-                onValueChange={handleVolumeChange}
-                className="cursor-pointer"
-              />
-            </div>
           </div>
-
-          <div className="flex-1" />
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleFullscreen}
-            className="text-white hover:bg-white/20"
-          >
-            <Maximize className="h-4 w-4" />
-          </Button>
+        )}
+        
+        {/* Video Controls Bar */}
+        <div 
+          className={`transition-opacity duration-300 ${
+            showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <VideoControls
+            isPlaying={isPlaying}
+            currentTime={currentTime}
+            duration={duration}
+            volume={volume}
+            isMuted={isMuted}
+            playbackRate={playbackRate}
+            isFullscreen={isFullscreen}
+            isPiPSupported={isPiPSupported}
+            onPlayPause={togglePlayPause}
+            onSeek={seekTo}
+            onVolumeChange={handleVolumeChange}
+            onMuteToggle={handleMuteToggle}
+            onPlaybackRateChange={changePlaybackRate}
+            onSkipBackward={() => skipBackward(10)}
+            onSkipForward={() => skipForward(10)}
+            onPiPToggle={togglePiP}
+            onFullscreenToggle={handleFullscreenToggle}
+          />
         </div>
-      </div>
-
-      {/* Play Overlay (when paused) */}
-      {!isPlaying && isReady && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={play}
-            className="h-16 w-16 rounded-full bg-white/20 hover:bg-white/30 text-white"
-          >
-            <Play className="h-8 w-8 ml-1" />
-          </Button>
-        </div>
-      )}
+      </>
     </div>
   );
 };

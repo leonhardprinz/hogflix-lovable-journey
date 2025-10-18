@@ -11,7 +11,8 @@ import Header from '@/components/Header';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Play, Pause } from 'lucide-react';
+import { VideoControls } from '@/components/VideoControls';
+import { ArrowLeft, Loader2, Play } from 'lucide-react';
 
 interface Video {
   id: string;
@@ -42,6 +43,13 @@ const VideoPlayer = () => {
   const [resumeMessage, setResumeMessage] = useState<string | null>(null);
   const [showStartOverButton, setShowStartOverButton] = useState(false);
   const [categoryName, setCategoryName] = useState<string>('Unknown');
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+  const isPiPSupported = 'pictureInPictureEnabled' in document;
   
   const hlsRef = useRef<Hls | null>(null);
   const hasAppliedResume = useRef(false);
@@ -55,18 +63,35 @@ const VideoPlayer = () => {
   // Feature flag for new player UI
   const isNewPlayerUiEnabled = useFeatureFlagEnabled('new-player-ui');
 
-  // Video player hook with progress tracking
-  const { videoRef, videoProps, isPlaying, isReady, play, pause, togglePlayPause, seekTo } = useVideoPlayer({
+  // Video player hook with progress tracking and enhanced controls
+  const { 
+    videoRef, 
+    videoProps, 
+    isPlaying, 
+    isReady, 
+    play, 
+    pause, 
+    togglePlayPause, 
+    seekTo,
+    playbackRate,
+    changePlaybackRate,
+    skipBackward,
+    skipForward,
+    togglePiP,
+    isPiPActive
+  } = useVideoPlayer({
     autoplay: false, // We'll control autoplay manually for better timing
-    onTimeUpdate: (currentTime, duration) => {
+    onTimeUpdate: (currentTimeValue, duration) => {
+      setCurrentTime(currentTimeValue);
+      
       if (video && selectedProfile) {
-        const progressPercentage = (currentTime / duration) * 100;
+        const progressPercentage = (currentTimeValue / duration) * 100;
         const now = Date.now();
 
         // Save progress every 10 seconds (reduced frequency) once meaningful watching has occurred
-        if (now - lastSaveTime >= 10000 && currentTime >= 3 && duration > 0) {
+        if (now - lastSaveTime >= 10000 && currentTimeValue >= 3 && duration > 0) {
           // Non-blocking progress save
-          saveProgress(video.id, currentTime, duration, sessionId);
+          saveProgress(video.id, currentTimeValue, duration, sessionId);
           setLastSaveTime(now);
         }
 
@@ -122,7 +147,7 @@ const VideoPlayer = () => {
             category: categoryName,
             source_section: sourceSection,
             completion_pct: Math.round(progressPercentage),
-            watch_seconds: Math.round(currentTime),
+            watch_seconds: Math.round(currentTimeValue),
             profile_id: selectedProfile.id,
             session_id: sessionId
           });
@@ -451,6 +476,187 @@ const VideoPlayer = () => {
     navigate('/browse');
   };
 
+  // Video controls handlers
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+    setIsMuted(newVolume === 0);
+    if (videoRef.current) {
+      videoRef.current.volume = newVolume;
+      videoRef.current.muted = newVolume === 0;
+    }
+  };
+
+  const handleMuteToggle = () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = newMuted;
+      if (newMuted) {
+        setVolume(0);
+      } else {
+        setVolume(videoRef.current.volume);
+      }
+    }
+  };
+
+  const handlePlaybackRateChange = (rate: number) => {
+    changePlaybackRate(rate);
+    posthog.capture('video:playback_rate_changed', {
+      video_id: videoId,
+      playback_rate: rate,
+      profile_id: selectedProfile?.id,
+      session_id: sessionId
+    });
+  };
+
+  const handleSkipBackward = () => {
+    skipBackward(10);
+    posthog.capture('video:skip_backward', {
+      video_id: videoId,
+      current_time: currentTime,
+      profile_id: selectedProfile?.id,
+      session_id: sessionId
+    });
+  };
+
+  const handleSkipForward = () => {
+    skipForward(10);
+    posthog.capture('video:skip_forward', {
+      video_id: videoId,
+      current_time: currentTime,
+      profile_id: selectedProfile?.id,
+      session_id: sessionId
+    });
+  };
+
+  const handlePiPToggle = () => {
+    togglePiP();
+    const willBeActive = !isPiPActive;
+    posthog.capture(willBeActive ? 'video:pip_enabled' : 'video:pip_disabled', {
+      video_id: videoId,
+      profile_id: selectedProfile?.id,
+      session_id: sessionId
+    });
+  };
+
+  const handleFullscreenToggle = () => {
+    if (!containerRef.current) return;
+
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  // Controls visibility management
+  const resetControlsTimeout = () => {
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    
+    setShowControls(true);
+    
+    if (isPlaying) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+      }, 3000);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case ' ':
+        case 'k':
+          e.preventDefault();
+          togglePlayPause();
+          break;
+        case 'f':
+          e.preventDefault();
+          handleFullscreenToggle();
+          break;
+        case 'm':
+          e.preventDefault();
+          handleMuteToggle();
+          break;
+        case 'arrowup':
+          e.preventDefault();
+          handleVolumeChange(Math.min(1, volume + 0.05));
+          break;
+        case 'arrowdown':
+          e.preventDefault();
+          handleVolumeChange(Math.max(0, volume - 0.05));
+          break;
+        case 'arrowleft':
+        case 'j':
+          e.preventDefault();
+          handleSkipBackward();
+          break;
+        case 'arrowright':
+        case 'l':
+          e.preventDefault();
+          handleSkipForward();
+          break;
+        case 'p':
+          e.preventDefault();
+          if (isPiPSupported) {
+            handlePiPToggle();
+          }
+          break;
+        case '<':
+        case ',':
+          if (e.shiftKey) {
+            e.preventDefault();
+            const newRate = Math.max(0.25, playbackRate - 0.25);
+            handlePlaybackRateChange(newRate);
+          }
+          break;
+        case '>':
+        case '.':
+          if (e.shiftKey) {
+            e.preventDefault();
+            const newRate = Math.min(2, playbackRate + 0.25);
+            handlePlaybackRateChange(newRate);
+          }
+          break;
+        case 'escape':
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          }
+          break;
+        default:
+          // Number keys for seeking to percentage (0-9 for 0%-90%)
+          const num = parseInt(e.key);
+          if (!isNaN(num) && num >= 0 && num <= 9 && videoRef.current) {
+            e.preventDefault();
+            const duration = videoRef.current.duration;
+            if (duration) {
+              seekTo((num / 10) * duration);
+            }
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying, volume, playbackRate, isPiPSupported, currentTime]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background-dark">
@@ -509,7 +715,12 @@ const VideoPlayer = () => {
 
         {/* Video Player Section */}
         <div className="max-w-6xl mx-auto">
-          <div className="aspect-video bg-black rounded-lg overflow-hidden mb-8 relative">
+          <div 
+            ref={containerRef}
+            className="aspect-video bg-black rounded-lg overflow-hidden mb-8 relative group"
+            onMouseMove={resetControlsTimeout}
+            onMouseEnter={resetControlsTimeout}
+          >
             {videoUrl ? (
               <>
                 <video
@@ -540,22 +751,50 @@ const VideoPlayer = () => {
                   </div>
                 )}
                 
-                {/* Custom Controls Overlay */}
+                {/* Unified Video Controls */}
                 {isNewPlayerUiEnabled && !resumeMessage && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors group">
-                    <Button
-                      onClick={togglePlayPause}
-                      variant="ghost"
-                      size="lg"
-                      className="bg-white/20 hover:bg-white/30 text-white border-0 h-20 w-20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  <>
+                    {/* Center Play Button */}
+                    {!isPlaying && isReady && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <Button
+                          onClick={togglePlayPause}
+                          variant="ghost"
+                          size="lg"
+                          className="bg-white/20 hover:bg-white/30 text-white border-0 h-20 w-20 rounded-full pointer-events-auto backdrop-blur-sm"
+                        >
+                          <Play className="h-8 w-8 ml-1" />
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {/* Video Controls Bar */}
+                    <div 
+                      className={`transition-opacity duration-300 ${
+                        showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
+                      }`}
                     >
-                      {isPlaying ? (
-                        <Pause className="h-8 w-8" />
-                      ) : (
-                        <Play className="h-8 w-8 ml-1" />
-                      )}
-                    </Button>
-                  </div>
+                      <VideoControls
+                        isPlaying={isPlaying}
+                        currentTime={currentTime}
+                        duration={videoRef.current?.duration || 0}
+                        volume={volume}
+                        isMuted={isMuted}
+                        playbackRate={playbackRate}
+                        isFullscreen={isFullscreen}
+                        isPiPSupported={isPiPSupported}
+                        onPlayPause={togglePlayPause}
+                        onSeek={seekTo}
+                        onVolumeChange={handleVolumeChange}
+                        onMuteToggle={handleMuteToggle}
+                        onPlaybackRateChange={handlePlaybackRateChange}
+                        onSkipBackward={handleSkipBackward}
+                        onSkipForward={handleSkipForward}
+                        onPiPToggle={handlePiPToggle}
+                        onFullscreenToggle={handleFullscreenToggle}
+                      />
+                    </div>
+                  </>
                 )}
               </>
             ) : (
