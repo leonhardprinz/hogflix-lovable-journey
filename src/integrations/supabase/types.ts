@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_activity_log: {
+        Row: {
+          action_type: string
+          admin_user_id: string
+          created_at: string | null
+          details: Json | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+        }
+        Insert: {
+          action_type: string
+          admin_user_id: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+        }
+        Update: {
+          action_type?: string
+          admin_user_id?: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -381,6 +411,86 @@ export type Database = {
           },
         ]
       }
+      video_analytics: {
+        Row: {
+          avg_rating: number | null
+          avg_watch_time_seconds: number | null
+          completed_count: number | null
+          completion_rate: number | null
+          created_at: string | null
+          last_calculated_at: string | null
+          rating_count: number | null
+          replay_count: number | null
+          retention_at_25: number | null
+          retention_at_50: number | null
+          retention_at_75: number | null
+          started_count: number | null
+          total_views: number | null
+          total_watch_time_seconds: number | null
+          unique_viewers: number | null
+          updated_at: string | null
+          video_id: string
+          views_this_month: number | null
+          views_this_week: number | null
+          views_today: number | null
+          watchlist_count: number | null
+        }
+        Insert: {
+          avg_rating?: number | null
+          avg_watch_time_seconds?: number | null
+          completed_count?: number | null
+          completion_rate?: number | null
+          created_at?: string | null
+          last_calculated_at?: string | null
+          rating_count?: number | null
+          replay_count?: number | null
+          retention_at_25?: number | null
+          retention_at_50?: number | null
+          retention_at_75?: number | null
+          started_count?: number | null
+          total_views?: number | null
+          total_watch_time_seconds?: number | null
+          unique_viewers?: number | null
+          updated_at?: string | null
+          video_id: string
+          views_this_month?: number | null
+          views_this_week?: number | null
+          views_today?: number | null
+          watchlist_count?: number | null
+        }
+        Update: {
+          avg_rating?: number | null
+          avg_watch_time_seconds?: number | null
+          completed_count?: number | null
+          completion_rate?: number | null
+          created_at?: string | null
+          last_calculated_at?: string | null
+          rating_count?: number | null
+          replay_count?: number | null
+          retention_at_25?: number | null
+          retention_at_50?: number | null
+          retention_at_75?: number | null
+          started_count?: number | null
+          total_views?: number | null
+          total_watch_time_seconds?: number | null
+          unique_viewers?: number | null
+          updated_at?: string | null
+          video_id?: string
+          views_this_month?: number | null
+          views_this_week?: number | null
+          views_today?: number | null
+          watchlist_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_analytics_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: true
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       video_assets: {
         Row: {
           asset_type: Database["public"]["Enums"]["asset_type"]
@@ -505,6 +615,110 @@ export type Database = {
           },
           {
             foreignKeyName: "video_ratings_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_tag_assignments: {
+        Row: {
+          created_at: string | null
+          tag_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          tag_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string | null
+          tag_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_tag_assignments_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "video_tags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_tag_assignments_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_tags: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      video_thumbnail_tests: {
+        Row: {
+          click_through_rate: number | null
+          clicks: number | null
+          created_at: string | null
+          id: string
+          impressions: number | null
+          is_active: boolean | null
+          is_winner: boolean | null
+          thumbnail_url: string
+          updated_at: string | null
+          variant_name: string
+          video_id: string | null
+        }
+        Insert: {
+          click_through_rate?: number | null
+          clicks?: number | null
+          created_at?: string | null
+          id?: string
+          impressions?: number | null
+          is_active?: boolean | null
+          is_winner?: boolean | null
+          thumbnail_url: string
+          updated_at?: string | null
+          variant_name: string
+          video_id?: string | null
+        }
+        Update: {
+          click_through_rate?: number | null
+          clicks?: number | null
+          created_at?: string | null
+          id?: string
+          impressions?: number | null
+          is_active?: boolean | null
+          is_winner?: boolean | null
+          thumbnail_url?: string
+          updated_at?: string | null
+          variant_name?: string
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_thumbnail_tests_video_id_fkey"
             columns: ["video_id"]
             isOneToOne: false
             referencedRelation: "videos"
@@ -675,6 +889,10 @@ export type Database = {
       is_video_in_watchlist: {
         Args: { profile_id_param: string; video_id_param: string }
         Returns: boolean
+      }
+      refresh_video_analytics: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
     }
     Enums: {
