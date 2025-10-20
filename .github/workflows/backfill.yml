@@ -4,51 +4,43 @@ on:
   workflow_dispatch:
     inputs:
       start_date:
-        description: 'Start date (YYYY-MM-DD, inclusive, UTC)'
+        description: "Start date (YYYY-MM-DD, inclusive, UTC)"
         required: true
-        default: '2025-10-01'
+        type: string
       end_date:
-        description: 'End date (YYYY-MM-DD, inclusive, UTC)'
+        description: "End date (YYYY-MM-DD, inclusive, UTC)"
         required: true
-        default: '2025-10-16'
-      personas:
-        description: 'Persona pool size'
+        type: string
+      persona_pool:
+        description: "Persona pool size"
         required: true
-        default: '400'
-      avg_events:
-        description: 'Avg events per active day (rough)'
-        required: true
-        default: '6'
-      dry_run:
-        description: 'Set true to log without sending (overrides auto fallback)'
-        required: false
-        default: 'false'
+        default: "400"
+        type: string
 
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    env:
-      # Accept both your secret names and the generic ones inside the script
-      POSTHOG_HOST: ${{ secrets.PH_HOST || 'https://eu.i.posthog.com' }}
-      POSTHOG_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
-      START_DATE: ${{ inputs.start_date }}
-      END_DATE: ${{ inputs.end_date }}
-      PERSONAS: ${{ inputs.personas }}
-      AVG_EVENTS_PER_ACTIVE_DAY: ${{ inputs.avg_events }}
-      DRY_RUN: ${{ inputs.dry_run }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Auto-enable DRY_RUN if secret missing
-        run: |
-          if [ -z "${POSTHOG_API_KEY}" ] && [ "${DRY_RUN}" != "true" ]; then
-            echo "PH_PROJECT_API_KEY not set. Switching to DRY_RUN mode."
-            echo "DRY_RUN=true" >> $GITHUB_ENV
-          fi
+      - name: Install deps
+        run: npm i posthog-node
+
+      - name: Restore persona state
+        uses: actions/cache@v4
+        with:
+          path: .synthetic_state
+          key: personas-shared-v1
 
       - name: Run backfill
         run: node scripts/backfill/backfill.js
+        env:
+          PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          PH_HOST: ${{ secrets.PH_HOST }}
+          STATE_DIR: .synthetic_state
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+          PERSONA_POOL: ${{ inputs.persona_pool }}
