@@ -80,7 +80,7 @@ export default function DemoDetail() {
         // Get signed URL for video
         const { data, error: urlError } = await supabase
           .functions.invoke('get-video-url', {
-            body: { path: videoData.video_url },
+            body: { videoId: videoData.id },
           });
 
         if (urlError) throw urlError;
