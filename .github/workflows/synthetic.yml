@@ -23,7 +23,6 @@ jobs:
           npm i posthog-node playwright
           npx playwright install --with-deps chromium
 
-      # Personas persist between runs via cache
       - name: Restore persona state
         uses: actions/cache@v4
         with:
@@ -40,8 +39,9 @@ jobs:
           PERSONA_POOL: 400
 
       # --- BROWSER FLOWS ---
+      # NOTE: path points to scripts/playwright-bot.js (matches your repo)
       - name: Run Playwright bot (real sessions)
-        run: node scripts/synthetic/playwright-bot.js
+        run: node scripts/playwright-bot.js
         env:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-demo.lovable.app
