@@ -91,7 +91,7 @@ async function main() {
   await Promise.all(personas.map(identifyPerson))
   for (const p of personas) await emitDay(p)
 
-  // ✅ Use non-Async methods for this posthog-node version
+  // posthog-node version on the runner uses non-Async methods
   await posthog.flush()
   await posthog.shutdown()
 
@@ -101,8 +101,6 @@ async function main() {
 
 main().catch(async (e) => {
   console.error(e)
-  try {
-    await posthog.shutdown()
-  } catch {}
+  try { await posthog.shutdown() } catch {}
   process.exit(1)
 })
