@@ -1,71 +1,102 @@
-// scripts/synthetic-traffic.js
-// Purpose: optional server-side "heartbeat" events to smooth trendlines.
-// Uses PostHog /capture with token from env. Do not put secrets in code.
+// Node >= 18, ESM (package.json has "type":"module")
+import { PostHog } from 'posthog-node'
+import fs from 'node:fs'
+import path from 'node:path'
 
-const https = require('https')
-
-const POSTHOG_HOST = process.env.POSTHOG_HOST || 'https://eu.i.posthog.com'
-const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY // <-- set in GitHub Secrets
-if (!POSTHOG_API_KEY) {
-  console.error('Missing POSTHOG_API_KEY env. Set it in GitHub Secrets.')
+// ---------- CONFIG ----------
+const PH_HOST = process.env.PH_HOST || 'https://eu.i.posthog.com'
+const PH_PROJECT_API_KEY = process.env.PH_PROJECT_API_KEY
+if (!PH_PROJECT_API_KEY) {
+  console.error('Missing PH_PROJECT_API_KEY')
   process.exit(1)
 }
 
-function posthogCapture(event, properties, distinct_id) {
-  const payload = JSON.stringify({
-    api_key: POSTHOG_API_KEY,
-    event,
-    properties: {
-      ...properties,
-      // synthetic markers for filtering
-      synthetic: true,
-      is_synthetic: true,
-      // typical capture props
-      $current_url: properties?.$current_url || 'https://hogflix-demo.lovable.app/',
-      $lib: 'server',
-    },
-    distinct_id: distinct_id || `svr-${Math.floor(Math.random() * 1e12)}`,
-    timestamp: new Date().toISOString(),
+const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
+const PERSONAS_FILE = path.join(STATE_DIR, 'personas.json')
+
+// IMPORTANT: use the exact property your PostHog cohorts use
+const PLAN_PROP = 'plan' // change to 'subscription_tier' etc if needed
+const PLAN_BUCKETS = ['Standard', 'Premium', 'Basic']
+const DEFAULT_POOL_SIZE = Number(process.env.PERSONA_POOL || 400)
+
+// ---------- UTIL ----------
+const ensureDir = (p) => fs.existsSync(p) || fs.mkdirSync(p, { recursive: true })
+
+function loadPersonas() {
+  ensureDir(STATE_DIR)
+  if (fs.existsSync(PERSONAS_FILE)) {
+    return JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'))
+  }
+  const personas = []
+  for (let i = 0; i < DEFAULT_POOL_SIZE; i++) {
+    const distinct_id = `p_${String(i).padStart(5, '0')}`
+    const plan = PLAN_BUCKETS[i % PLAN_BUCKETS.length]
+    personas.push({ distinct_id, plan })
+  }
+  fs.writeFileSync(PERSONAS_FILE, JSON.stringify(personas, null, 2))
+  return personas
+}
+
+function savePersonas(personas) {
+  ensureDir(STATE_DIR)
+  fs.writeFileSync(PERSONAS_FILE, JSON.stringify(personas, null, 2))
+}
+
+const posthog = new PostHog(PH_PROJECT_API_KEY, { host: PH_HOST })
+
+async function identifyPerson(person) {
+  await posthog.identify({
+    distinctId: person.distinct_id,
+    properties: { [PLAN_PROP]: person.plan, is_synthetic: true },
+  })
+}
+
+async function emitDay(person) {
+  // Retention driver: “title_opened”
+  await posthog.capture({
+    distinctId: person.distinct_id,
+    event: 'title_opened',
+    properties: { [PLAN_PROP]: person.plan, is_synthetic: true },
   })
 
-  const url = new URL('/capture/', POSTHOG_HOST)
-  const options = {
-    method: 'POST',
-    hostname: url.hostname,
-    path: url.pathname,
-    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
-  }
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      res.on('data', () => {})
-      res.on('end', resolve)
+  // Feed your demo fallback actions
+  const r = Math.random()
+  if (r < 0.35) {
+    await posthog.capture({
+      distinctId: person.distinct_id,
+      event: 'video:progress_milestone',
+      properties: {
+        milestone: 75,
+        video_id: '6f4d68aa-3d28-43eb-a16d-31848741832b',
+        [PLAN_PROP]: person.plan,
+        is_synthetic: true,
+      },
     })
-    req.on('error', reject)
-    req.write(payload)
-    req.end()
-  })
-}
-
-async function run() {
-  // Send a handful of benign events (NEVER mark PostHog Demo content)
-  const baseProps = {
-    utm_source: ['organic', 'referral', 'newsletter'][Math.floor(Math.random() * 3)],
-    utm_medium: ['web', 'social', 'email'][Math.floor(Math.random() * 3)],
-    utm_campaign: ['weekly', 'promo', 'fall'][Math.floor(Math.random() * 3)],
   }
-
-  await posthogCapture('$pageview', { ...baseProps, $current_url: 'https://hogflix-demo.lovable.app/' })
-  await posthogCapture('browse_catalog', { ...baseProps, section: 'popular' })
-  await posthogCapture('search', { ...baseProps, q: ['cat', 'hog', 'space'][Math.floor(Math.random() * 3)] })
-  // DO NOT emit any event that uses category: "PostHog Demo"
+  if (r < 0.15) {
+    await posthog.capture({
+      distinctId: person.distinct_id,
+      event: 'video:completed',
+      properties: {
+        video_id: '6f4d68aa-3d28-43eb-a16d-31848741832b',
+        [PLAN_PROP]: person.plan,
+        is_synthetic: true,
+      },
+    })
+  }
 }
 
-if (require.main === module) {
-  run().catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
+async function main() {
+  const personas = loadPersonas()
+  await Promise.all(personas.map(identifyPerson))
+  for (const p of personas) await emitDay(p)
+  await posthog.flushAsync()
+  savePersonas(personas)
+  console.log(`Emitted events for ${personas.length} personas`)
 }
 
-module.exports = { run }
+main().catch(async (e) => {
+  console.error(e)
+  await posthog.shutdownAsync()
+  process.exit(1)
+})
