@@ -837,6 +837,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bulk_update_videos: {
+        Args: { updates: Json; video_ids: string[] }
+        Returns: number
+      }
       get_my_profiles_public: {
         Args: Record<PropertyKey, never>
         Returns: {

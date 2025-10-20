@@ -19,7 +19,10 @@ import { useVideoAnalytics } from "@/hooks/useVideoAnalytics";
 import { DashboardCharts } from "@/components/admin/DashboardCharts";
 import { VideoPerformanceTable } from "@/components/admin/VideoPerformanceTable";
 import { VideoAnalyticsModal } from "@/components/admin/VideoAnalyticsModal";
+import { VideoManagementGrid } from "@/components/admin/VideoManagementGrid";
+import { TagManagementSection } from "@/components/admin/TagManagementSection";
 import { RefreshCw, Video, Clock, TrendingUp, Users, Award, Loader2, CreditCard } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
 export default function Admin() {
@@ -144,6 +147,7 @@ export default function Admin() {
             <TabsList className="bg-card-background border border-gray-700">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="content-analytics">Content Analytics</TabsTrigger>
+              <TabsTrigger value="video-management">Video Management</TabsTrigger>
               <TabsTrigger value="subscriptions">Users & Subscriptions</TabsTrigger>
             </TabsList>
 
@@ -242,6 +246,13 @@ export default function Admin() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Video Management Tab */}
+            <TabsContent value="video-management" className="space-y-6">
+              <VideoManagementGrid />
+              <Separator />
+              <TagManagementSection />
             </TabsContent>
 
             {/* Users & Subscriptions Tab */}
