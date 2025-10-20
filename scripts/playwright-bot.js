@@ -1,65 +1,46 @@
-// scripts/playwright-bot.js
-// Purpose: legacy single-run bot. Keeps compatibility but now marks sessions synthetic
-// and avoids the Demo area entirely.
+// Node >= 18, ESM
+import { chromium } from 'playwright'
+import fs from 'node:fs'
+import path from 'node:path'
 
-const { chromium } = require('playwright')
+const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
+const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
+const PERSONAS_FILE = path.join(STATE_DIR, 'personas.json')
 
-async function runBot(user) {
-  const browser = await chromium.launch({ headless: true })
-  const context = await browser.newContext()
-  const page = await context.newPage()
+function loadPersonas() {
+  if (!fs.existsSync(PERSONAS_FILE)) {
+    throw new Error('Missing personas.json. Run scripts/synthetic-traffic.js once to create it.')
+  }
+  return JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'))
+}
 
-  const site = process.env.HOGFLIX_URL || 'https://hogflix-demo.lovable.app/'
-  const url = new URL(site)
-  url.searchParams.set('synthetic', '1')
-  url.searchParams.set('utm_source', user.utm_source || 'bot')
-  url.searchParams.set('utm_medium', user.utm_medium || 'script')
-  url.searchParams.set('utm_campaign', user.utm_campaign || 'legacy')
+;(async () => {
+  const browser = await chromium.launch()
+  const page = await browser.newPage()
 
-  await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: 60_000 })
-  await page.waitForLoadState('load')
+  const personas = loadPersonas()
+  const slice = personas.slice(0, 40) // small, returning subset
 
-  await page.evaluate((distinctId) => {
-    function setProps() {
-      const ph = window.posthog
-      if (!ph) return
-      // person identify + flags
-      if (distinctId) {
-        ph.identify(distinctId, { is_synthetic: true, source: 'playwright-bot' })
-      }
-      // session super-props
-      ph.register({ synthetic: true, is_synthetic: true, source: 'playwright-bot' })
-    }
-    if (document.readyState === 'complete') setProps()
-    else window.addEventListener('load', setProps)
-  }, user.distinct_id || null)
+  for (const p of slice) {
+    // Force the web SDK to reuse the same distinct_id as server side
+    await page.addInitScript(({ id }) => {
+      try {
+        localStorage.setItem('posthog_distinct_id', JSON.stringify({ distinct_id: id }))
+      } catch {}
+    }, { id: p.distinct_id })
 
-  // Click some non-demo links
-  const anchors = await page.$$eval('a[href]', (els) =>
-    els.map((a) => a.href).filter((h) => !!h && !h.includes('/demos') && !/\/demo(s)?\b/i.test(h))
-  )
-  const subset = anchors.sort(() => 0.5 - Math.random()).slice(0, 3)
-  for (const href of subset) {
-    try {
-      await page.goto(href, { waitUntil: 'domcontentloaded', timeout: 45_000 })
-      await page.waitForTimeout(1000 + Math.random() * 2000)
-    } catch {}
+    await page.goto(`${APP_URL}/browse`, { waitUntil: 'domcontentloaded' })
+
+    // Align person props on the client too (harmless if already set server-side)
+    await page.evaluate(({ id, plan }) => {
+      window.posthog?.identify?.(id, { plan, is_synthetic: true })
+    }, { id: p.distinct_id, plan: p.plan })
+
+    // Tiny interaction to generate client events
+    await page.waitForTimeout(500)
+    await page.mouse.click(300, 500)
+    await page.waitForTimeout(800)
   }
 
   await browser.close()
-}
-
-if (require.main === module) {
-  const user = {
-    distinct_id: `legacy-${Math.floor(Math.random() * 1e9)}`,
-    utm_source: 'legacy',
-    utm_medium: 'script',
-    utm_campaign: 'compat',
-  }
-  runBot(user).catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
-}
-
-module.exports = { runBot }
+})()
