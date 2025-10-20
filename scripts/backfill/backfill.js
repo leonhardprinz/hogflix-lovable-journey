@@ -48,7 +48,6 @@ async function main() {
     const iso = day.toISOString()
     console.log('Backfilling day', iso.slice(0, 10))
 
-    // Ensure plan is set on the person
     for (const p of personas) {
       await posthog.identify({
         distinctId: p.distinct_id,
@@ -56,7 +55,6 @@ async function main() {
       })
     }
 
-    // Events on that day
     for (const p of personas) {
       await posthog.capture({
         distinctId: p.distinct_id,
@@ -94,12 +92,17 @@ async function main() {
     }
   }
 
-  await posthog.flushAsync()
+  // ✅ Use non-Async methods
+  await posthog.flush()
+  await posthog.shutdown()
+
   console.log('Backfill complete')
 }
 
 main().catch(async (e) => {
   console.error(e)
-  await posthog.shutdownAsync()
+  try {
+    await posthog.shutdown()
+  } catch {}
   process.exit(1)
 })
