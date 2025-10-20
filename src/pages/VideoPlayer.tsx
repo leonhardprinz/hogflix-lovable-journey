@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
+import { usePostHog } from 'posthog-js/react';
 import Hls from 'hls.js';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -59,9 +59,6 @@ const VideoPlayer = () => {
   const { user } = useAuth();
   const { selectedProfile } = useProfile();
   const { progress, saveProgress, loadProgress } = useWatchProgress(videoId);
-  
-  // Feature flag for new player UI
-  const isNewPlayerUiEnabled = useFeatureFlagEnabled('new-player-ui');
 
   // Video player hook with progress tracking and enhanced controls
   const { 
@@ -730,7 +727,7 @@ const VideoPlayer = () => {
                 <video
                   {...videoProps}
                   className="w-full h-full"
-                  controls={!isNewPlayerUiEnabled}
+                  controls={false}
                   poster={video.thumbnail_url}
                   preload="metadata"
                 >
@@ -756,7 +753,7 @@ const VideoPlayer = () => {
                 )}
                 
                 {/* Unified Video Controls */}
-                {isNewPlayerUiEnabled && !resumeMessage && (
+                {!resumeMessage && (
                   <>
                     {/* Center Play Button */}
                     {!isPlaying && isReady && (
