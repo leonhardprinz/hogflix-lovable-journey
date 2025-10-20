@@ -19,7 +19,7 @@ function loadPersonas() {
   const page = await browser.newPage()
 
   const personas = loadPersonas()
-  const slice = personas.slice(0, 40) // small, returning subset
+  const slice = personas.slice(0, 40) // small returning subset
 
   for (const p of slice) {
     // Force web SDK to reuse server distinct_id
@@ -31,7 +31,7 @@ function loadPersonas() {
 
     await page.goto(`${APP_URL}/browse`, { waitUntil: 'domcontentloaded' })
 
-    // Align person props on the client too (harmless if already set server-side)
+    // Mirror person props on client
     await page.evaluate(({ id, plan }) => {
       window.posthog?.identify?.(id, { plan, is_synthetic: true })
     }, { id: p.distinct_id, plan: p.plan })
