@@ -1,63 +1,54 @@
-name: Synthetic traffic (personas + optional server pings)
+name: Synthetic traffic (server + browser)
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # every 30 minutes
+    - cron: '15 7 * * *'      # daily at 07:15 UTC
+    - cron: '*/30 * * * *'    # every 30 minutes
   workflow_dispatch: {}
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # to push synthetic-state branch updates
-    env:
-      HOGFLIX_URL: https://hogflix-demo.lovable.app/
-      POSTHOG_HOST: https://eu.i.posthog.com
-      POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }} # set in repo Settings > Secrets
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install deps
+      - name: Install deps (server + browser)
         run: |
-          npm i -D playwright tsx
+          npm i posthog-node playwright
           npx playwright install --with-deps chromium
 
-      # Restore persona state from dedicated branch
+      # Personas persist between runs via cache
       - name: Restore persona state
-        run: |
-          git fetch origin synthetic-state || true
-          if git ls-remote --exit-code --heads origin synthetic-state; then
-            git worktree add state synthetic-state
-            mkdir -p .personas
-            cp -r state/.personas .personas || true
-          else
-            echo "No synthetic-state branch yet; will create after first run."
-          fi
+        uses: actions/cache@v4
+        with:
+          path: .synthetic_state
+          key: personas-shared-v1
 
-      - name: Run persona simulator
-        run: npx tsx scripts/synthetic/run.ts
-
-      # (Optional) Run server-side pings to smooth trends
-      - name: Run server-side pings
-        if: env.POSTHOG_API_KEY != ''
+      # --- SERVER EVENTS ---
+      - name: Run synthetic server events
         run: node scripts/synthetic-traffic.js
+        env:
+          PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          PH_HOST: ${{ secrets.PH_HOST }}
+          STATE_DIR: .synthetic_state
+          PERSONA_POOL: 400
 
-      # Save updated persona state back to branch
+      # --- BROWSER FLOWS ---
+      - name: Run Playwright bot (real sessions)
+        run: node scripts/synthetic/playwright-bot.js
+        env:
+          STATE_DIR: .synthetic_state
+          APP_URL: https://hogflix-demo.lovable.app
+
       - name: Save persona state
-        run: |
-          mkdir -p state/.personas
-          cp -r .personas state/.personas
-          cd state
-          git add .personas
-          git -c user.name="hogflix-bot" -c user.email="github-actions@users.noreply.github.com" \
-            commit -m "update personas $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "no changes"
-          git push origin HEAD:synthetic-state || git push -u origin HEAD:synthetic-state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .synthetic_state
+          key: personas-shared-v1
