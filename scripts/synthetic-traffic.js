@@ -90,13 +90,19 @@ async function main() {
   const personas = loadPersonas()
   await Promise.all(personas.map(identifyPerson))
   for (const p of personas) await emitDay(p)
-  await posthog.flushAsync()
+
+  // ✅ Use non-Async methods for this posthog-node version
+  await posthog.flush()
+  await posthog.shutdown()
+
   savePersonas(personas)
   console.log(`Emitted events for ${personas.length} personas`)
 }
 
 main().catch(async (e) => {
   console.error(e)
-  await posthog.shutdownAsync()
+  try {
+    await posthog.shutdown()
+  } catch {}
   process.exit(1)
 })
