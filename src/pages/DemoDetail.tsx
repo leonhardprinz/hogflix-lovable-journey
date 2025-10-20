@@ -58,7 +58,7 @@ export default function DemoDetail() {
             thumbnail_url,
             duration,
             category_id,
-            categories (
+            categories!videos_category_id_fkey (
               name
             )
           `)
