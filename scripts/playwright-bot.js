@@ -22,7 +22,7 @@ function loadPersonas() {
   const slice = personas.slice(0, 40) // small, returning subset
 
   for (const p of slice) {
-    // Force the web SDK to reuse the same distinct_id as server side
+    // Force web SDK to reuse server distinct_id
     await page.addInitScript(({ id }) => {
       try {
         localStorage.setItem('posthog_distinct_id', JSON.stringify({ distinct_id: id }))
