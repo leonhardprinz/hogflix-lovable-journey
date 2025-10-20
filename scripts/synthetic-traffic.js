@@ -1,4 +1,4 @@
-// Node >= 18, ESM (package.json has "type":"module")
+// Node >= 18, ESM (your repo uses "type":"module")
 import { PostHog } from 'posthog-node'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -14,8 +14,8 @@ if (!PH_PROJECT_API_KEY) {
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const PERSONAS_FILE = path.join(STATE_DIR, 'personas.json')
 
-// IMPORTANT: use the exact property your PostHog cohorts use
-const PLAN_PROP = 'plan' // change to 'subscription_tier' etc if needed
+// Use the exact property your cohorts use in PostHog
+const PLAN_PROP = 'plan'
 const PLAN_BUCKETS = ['Standard', 'Premium', 'Basic']
 const DEFAULT_POOL_SIZE = Number(process.env.PERSONA_POOL || 400)
 
@@ -52,7 +52,7 @@ async function identifyPerson(person) {
 }
 
 async function emitDay(person) {
-  // Retention driver: “title_opened”
+  // Retention driver
   await posthog.capture({
     distinctId: person.distinct_id,
     event: 'title_opened',
