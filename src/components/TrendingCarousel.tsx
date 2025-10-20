@@ -73,7 +73,7 @@ export const TrendingCarousel = () => {
         .from('videos')
         .select(`
           *,
-          categories!inner (
+          categories!videos_category_id_fkey!inner (
             name
           )
         `)

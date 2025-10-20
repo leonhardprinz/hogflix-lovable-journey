@@ -38,7 +38,7 @@ export function useVideoManagement() {
         .from('videos')
         .select(`
           *,
-          categories(id, name),
+          categories!videos_category_id_fkey(id, name),
           video_tag_assignments(video_tags(id, name, color))
         `)
         .order('created_at', { ascending: false });

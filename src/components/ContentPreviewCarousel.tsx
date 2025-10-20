@@ -28,7 +28,7 @@ const ContentPreviewCarousel = () => {
           .from('videos')
           .select(`
             id, title, description, thumbnail_url, duration,
-            categories!inner (
+            categories!videos_category_id_fkey!inner (
               name
             )
           `)

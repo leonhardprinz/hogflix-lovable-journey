@@ -78,13 +78,14 @@ export default function DemoDetail() {
         setVideo(videoData);
 
         // Get signed URL for video
-        const { data: { signedUrl: videoSignedUrl }, error: urlError } = await supabase
+        const { data, error: urlError } = await supabase
           .functions.invoke('get-video-url', {
             body: { path: videoData.video_url },
           });
 
         if (urlError) throw urlError;
-        setSignedUrl(videoSignedUrl);
+        if (!data?.signedUrl) throw new Error('Failed to get video URL');
+        setSignedUrl(data.signedUrl);
 
         // Capture demo_video_opened event (skip if synthetic)
         if (!isSynthetic) {
