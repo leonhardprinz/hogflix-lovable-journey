@@ -21,7 +21,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail, Menu } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface Profile {
@@ -36,6 +43,7 @@ const Header = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showInstantResults, setShowInstantResults] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   const [userProfiles, setUserProfiles] = useState<Profile[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -202,6 +210,17 @@ const Header = () => {
     <>
       <header className="w-full bg-background-dark/95 backdrop-blur-md border-b border-gray-800 sticky top-0 z-50">
         <div className="container-netflix flex items-center justify-between py-4">
+          {/* Mobile Hamburger Menu */}
+          {user && (
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+            </Sheet>
+          )}
+
           {/* Logo */}
           <Link to={user ? '/browse' : '/'}>
             <h1 className="text-3xl font-bold text-primary-red cursor-pointer font-manrope hover:opacity-80 transition-opacity">
@@ -505,6 +524,86 @@ const Header = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Mobile Menu Sheet */}
+      {user && (
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <SheetContent side="left" className="w-[280px] bg-card/95 backdrop-blur-sm border-border">
+            <SheetHeader>
+              <SheetTitle className="text-text-primary font-manrope text-left">Navigation</SheetTitle>
+            </SheetHeader>
+            <nav className="flex flex-col space-y-4 mt-6">
+              <Link 
+                to="/browse" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+              >
+                <Play className="h-5 w-5" />
+                <span>Home</span>
+              </Link>
+              <Link 
+                to="/my-list" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+              >
+                <Info className="h-5 w-5" />
+                <span>My List</span>
+              </Link>
+              <Link 
+                to="/support" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+              >
+                <Mail className="h-5 w-5" />
+                <span>Support</span>
+              </Link>
+              <Link 
+                to="/submit-content" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+              >
+                <CreditCard className="h-5 w-5" />
+                <span>Submit Content</span>
+              </Link>
+              <Link 
+                to="/flixbuddy" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+              >
+                <Sparkles className="h-5 w-5" />
+                <span>FlixBuddy</span>
+              </Link>
+              {(role === 'admin' || role === 'moderator') && (
+                <Link 
+                  to="/admin" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+                >
+                  <Users className="h-5 w-5" />
+                  <span>Admin Panel</span>
+                </Link>
+              )}
+              
+              {/* Upgrade button for Basic plan users */}
+              {isFreePlan && (
+                <Link 
+                  to="/pricing"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="mt-4"
+                >
+                  <Button 
+                    variant="default" 
+                    className="w-full bg-gradient-to-r from-primary-red to-red-600 hover:from-primary-red/90 hover:to-red-600/90 text-white font-semibold"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Upgrade to Premium
+                  </Button>
+                </Link>
+              )}
+            </nav>
+          </SheetContent>
+        </Sheet>
+      )}
     </>
   );
 };
