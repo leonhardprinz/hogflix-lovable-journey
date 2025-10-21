@@ -180,7 +180,7 @@ export const useWatchProgress = (videoId?: string) => {
             thumbnail_url,
             video_url,
             duration,
-            categories!videos_category_id_fkey!inner (
+            categories!videos_category_id_fkey (
               name
             )
           )
