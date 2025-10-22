@@ -22,11 +22,22 @@ if (!START_DATE || !END_DATE) {
   process.exit(1)
 }
 
+function pickSourceByIndex(i) {
+  const r = i % 100
+  if (r < 40) return 'direct'
+  if (r < 70) return 'newsletter'
+  if (r < 95) return 'linkedin'
+  if (r < 97) return 'organic'
+  if (r < 99) return 'partner'
+  return 'referral'
+}
+
 function loadPersonas() {
   if (!fs.existsSync(PERSONAS_FILE)) {
     throw new Error('Missing personas.json. Run scripts/synthetic-traffic.js once to create it.')
   }
   const all = JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'))
+  all.forEach((p, idx) => { if (!p.source) p.source = pickSourceByIndex(idx) })
   return all.slice(0, POOL)
 }
 
@@ -48,18 +59,27 @@ async function main() {
     const iso = day.toISOString()
     console.log('Backfilling day', iso.slice(0, 10))
 
+    // Ensure person props are present
     for (const p of personas) {
       await posthog.identify({
         distinctId: p.distinct_id,
-        properties: { plan: p.plan, is_synthetic: true },
+        properties: { plan: p.plan, acq_source: p.source, is_synthetic: true },
       })
     }
 
+    // Events on that day — WITH UTMs so breakdown works historically
     for (const p of personas) {
       await posthog.capture({
         distinctId: p.distinct_id,
         event: 'title_opened',
-        properties: { plan: p.plan, is_synthetic: true },
+        properties: {
+          plan: p.plan,
+          is_synthetic: true,
+          source: p.source,
+          $utm_source: p.source,
+          $utm_medium: 'synthetic',
+          $utm_campaign: 'hogflix-bot',
+        },
         timestamp: iso,
       })
 
@@ -73,6 +93,10 @@ async function main() {
             video_id: '6f4d68aa-3d28-43eb-a16d-31848741832b',
             plan: p.plan,
             is_synthetic: true,
+            source: p.source,
+            $utm_source: p.source,
+            $utm_medium: 'synthetic',
+            $utm_campaign: 'hogflix-bot',
           },
           timestamp: iso,
         })
@@ -85,6 +109,10 @@ async function main() {
             video_id: '6f4d68aa-3d28-43eb-a16d-31848741832b',
             plan: p.plan,
             is_synthetic: true,
+            source: p.source,
+            $utm_source: p.source,
+            $utm_medium: 'synthetic',
+            $utm_campaign: 'hogflix-bot',
           },
           timestamp: iso,
         })
@@ -92,17 +120,13 @@ async function main() {
     }
   }
 
-  // ✅ Use non-Async methods
   await posthog.flush()
   await posthog.shutdown()
-
   console.log('Backfill complete')
 }
 
 main().catch(async (e) => {
   console.error(e)
-  try {
-    await posthog.shutdown()
-  } catch {}
+  try { await posthog.shutdown() } catch {}
   process.exit(1)
 })
