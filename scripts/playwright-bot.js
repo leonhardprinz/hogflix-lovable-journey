@@ -7,11 +7,24 @@ const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const PERSONAS_FILE = path.join(STATE_DIR, 'personas.json')
 
+function pickSourceByIndex(i) {
+  const r = i % 100
+  if (r < 40) return 'direct'
+  if (r < 70) return 'newsletter'
+  if (r < 95) return 'linkedin'
+  if (r < 97) return 'organic'
+  if (r < 99) return 'partner'
+  return 'referral'
+}
+
 function loadPersonas() {
   if (!fs.existsSync(PERSONAS_FILE)) {
     throw new Error('Missing personas.json. Run scripts/synthetic-traffic.js once to create it.')
   }
-  return JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'))
+  const personas = JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'))
+  // enrich if older file lacks source
+  personas.forEach((p, idx) => { if (!p.source) p.source = pickSourceByIndex(idx) })
+  return personas
 }
 
 ;(async () => {
@@ -29,17 +42,31 @@ function loadPersonas() {
       } catch {}
     }, { id: p.distinct_id })
 
-    await page.goto(`${APP_URL}/browse`, { waitUntil: 'domcontentloaded' })
+    // Navigate with UTMs so PostHog auto-captures $utm_* on pageview
+    const url = `${APP_URL}/browse?utm_source=${encodeURIComponent(p.source)}&utm_medium=synthetic&utm_campaign=hogflix-bot`
+    await page.goto(url, { waitUntil: 'domcontentloaded' })
 
     // Mirror person props on client
-    await page.evaluate(({ id, plan }) => {
-      window.posthog?.identify?.(id, { plan, is_synthetic: true })
-    }, { id: p.distinct_id, plan: p.plan })
+    await page.evaluate(({ id, plan, source }) => {
+      window.posthog?.identify?.(id, { plan, acq_source: source, is_synthetic: true })
+    }, { id: p.distinct_id, plan: p.plan, source: p.source })
 
-    // Tiny interaction to generate client events
-    await page.waitForTimeout(500)
+    // Emit a browser-side title_opened with UTMs too (so breakdown definitely works)
+    await page.evaluate(({ plan, source }) => {
+      window.posthog?.capture?.('title_opened', {
+        plan,
+        is_synthetic: true,
+        source,
+        $utm_source: source,
+        $utm_medium: 'synthetic',
+        $utm_campaign: 'hogflix-bot',
+      })
+    }, { plan: p.plan, source: p.source })
+
+    // Small interaction to generate more activity
+    await page.waitForTimeout(400)
     await page.mouse.click(300, 500)
-    await page.waitForTimeout(800)
+    await page.waitForTimeout(400)
   }
 
   await browser.close()
