@@ -18,11 +18,53 @@ const Pricing = () => {
   const { user } = useAuth();
   const { subscription } = useSubscription();
   const [loading, setLoading] = useState(false);
+  const [ctaVariant, setCtaVariant] = useState<string>('control');
 
   useEffect(() => {
     document.title = "Pricing – HogFlix";
-    posthog?.capture('pricing:viewed');
-  }, [posthog]);
+    posthog?.capture('pricing:viewed', {
+      user_plan: subscription?.plan_name || 'none',
+      is_free_user: subscription?.plan_name === 'basic' || !subscription
+    });
+    
+    // Load feature flag variant
+    posthog?.onFeatureFlags(() => {
+      const variant = posthog.getFeatureFlag('pricing_upgrade_cta_experiment');
+      if (variant && typeof variant === 'string') {
+        setCtaVariant(variant);
+        
+        posthog?.capture('pricing:cta_variant_assigned', {
+          variant: variant,
+          user_plan: subscription?.plan_name || 'none',
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+  }, [posthog, subscription]);
+
+  const getCtaTextByVariant = (planName: string, price: string, variant: string): string => {
+    // Basic plan always has same CTA
+    if (planName === 'basic') return 'Get Started';
+    
+    // Return text based on variant
+    switch (variant) {
+      case 'value_focused':
+        return `Go Ad-Free for ${price}/month`;
+      
+      case 'benefit_led':
+        if (planName === 'standard') return 'Unlock Full HD & Downloads';
+        if (planName === 'premium') return 'Unlock 4K & Early Access';
+        return 'Preview Subscription (No Charge)';
+      
+      case 'action_simple':
+        const displayName = planName.charAt(0).toUpperCase() + planName.slice(1);
+        return `Start ${displayName} Plan`;
+      
+      case 'control':
+      default:
+        return 'Preview Subscription (No Charge)';
+    }
+  };
 
   const plans = [
     {
@@ -55,7 +97,7 @@ const Pricing = () => {
         'Download for offline viewing',
         'FlixBuddy AI assistant'
       ],
-      cta: 'Preview Subscription (No Charge)',
+      cta: getCtaTextByVariant('standard', '$9.99', ctaVariant),
       popular: true
     },
     {
@@ -73,7 +115,7 @@ const Pricing = () => {
         'Early access to new content',
         'FlixBuddy AI assistant'
       ],
-      cta: 'Preview Subscription (No Charge)',
+      cta: getCtaTextByVariant('premium', '$19.99', ctaVariant),
       popular: false
     }
   ];
@@ -116,11 +158,11 @@ const Pricing = () => {
     
     // Track upgrade/downgrade
     const currentPlan = subscription?.plan_name;
+    const planOrder = { basic: 0, standard: 1, premium: 2 };
+    const currentOrder = planOrder[currentPlan as keyof typeof planOrder] || 0;
+    const targetOrder = planOrder[planName as keyof typeof planOrder] || 0;
+    
     if (currentPlan) {
-      const planOrder = { basic: 0, standard: 1, premium: 2 };
-      const currentOrder = planOrder[currentPlan as keyof typeof planOrder] || 0;
-      const targetOrder = planOrder[planName as keyof typeof planOrder] || 0;
-      
       if (targetOrder > currentOrder) {
         posthog?.capture('subscription:upgrade_clicked', { 
           from: currentPlan, 
@@ -134,8 +176,16 @@ const Pricing = () => {
       }
     }
     
-    posthog?.capture('plan_selected', { plan: displayName });
-    posthog?.setPersonProperties({ company_plan: displayName });
+    posthog?.capture('plan_selected', { 
+      plan: planName,
+      plan_display: displayName,
+      cta_variant: ctaVariant,
+      cta_text: plan?.cta,
+      user_current_plan: subscription?.plan_name || 'none',
+      is_upgrade: currentPlan && targetOrder > currentOrder,
+      is_downgrade: currentPlan && targetOrder < currentOrder
+    });
+    posthog?.setPersonProperties({ company_plan: planName });
     
     // If not logged in, go to signup
     if (!user) {
