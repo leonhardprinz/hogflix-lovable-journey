@@ -14,9 +14,23 @@ if (!PH_PROJECT_API_KEY) {
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const PERSONAS_FILE = path.join(STATE_DIR, 'personas.json')
 
-// Use the exact property your cohorts use in PostHog
+// Use the exact person property your cohorts use in PostHog
 const PLAN_PROP = 'plan'
 const PLAN_BUCKETS = ['Standard', 'Premium', 'Basic']
+
+// Stable acquisition sources (roughly matching your old mix)
+const SOURCE_LIST = ['direct', 'newsletter', 'linkedin', 'organic', 'partner', 'referral']
+function pickSourceByIndex(i) {
+  // 0–39 direct, 40–69 newsletter, 70–94 linkedin, 95 organic, 96 partner, 97+ referral
+  const r = i % 100
+  if (r < 40) return 'direct'
+  if (r < 70) return 'newsletter'
+  if (r < 95) return 'linkedin'
+  if (r < 97) return 'organic'
+  if (r < 99) return 'partner'
+  return 'referral'
+}
+
 const DEFAULT_POOL_SIZE = Number(process.env.PERSONA_POOL || 400)
 
 // ---------- UTIL ----------
@@ -25,13 +39,26 @@ const ensureDir = (p) => fs.existsSync(p) || fs.mkdirSync(p, { recursive: true }
 function loadPersonas() {
   ensureDir(STATE_DIR)
   if (fs.existsSync(PERSONAS_FILE)) {
-    return JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'))
+    const personas = JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'))
+    // Enrich older persona files that don't have a source yet
+    let changed = false
+    personas.forEach((p, idx) => {
+      if (!p.source) {
+        p.source = pickSourceByIndex(idx)
+        changed = true
+      }
+    })
+    if (changed) fs.writeFileSync(PERSONAS_FILE, JSON.stringify(personas, null, 2))
+    return personas
   }
   const personas = []
   for (let i = 0; i < DEFAULT_POOL_SIZE; i++) {
     const distinct_id = `p_${String(i).padStart(5, '0')}`
-    const plan = PLAN_BUCKETS[i % PLAN_BUCKETS.length]
-    personas.push({ distinct_id, plan })
+    personas.push({
+      distinct_id,
+      plan: PLAN_BUCKETS[i % PLAN_BUCKETS.length],
+      source: pickSourceByIndex(i),
+    })
   }
   fs.writeFileSync(PERSONAS_FILE, JSON.stringify(personas, null, 2))
   return personas
@@ -47,19 +74,30 @@ const posthog = new PostHog(PH_PROJECT_API_KEY, { host: PH_HOST })
 async function identifyPerson(person) {
   await posthog.identify({
     distinctId: person.distinct_id,
-    properties: { [PLAN_PROP]: person.plan, is_synthetic: true },
+    properties: {
+      [PLAN_PROP]: person.plan,
+      acq_source: person.source,          // helpful person prop
+      is_synthetic: true,
+    },
   })
 }
 
 async function emitDay(person) {
-  // Retention driver
+  // Retention driver — now with UTMs so breakdown works
   await posthog.capture({
     distinctId: person.distinct_id,
     event: 'title_opened',
-    properties: { [PLAN_PROP]: person.plan, is_synthetic: true },
+    properties: {
+      [PLAN_PROP]: person.plan,
+      is_synthetic: true,
+      source: person.source,              // custom breakdown
+      $utm_source: person.source,         // PostHog standard UTM props
+      $utm_medium: 'synthetic',
+      $utm_campaign: 'hogflix-bot',
+    },
   })
 
-  // Feed your demo fallback actions
+  // Feed your demo fallback actions (keep as-is, add UTMs too)
   const r = Math.random()
   if (r < 0.35) {
     await posthog.capture({
@@ -70,6 +108,10 @@ async function emitDay(person) {
         video_id: '6f4d68aa-3d28-43eb-a16d-31848741832b',
         [PLAN_PROP]: person.plan,
         is_synthetic: true,
+        source: person.source,
+        $utm_source: person.source,
+        $utm_medium: 'synthetic',
+        $utm_campaign: 'hogflix-bot',
       },
     })
   }
@@ -81,6 +123,10 @@ async function emitDay(person) {
         video_id: '6f4d68aa-3d28-43eb-a16d-31848741832b',
         [PLAN_PROP]: person.plan,
         is_synthetic: true,
+        source: person.source,
+        $utm_source: person.source,
+        $utm_medium: 'synthetic',
+        $utm_campaign: 'hogflix-bot',
       },
     })
   }
