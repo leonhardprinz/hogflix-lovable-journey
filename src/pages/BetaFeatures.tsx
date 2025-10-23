@@ -21,32 +21,15 @@ export default function BetaFeatures() {
   useEffect(() => {
     document.title = 'Beta Features - HogFlix';
     
-    const fetchEarlyAccessStatus = async () => {
-      if (!selectedProfile?.id) {
-        navigate('/profiles');
-        return;
-      }
+    if (!selectedProfile?.id) {
+      navigate('/profiles');
+      return;
+    }
 
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('early_access_features')
-          .eq('id', selectedProfile.id)
-          .single();
-
-        if (error) throw error;
-
-        const hasAccess = data?.early_access_features?.includes('ai_summaries') || false;
-        setIsOptedIn(hasAccess);
-      } catch (error) {
-        console.error('Error fetching early access status:', error);
-        toast.error('Failed to load beta features status');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEarlyAccessStatus();
+    // Use early_access_features from the profile context
+    const hasAccess = selectedProfile.early_access_features?.includes('ai_summaries') || false;
+    setIsOptedIn(hasAccess);
+    setLoading(false);
   }, [selectedProfile, navigate]);
 
   const handleToggle = async () => {
@@ -55,22 +38,16 @@ export default function BetaFeatures() {
     setUpdating(true);
 
     try {
-      const { data: currentProfile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('early_access_features')
-        .eq('id', selectedProfile.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const currentFeatures = currentProfile?.early_access_features || [];
+      const currentFeatures = selectedProfile.early_access_features || [];
       const newFeatures = isOptedIn
         ? currentFeatures.filter((f: string) => f !== 'ai_summaries')
         : [...currentFeatures, 'ai_summaries'];
 
+      // Update using user_id to comply with RLS policies
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ early_access_features: newFeatures })
+        .eq('user_id', selectedProfile.user_id)
         .eq('id', selectedProfile.id);
 
       if (updateError) throw updateError;

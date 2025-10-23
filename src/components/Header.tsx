@@ -160,9 +160,7 @@ const Header = () => {
       }
 
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, display_name, is_kids_profile, early_access_features')
-        .eq('user_id', user.id);
+        .rpc('get_my_profiles_public');
 
       if (data && !error) {
         setUserProfiles(data);
