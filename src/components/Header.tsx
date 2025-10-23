@@ -417,6 +417,13 @@ const Header = () => {
                       <Mail className="h-4 w-4 mr-2" />
                       Newsletter Preferences
                     </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/beta-features')}
+                      className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Beta Features
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-gray-700" />
                     <DropdownMenuItem 
                       onClick={handleLogout}

@@ -10,6 +10,8 @@ import { DemoVideoPlayer } from '@/components/DemoVideoPlayer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Clock } from 'lucide-react';
+import { AiSummaryPanel } from '@/components/AiSummaryPanel';
+import { toast } from 'sonner';
 
 interface Video {
   id: string;
@@ -19,6 +21,7 @@ interface Video {
   thumbnail_url: string;
   duration: number;
   category_id: string;
+  ai_summary: string | null;
 }
 
 export default function DemoDetail() {
@@ -32,6 +35,34 @@ export default function DemoDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [hasEarlyAccess, setHasEarlyAccess] = useState(false);
+
+  // Check if user has early access to AI summaries
+  useEffect(() => {
+    const checkEarlyAccess = async () => {
+      if (!selectedProfile?.id) return;
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('early_access_features')
+        .eq('id', selectedProfile.id)
+        .single();
+      
+      const hasAccess = profile?.early_access_features?.includes('ai_summaries') || false;
+      setHasEarlyAccess(hasAccess);
+      
+      // Check feature flag from PostHog
+      const flagEnabled = posthog.getFeatureFlag('early_access_ai_summaries') === true;
+      
+      if (hasAccess && flagEnabled) {
+        console.log('✨ AI Summaries early access enabled');
+      }
+    };
+    
+    checkEarlyAccess();
+  }, [selectedProfile, posthog]);
 
   useEffect(() => {
     if (!user || !selectedProfile) {
@@ -58,6 +89,7 @@ export default function DemoDetail() {
             thumbnail_url,
             duration,
             category_id,
+            ai_summary,
             categories!videos_category_id_fkey (
               name
             )
@@ -76,6 +108,7 @@ export default function DemoDetail() {
         }
 
         setVideo(videoData);
+        setAiSummary(videoData.ai_summary);
 
         // Get signed URL for video
         const { data, error: urlError } = await supabase
@@ -109,6 +142,43 @@ export default function DemoDetail() {
 
     fetchVideo();
   }, [id, user, selectedProfile, navigate, posthog, isSynthetic]);
+
+  const handleGenerateSummary = async () => {
+    if (!video?.id || isGeneratingSummary) return;
+    
+    setIsGeneratingSummary(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-video-summary', {
+        body: { videoId: video.id }
+      });
+      
+      if (error) throw error;
+      
+      setAiSummary(data.summary);
+      
+      // Track summary generation
+      posthog.capture('ai_summary:generated', {
+        video_id: video.id,
+        video_title: video.title,
+        cached: data.cached || false
+      });
+      
+      // Track summary viewed
+      posthog.capture('ai_summary:viewed', {
+        video_id: video.id,
+        video_title: video.title
+      });
+      
+      toast.success('✨ AI Summary generated!');
+      console.log('✅ AI Summary generated');
+    } catch (error) {
+      console.error('Failed to generate summary:', error);
+      toast.error('Failed to generate summary. Please try again.');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -174,6 +244,17 @@ export default function DemoDetail() {
             autoplay={true}
           />
         </div>
+
+        {/* AI Summary Panel (Early Access Feature) */}
+        {hasEarlyAccess && posthog.getFeatureFlag('early_access_ai_summaries') === true && (
+          <AiSummaryPanel
+            videoId={video.id}
+            videoTitle={video.title}
+            existingSummary={aiSummary}
+            onGenerate={handleGenerateSummary}
+            isGenerating={isGeneratingSummary}
+          />
+        )}
 
         {/* Video Info */}
         <div className="space-y-4">

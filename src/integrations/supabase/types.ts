@@ -134,6 +134,7 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string | null
+          early_access_features: string[] | null
           email: string | null
           id: string
           is_kids_profile: boolean
@@ -144,6 +145,7 @@ export type Database = {
         Insert: {
           created_at?: string
           display_name?: string | null
+          early_access_features?: string[] | null
           email?: string | null
           id?: string
           is_kids_profile?: boolean
@@ -154,6 +156,7 @@ export type Database = {
         Update: {
           created_at?: string
           display_name?: string | null
+          early_access_features?: string[] | null
           email?: string | null
           id?: string
           is_kids_profile?: boolean
@@ -728,6 +731,7 @@ export type Database = {
       }
       videos: {
         Row: {
+          ai_summary: string | null
           category_id: string
           created_at: string
           description: string | null
@@ -742,6 +746,7 @@ export type Database = {
           video_url: string
         }
         Insert: {
+          ai_summary?: string | null
           category_id: string
           created_at?: string
           description?: string | null
@@ -756,6 +761,7 @@ export type Database = {
           video_url: string
         }
         Update: {
+          ai_summary?: string | null
           category_id?: string
           created_at?: string
           description?: string | null
@@ -842,7 +848,7 @@ export type Database = {
         Returns: number
       }
       get_my_profiles_public: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           created_at: string
           display_name: string
@@ -894,10 +900,7 @@ export type Database = {
         Args: { profile_id_param: string; video_id_param: string }
         Returns: boolean
       }
-      refresh_video_analytics: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      refresh_video_analytics: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

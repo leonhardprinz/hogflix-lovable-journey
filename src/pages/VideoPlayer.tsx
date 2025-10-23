@@ -13,6 +13,8 @@ import { WatchlistButton } from '@/components/WatchlistButton';
 import { Button } from '@/components/ui/button';
 import { VideoControls } from '@/components/VideoControls';
 import { ArrowLeft, Loader2, Play } from 'lucide-react';
+import { AiSummaryPanel } from '@/components/AiSummaryPanel';
+import { toast } from 'sonner';
 
 interface Video {
   id: string;
@@ -22,6 +24,7 @@ interface Video {
   video_url: string;
   duration: number;
   category_id: string;
+  ai_summary: string | null;
 }
 
 const VideoPlayer = () => {
@@ -47,6 +50,9 @@ const VideoPlayer = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [hasEarlyAccess, setHasEarlyAccess] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const isPiPSupported = 'pictureInPictureEnabled' in document;
@@ -180,7 +186,7 @@ const VideoPlayer = () => {
         // Step 1: Load video metadata
         const { data: videoData, error: videoError } = await supabase
           .from('videos')
-          .select('*')
+          .select('*, ai_summary')
           .eq('id', videoId)
           .single();
 
@@ -192,6 +198,7 @@ const VideoPlayer = () => {
 
         console.log('📹 Video metadata loaded:', videoData.title);
         setVideo(videoData);
+        setAiSummary(videoData.ai_summary);
         
         // Fetch category name separately (no FK relationship exists)
         let fetchedCategoryName = 'Unknown';
@@ -472,6 +479,68 @@ const VideoPlayer = () => {
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
   }, []);
+
+  // Check if user has early access to AI summaries
+  useEffect(() => {
+    const checkEarlyAccess = async () => {
+      if (!selectedProfile?.id) return;
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('early_access_features')
+        .eq('id', selectedProfile.id)
+        .single();
+      
+      const hasAccess = profile?.early_access_features?.includes('ai_summaries') || false;
+      setHasEarlyAccess(hasAccess);
+      
+      // Check feature flag from PostHog
+      const flagEnabled = posthog.getFeatureFlag('early_access_ai_summaries') === true;
+      
+      if (hasAccess && flagEnabled) {
+        console.log('✨ AI Summaries early access enabled');
+      }
+    };
+    
+    checkEarlyAccess();
+  }, [selectedProfile, posthog]);
+
+  const handleGenerateSummary = async () => {
+    if (!video?.id || isGeneratingSummary) return;
+    
+    setIsGeneratingSummary(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-video-summary', {
+        body: { videoId: video.id }
+      });
+      
+      if (error) throw error;
+      
+      setAiSummary(data.summary);
+      
+      // Track summary generation
+      posthog.capture('ai_summary:generated', {
+        video_id: video.id,
+        video_title: video.title,
+        cached: data.cached || false
+      });
+      
+      // Track summary viewed
+      posthog.capture('ai_summary:viewed', {
+        video_id: video.id,
+        video_title: video.title
+      });
+      
+      toast.success('✨ AI Summary generated!');
+      console.log('✅ AI Summary generated');
+    } catch (error) {
+      console.error('Failed to generate summary:', error);
+      toast.error('Failed to generate summary. Please try again.');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
 
   const handleBackClick = () => {
     navigate('/browse');
@@ -807,6 +876,17 @@ const VideoPlayer = () => {
               </div>
             )}
           </div>
+
+          {/* AI Summary Panel (Early Access Feature) */}
+          {hasEarlyAccess && posthog.getFeatureFlag('early_access_ai_summaries') === true && (
+            <AiSummaryPanel
+              videoId={video.id}
+              videoTitle={video.title}
+              existingSummary={aiSummary}
+              onGenerate={handleGenerateSummary}
+              isGenerating={isGeneratingSummary}
+            />
+          )}
 
           {/* Video Information */}
           <div className="space-y-4">

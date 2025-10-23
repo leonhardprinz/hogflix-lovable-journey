@@ -26,6 +26,7 @@ import Pricing from "./pages/Pricing";
 import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import NewsletterPreferences from "./pages/NewsletterPreferences";
+import BetaFeatures from "./pages/BetaFeatures";
 import FloatingHedgehog from "./components/FloatingHedgehog";
 import SyntheticMarker from "./components/SyntheticMarker";
 
@@ -97,6 +98,11 @@ const AppContent = () => {
           <Route path="/newsletter-preferences" element={
             <ProtectedRoute>
               <NewsletterPreferences />
+            </ProtectedRoute>
+          } />
+          <Route path="/beta-features" element={
+            <ProtectedRoute>
+              <BetaFeatures />
             </ProtectedRoute>
           } />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
