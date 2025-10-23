@@ -35,19 +35,25 @@ const Profiles = () => {
 
   const fetchProfiles = async (userId: string) => {
     try {
-      // Fetch full profiles data including early_access_features
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, display_name, email, user_id, is_kids_profile, early_access_features')
-        .eq('user_id', userId);
+      const { data, error } = await supabase.rpc('get_my_profiles_public');
 
       if (error) {
         console.error('Error fetching profiles:', error);
       } else {
-        setProfiles(data || []);
+        const mapped = (data || []).map((row: any) => ({
+          id: row.id,
+          display_name: row.display_name,
+          email: null,
+          user_id: userId,
+          is_kids_profile: row.is_kids_profile,
+          early_access_features: row.early_access_features || []
+        }));
+        setProfiles(mapped);
       }
     } catch (error) {
       console.error('Error fetching profiles:', error);
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -852,6 +852,7 @@ export type Database = {
         Returns: {
           created_at: string
           display_name: string
+          early_access_features: string[]
           id: string
           is_kids_profile: boolean
           updated_at: string
