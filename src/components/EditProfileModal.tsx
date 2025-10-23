@@ -14,6 +14,7 @@ interface Profile {
   email: string | null;
   user_id: string;
   is_kids_profile: boolean;
+  early_access_features?: string[];
 }
 
 interface EditProfileModalProps {

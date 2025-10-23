@@ -17,6 +17,7 @@ interface Profile {
   email: string | null;
   user_id: string;
   is_kids_profile: boolean;
+  early_access_features?: string[];
 }
 
 const Profiles = () => {
@@ -34,19 +35,16 @@ const Profiles = () => {
 
   const fetchProfiles = async (userId: string) => {
     try {
-      const { data, error } = await supabase.rpc('get_my_profiles_public');
+      // Fetch full profiles data including early_access_features
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, display_name, email, user_id, is_kids_profile, early_access_features')
+        .eq('user_id', userId);
 
       if (error) {
         console.error('Error fetching profiles:', error);
       } else {
-        const mapped = (data || []).map((row: any) => ({
-          id: row.id,
-          display_name: row.display_name,
-          email: null,
-          user_id: userId,
-          is_kids_profile: row.is_kids_profile,
-        }));
-        setProfiles(mapped);
+        setProfiles(data || []);
       }
     } catch (error) {
       console.error('Error fetching profiles:', error);
@@ -74,6 +72,13 @@ const Profiles = () => {
   const handleProfileSelect = (profile: Profile) => {
     // Store in global state
     setSelectedProfile(profile);
+
+    // Initialize PostHog person properties for early access features
+    if (posthog) {
+      posthog.setPersonProperties({
+        early_access_features: profile.early_access_features || []
+      });
+    }
 
     // PostHog analytics
     posthog.capture('profile:selected', {

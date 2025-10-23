@@ -35,6 +35,7 @@ interface Profile {
   id: string;
   display_name: string;
   is_kids_profile: boolean;
+  early_access_features?: string[];
 }
 
 const Header = () => {
@@ -159,7 +160,9 @@ const Header = () => {
       }
 
       const { data, error } = await supabase
-        .rpc('get_my_profiles_public');
+        .from('profiles')
+        .select('id, display_name, is_kids_profile, early_access_features')
+        .eq('user_id', user.id);
 
       if (data && !error) {
         setUserProfiles(data);
@@ -176,9 +179,18 @@ const Header = () => {
       display_name: profile.display_name,
       is_kids_profile: profile.is_kids_profile,
       email: user?.email || '',
-      user_id: user?.id || ''
+      user_id: user?.id || '',
+      early_access_features: profile.early_access_features || []
     };
     setSelectedProfile(profileForContext);
+    
+    // Initialize PostHog person properties for early access features
+    if (posthog) {
+      posthog.setPersonProperties({
+        early_access_features: profile.early_access_features || []
+      });
+    }
+    
     posthog?.capture('profile:switched', {
       profile_id: profile.id,
       profile_name: profile.display_name,
