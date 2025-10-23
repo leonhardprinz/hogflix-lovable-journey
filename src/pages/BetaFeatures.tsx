@@ -21,13 +21,19 @@ export default function BetaFeatures() {
   useEffect(() => {
     document.title = 'Beta Features - HogFlix';
     
+    console.log('🔍 BetaFeatures: selectedProfile =', selectedProfile);
+    
     if (!selectedProfile?.id) {
+      console.log('❌ No profile selected, redirecting to /profiles');
       navigate('/profiles');
       return;
     }
 
+    console.log('📋 Profile early_access_features:', selectedProfile.early_access_features);
+    
     // Use early_access_features from the profile context
     const hasAccess = selectedProfile.early_access_features?.includes('ai_summaries') || false;
+    console.log('✅ Has AI summaries access:', hasAccess);
     setIsOptedIn(hasAccess);
     setLoading(false);
   }, [selectedProfile, navigate]);
@@ -124,12 +130,13 @@ export default function BetaFeatures() {
                   Get instant AI-powered summaries of videos as you watch. Powered by Gemini AI.
                 </CardDescription>
               </div>
-              <Switch
-                checked={isOptedIn}
-                onCheckedChange={handleToggle}
-                disabled={updating}
-                className="ml-4"
-              />
+              <div className="ml-4">
+                <Switch
+                  checked={isOptedIn}
+                  onCheckedChange={handleToggle}
+                  disabled={updating}
+                />
+              </div>
             </div>
           </CardHeader>
           <CardContent>
