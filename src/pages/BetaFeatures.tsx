@@ -130,13 +130,16 @@ export default function BetaFeatures() {
                   Get instant AI-powered summaries of videos as you watch. Powered by Gemini AI.
                 </CardDescription>
               </div>
-              <div className="ml-4">
+              <div className="ml-4 flex items-center gap-3">
                 <Switch
                   checked={isOptedIn}
                   onCheckedChange={handleToggle}
                   disabled={updating}
                   className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500/70"
                 />
+                <span className={`font-bold text-lg ${isOptedIn ? 'text-green-400' : 'text-red-400'}`}>
+                  {isOptedIn ? 'ON' : 'OFF'}
+                </span>
               </div>
             </div>
           </CardHeader>
