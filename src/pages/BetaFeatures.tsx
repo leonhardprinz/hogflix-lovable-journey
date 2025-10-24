@@ -130,7 +130,7 @@ export default function BetaFeatures() {
                   Get instant AI-powered summaries of videos as you watch. Powered by Gemini AI.
                 </CardDescription>
               </div>
-              <div className="ml-4">
+              <div className="ml-4 border-2 border-red-500 p-2 bg-blue-500/50">
                 <Switch
                   checked={isOptedIn}
                   onCheckedChange={handleToggle}
