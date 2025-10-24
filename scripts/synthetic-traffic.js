@@ -1,9 +1,9 @@
-// Node >= 18, ESM (your repo uses "type":"module")
+// Node >= 18, ESM ("type":"module")
 import { PostHog } from 'posthog-node'
 import fs from 'node:fs'
 import path from 'node:path'
 
-// ---------- CONFIG ----------
+// ------------------ CONFIG ------------------
 const PH_HOST = process.env.PH_HOST || 'https://eu.i.posthog.com'
 const PH_PROJECT_API_KEY = process.env.PH_PROJECT_API_KEY
 if (!PH_PROJECT_API_KEY) {
@@ -14,14 +14,13 @@ if (!PH_PROJECT_API_KEY) {
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const PERSONAS_FILE = path.join(STATE_DIR, 'personas.json')
 
-// Use the exact person property your cohorts use in PostHog
-const PLAN_PROP = 'plan'
-const PLAN_BUCKETS = ['Standard', 'Premium', 'Basic']
+const PLAN_PROP = 'plan'                       // person property used in reports
+const ALT_PLAN_PROP = 'company_plan'           // keep compatibility with older reports
 
-// Stable acquisition sources (roughly matching your old mix)
-const SOURCE_LIST = ['direct', 'newsletter', 'linkedin', 'organic', 'partner', 'referral']
+const PLANS = ['Standard', 'Premium', 'Basic']
+
+// mixture similar to your earlier source lines
 function pickSourceByIndex(i) {
-  // 0–39 direct, 40–69 newsletter, 70–94 linkedin, 95 organic, 96 partner, 97+ referral
   const r = i % 100
   if (r < 40) return 'direct'
   if (r < 70) return 'newsletter'
@@ -31,118 +30,153 @@ function pickSourceByIndex(i) {
   return 'referral'
 }
 
-const DEFAULT_POOL_SIZE = Number(process.env.PERSONA_POOL || 400)
+// baseline daily return probability by plan (tuned so retention is not flat 100%)
+const BASE_RETURN = { Standard: 0.32, Premium: 0.52, Basic: 0.22 }
 
-// ---------- UTIL ----------
+// video behavior probabilities
+const P_OPEN_TITLE = 0.75            // of active users who open a title
+const P_START_VIDEO = 0.60           // of openers who start playback
+const P_REACH_50 = 0.55              // of starters who hit >=50%
+const P_PLAN_SELECTED = 0.01         // rare conversion event (per-active-user)
+
+// Example content id (your demo video)
+const VIDEO_ID = '6f4d68aa-3d28-43eb-a16d-31848741832b'
+
+// ------------------ HELPERS ------------------
 const ensureDir = (p) => fs.existsSync(p) || fs.mkdirSync(p, { recursive: true })
+const rand = () => Math.random()
 
-function loadPersonas() {
+function dowFactor(d) {
+  // Mild day-of-week preference (more active Fri/Sat, less Mon)
+  const day = new Date().getUTCDay()
+  return [0.85, 0.9, 0.95, 1.0, 1.1, 1.15, 1.05][day]
+}
+
+function loadPersonas(pool = Number(process.env.PERSONA_POOL || 400)) {
   ensureDir(STATE_DIR)
   if (fs.existsSync(PERSONAS_FILE)) {
-    const personas = JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'))
-    // Enrich older persona files that don't have a source yet
-    let changed = false
-    personas.forEach((p, idx) => {
-      if (!p.source) {
-        p.source = pickSourceByIndex(idx)
-        changed = true
-      }
+    const arr = JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'))
+    // enrich missing fields for older files
+    arr.forEach((p, i) => {
+      if (!p.source) p.source = pickSourceByIndex(i)
+      if (!p[PLAN_PROP]) p[PLAN_PROP] = PLANS[i % PLANS.length]
+      if (p.return_prob == null) p.return_prob = BASE_RETURN[p[PLAN_PROP]] + (rand() - 0.5) * 0.08
+      if (!p.created_at) p.created_at = new Date().toISOString()
+      if (p.initialized == null) p.initialized = false
     })
-    if (changed) fs.writeFileSync(PERSONAS_FILE, JSON.stringify(personas, null, 2))
-    return personas
+    fs.writeFileSync(PERSONAS_FILE, JSON.stringify(arr, null, 2))
+    return arr
   }
   const personas = []
-  for (let i = 0; i < DEFAULT_POOL_SIZE; i++) {
-    const distinct_id = `p_${String(i).padStart(5, '0')}`
+  for (let i = 0; i < pool; i++) {
+    const plan = PLANS[i % PLANS.length]
     personas.push({
-      distinct_id,
-      plan: PLAN_BUCKETS[i % PLAN_BUCKETS.length],
+      distinct_id: `p_${String(i).padStart(5, '0')}`,
+      [PLAN_PROP]: plan,
+      [ALT_PLAN_PROP]: plan,
       source: pickSourceByIndex(i),
+      return_prob: BASE_RETURN[plan] + (rand() - 0.5) * 0.08,
+      created_at: new Date().toISOString(),
+      initialized: false,
     })
   }
   fs.writeFileSync(PERSONAS_FILE, JSON.stringify(personas, null, 2))
   return personas
 }
 
-function savePersonas(personas) {
+function savePersonas(arr) {
   ensureDir(STATE_DIR)
-  fs.writeFileSync(PERSONAS_FILE, JSON.stringify(personas, null, 2))
+  fs.writeFileSync(PERSONAS_FILE, JSON.stringify(arr, null, 2))
 }
 
 const posthog = new PostHog(PH_PROJECT_API_KEY, { host: PH_HOST })
 
-async function identifyPerson(person) {
+async function identifyIfNeeded(p) {
+  // Set both plan properties + initial UTMs (so "UTM source (initial)" breakdowns work)
   await posthog.identify({
-    distinctId: person.distinct_id,
+    distinctId: p.distinct_id,
     properties: {
-      [PLAN_PROP]: person.plan,
-      acq_source: person.source,          // helpful person prop
+      [PLAN_PROP]: p[PLAN_PROP],
+      [ALT_PLAN_PROP]: p[ALT_PLAN_PROP],
+      acq_source: p.source,
       is_synthetic: true,
+      $initial_utm_source: p.source,
+      $initial_utm_medium: 'synthetic',
+      $initial_utm_campaign: 'hogflix-bot',
     },
   })
 }
 
-async function emitDay(person) {
-  // Retention driver — now with UTMs so breakdown works
+function eventPropsBase(p) {
+  return {
+    [PLAN_PROP]: p[PLAN_PROP],
+    [ALT_PLAN_PROP]: p[ALT_PLAN_PROP],
+    is_synthetic: true,
+    source: p.source,
+    $utm_source: p.source,
+    $utm_medium: 'synthetic',
+    $utm_campaign: 'hogflix-bot',
+  }
+}
+
+async function emitActiveDay(p) {
+  // Optional “section_clicked” to feed your funnel step 1
   await posthog.capture({
-    distinctId: person.distinct_id,
-    event: 'title_opened',
-    properties: {
-      [PLAN_PROP]: person.plan,
-      is_synthetic: true,
-      source: person.source,              // custom breakdown
-      $utm_source: person.source,         // PostHog standard UTM props
-      $utm_medium: 'synthetic',
-      $utm_campaign: 'hogflix-bot',
-    },
+    distinctId: p.distinct_id,
+    event: 'section_clicked',
+    properties: { ...eventPropsBase(p), section: 'Popular' },
   })
 
-  // Feed your demo fallback actions (keep as-is, add UTMs too)
-  const r = Math.random()
-  if (r < 0.35) {
+  // Some active users actually open a title
+  if (rand() < P_OPEN_TITLE) {
     await posthog.capture({
-      distinctId: person.distinct_id,
-      event: 'video:progress_milestone',
-      properties: {
-        milestone: 75,
-        video_id: '6f4d68aa-3d28-43eb-a16d-31848741832b',
-        [PLAN_PROP]: person.plan,
-        is_synthetic: true,
-        source: person.source,
-        $utm_source: person.source,
-        $utm_medium: 'synthetic',
-        $utm_campaign: 'hogflix-bot',
-      },
+      distinctId: p.distinct_id,
+      event: 'title_opened',
+      properties: { ...eventPropsBase(p), title_id: VIDEO_ID },
     })
+
+    if (rand() < P_START_VIDEO) {
+      await posthog.capture({
+        distinctId: p.distinct_id,
+        event: 'video_started',
+        properties: { ...eventPropsBase(p), video_id: VIDEO_ID },
+      })
+
+      if (rand() < P_REACH_50) {
+        await posthog.capture({
+          distinctId: p.distinct_id,
+          event: 'video_progress',
+          properties: { ...eventPropsBase(p), video_id: VIDEO_ID, milestone: 50 },
+        })
+      }
+    }
   }
-  if (r < 0.15) {
+
+  // Rare: plan conversion
+  if (rand() < P_PLAN_SELECTED) {
     await posthog.capture({
-      distinctId: person.distinct_id,
-      event: 'video:completed',
-      properties: {
-        video_id: '6f4d68aa-3d28-43eb-a16d-31848741832b',
-        [PLAN_PROP]: person.plan,
-        is_synthetic: true,
-        source: person.source,
-        $utm_source: person.source,
-        $utm_medium: 'synthetic',
-        $utm_campaign: 'hogflix-bot',
-      },
+      distinctId: p.distinct_id,
+      event: 'plan_selected',
+      properties: { ...eventPropsBase(p), selected_plan: p[PLAN_PROP] },
     })
   }
 }
 
 async function main() {
   const personas = loadPersonas()
-  await Promise.all(personas.map(identifyPerson))
-  for (const p of personas) await emitDay(p)
+  await Promise.all(personas.map(identifyIfNeeded))
 
-  // posthog-node version on the runner uses non-Async methods
+  const factor = dowFactor()
+  for (const p of personas) {
+    const activeToday = rand() < Math.min(Math.max(p.return_prob * factor, 0.02), 0.95)
+    if (!activeToday) continue
+    await emitActiveDay(p)
+  }
+
   await posthog.flush()
   await posthog.shutdown()
-
   savePersonas(personas)
-  console.log(`Emitted events for ${personas.length} personas`)
+  console.log('Synthetic server events done.')
 }
 
 main().catch(async (e) => {
