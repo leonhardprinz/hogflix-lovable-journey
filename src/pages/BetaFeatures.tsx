@@ -52,13 +52,12 @@ export default function BetaFeatures() {
       console.log('🔄 Updating profile:', selectedProfile.id);
       console.log('📝 New features:', newFeatures);
 
-      // Simplified update - only filter by id (primary key)
+      // Use RPC function to bypass RLS conflicts
       const { data, error: updateError } = await supabase
-        .from('profiles')
-        .update({ early_access_features: newFeatures })
-        .eq('id', selectedProfile.id)
-        .select()
-        .single();
+        .rpc('update_early_access_features', {
+          profile_id_param: selectedProfile.id,
+          features_param: newFeatures
+        });
 
       if (updateError) {
         console.error('❌ Update error:', updateError);

@@ -902,6 +902,10 @@ export type Database = {
         Returns: boolean
       }
       refresh_video_analytics: { Args: never; Returns: undefined }
+      update_early_access_features: {
+        Args: { features_param: string[]; profile_id_param: string }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
