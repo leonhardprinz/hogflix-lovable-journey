@@ -49,14 +49,23 @@ export default function BetaFeatures() {
         ? currentFeatures.filter((f: string) => f !== 'ai_summaries')
         : [...currentFeatures, 'ai_summaries'];
 
-      // Update using user_id to comply with RLS policies
-      const { error: updateError } = await supabase
+      console.log('🔄 Updating profile:', selectedProfile.id);
+      console.log('📝 New features:', newFeatures);
+
+      // Simplified update - only filter by id (primary key)
+      const { data, error: updateError } = await supabase
         .from('profiles')
         .update({ early_access_features: newFeatures })
-        .eq('user_id', selectedProfile.user_id)
-        .eq('id', selectedProfile.id);
+        .eq('id', selectedProfile.id)
+        .select()
+        .single();
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('❌ Update error:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Update successful:', data);
 
       // Update PostHog person properties
       posthog.setPersonProperties({
@@ -77,8 +86,9 @@ export default function BetaFeatures() {
           : "✅ You're now in the AI Summaries beta!"
       );
     } catch (error) {
-      console.error('Error updating early access:', error);
-      toast.error('Failed to update beta features. Please try again.');
+      console.error('❌ Error updating early access:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to update: ${errorMessage}`);
     } finally {
       setUpdating(false);
     }
