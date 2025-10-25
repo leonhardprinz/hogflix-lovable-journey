@@ -34,6 +34,10 @@ export default function BetaFeatures() {
     // Use early_access_features from the profile context
     const hasAccess = selectedProfile.early_access_features?.includes('ai_summaries') || false;
     console.log('✅ Has AI summaries access:', hasAccess);
+    
+    // Sync with PostHog enrollment on load
+    posthog.updateEarlyAccessFeatureEnrollment("early_access_ai_summaries", hasAccess);
+    
     setIsOptedIn(hasAccess);
     setLoading(false);
   }, [selectedProfile, navigate]);
@@ -66,16 +70,26 @@ export default function BetaFeatures() {
 
       console.log('✅ Update successful:', data);
 
-      // Update PostHog person properties
+      // Update PostHog Early Access Feature enrollment
+      const enrollmentStatus = !isOptedIn; // Toggle state
+      posthog.updateEarlyAccessFeatureEnrollment(
+        "early_access_ai_summaries", 
+        enrollmentStatus
+      );
+
+      // Update PostHog person properties for additional context
       posthog.setPersonProperties({
         early_access_features: newFeatures
       });
 
       // Track the opt-in or opt-out event
-      posthog.capture(isOptedIn ? 'early_access:opted_out' : 'early_access:opted_in', {
-        feature: 'ai_summaries',
-        profile_id: selectedProfile.id
-      });
+      posthog.capture(
+        enrollmentStatus ? 'early_access:opted_in' : 'early_access:opted_out', 
+        {
+          feature: 'ai_summaries',
+          profile_id: selectedProfile.id
+        }
+      );
 
       setIsOptedIn(!isOptedIn);
       
