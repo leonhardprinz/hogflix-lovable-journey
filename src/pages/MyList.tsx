@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useWatchlist } from '@/contexts/WatchlistContext';
 import Header from '@/components/Header';
+import DemoBanner from '@/components/DemoBanner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { HedgehogRating } from '@/components/HedgehogRating';
@@ -144,6 +145,7 @@ export default function MyList() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+      <DemoBanner />
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center gap-2 mb-8">
           <Heart className="w-8 h-8 text-primary" />

@@ -57,8 +57,10 @@ const NewsletterPreferences = () => {
     
     setSaving(true);
     try {
-      console.log('Saving preferences for user:', user.id);
-      console.log('Marketing opt-in value:', marketingOptIn);
+      if (import.meta.env.DEV) {
+        console.log('Saving preferences for user:', user.id);
+        console.log('Marketing opt-in value:', marketingOptIn);
+      }
       
       // Update database
       const { data, error } = await supabase
@@ -67,7 +69,9 @@ const NewsletterPreferences = () => {
         .eq('user_id', user.id)
         .select();
 
-      console.log('Update result:', { data, error });
+      if (import.meta.env.DEV) {
+        console.log('Update result:', { data, error });
+      }
 
       if (error) {
         console.error('Supabase error:', error);

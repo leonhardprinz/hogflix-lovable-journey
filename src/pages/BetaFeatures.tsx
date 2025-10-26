@@ -21,19 +21,27 @@ export default function BetaFeatures() {
   useEffect(() => {
     document.title = 'Beta Features - HogFlix';
     
-    console.log('🔍 BetaFeatures: selectedProfile =', selectedProfile);
+    if (import.meta.env.DEV) {
+      console.log('🔍 BetaFeatures: selectedProfile =', selectedProfile);
+    }
     
     if (!selectedProfile?.id) {
-      console.log('❌ No profile selected, redirecting to /profiles');
+      if (import.meta.env.DEV) {
+        console.log('❌ No profile selected, redirecting to /profiles');
+      }
       navigate('/profiles');
       return;
     }
 
-    console.log('📋 Profile early_access_features:', selectedProfile.early_access_features);
+    if (import.meta.env.DEV) {
+      console.log('📋 Profile early_access_features:', selectedProfile.early_access_features);
+    }
     
     // Use early_access_features from the profile context
     const hasAccess = selectedProfile.early_access_features?.includes('ai_summaries') || false;
-    console.log('✅ Has AI summaries access:', hasAccess);
+    if (import.meta.env.DEV) {
+      console.log('✅ Has AI summaries access:', hasAccess);
+    }
     
     // Sync with PostHog enrollment on load
     posthog.updateEarlyAccessFeatureEnrollment("early_access_ai_summaries", hasAccess);
@@ -53,8 +61,10 @@ export default function BetaFeatures() {
         ? currentFeatures.filter((f: string) => f !== 'ai_summaries')
         : [...currentFeatures, 'ai_summaries'];
 
-      console.log('🔄 Updating profile:', selectedProfile.id);
-      console.log('📝 New features:', newFeatures);
+      if (import.meta.env.DEV) {
+        console.log('🔄 Updating profile:', selectedProfile.id);
+        console.log('📝 New features:', newFeatures);
+      }
 
       // Use RPC function to bypass RLS conflicts
       const { data, error: updateError } = await supabase
@@ -64,11 +74,15 @@ export default function BetaFeatures() {
         });
 
       if (updateError) {
-        console.error('❌ Update error:', updateError);
+        if (import.meta.env.DEV) {
+          console.error('❌ Update error:', updateError);
+        }
         throw updateError;
       }
 
-      console.log('✅ Update successful:', data);
+      if (import.meta.env.DEV) {
+        console.log('✅ Update successful:', data);
+      }
 
       // Update PostHog Early Access Feature enrollment
       const enrollmentStatus = !isOptedIn; // Toggle state

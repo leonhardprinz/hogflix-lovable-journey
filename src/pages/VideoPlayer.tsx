@@ -8,6 +8,7 @@ import { useProfile } from '@/contexts/ProfileContext';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 import Header from '@/components/Header';
+import DemoBanner from '@/components/DemoBanner';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { Button } from '@/components/ui/button';
@@ -181,7 +182,9 @@ const VideoPlayer = () => {
       }
 
       try {
-        console.log('🎬 Initializing video player for:', videoId);
+        if (import.meta.env.DEV) {
+          console.log('🎬 Initializing video player for:', videoId);
+        }
         
         // Step 1: Load video metadata
         const { data: videoData, error: videoError } = await supabase
@@ -196,7 +199,9 @@ const VideoPlayer = () => {
           return;
         }
 
-        console.log('📹 Video metadata loaded:', videoData.title);
+        if (import.meta.env.DEV) {
+          console.log('📹 Video metadata loaded:', videoData.title);
+        }
         setVideo(videoData);
         setAiSummary(videoData.ai_summary);
         
@@ -214,10 +219,14 @@ const VideoPlayer = () => {
         setCategoryName(fetchedCategoryName);
 
         // Step 2: Load watch progress first
-        console.log('📊 Loading watch progress...');
+        if (import.meta.env.DEV) {
+          console.log('📊 Loading watch progress...');
+        }
         const progressData = await loadProgress(videoId);
         initialProgressRef.current = progressData; // Store in ref instead of triggering re-renders
-        console.log('📊 Progress data:', progressData);
+        if (import.meta.env.DEV) {
+          console.log('📊 Progress data:', progressData);
+        }
 
         // Step 3: Get video URL
         const { data: urlData, error: urlError } = await supabase.functions.invoke('get-video-url', {
@@ -226,12 +235,16 @@ const VideoPlayer = () => {
 
         if (urlError || !urlData?.signedUrl) {
           setError('Could not load video');
-          console.error('Video URL error:', urlError);
+          if (import.meta.env.DEV) {
+            console.error('Video URL error:', urlError);
+          }
           setLoading(false);
           return;
         }
 
-        console.log('🔗 Video URL obtained');
+        if (import.meta.env.DEV) {
+          console.log('🔗 Video URL obtained');
+        }
         setVideoUrl(urlData.signedUrl);
         setIsHLS(urlData.isHLS || urlData.signedUrl.includes('.m3u8'));
 
@@ -246,7 +259,9 @@ const VideoPlayer = () => {
           const seconds = Math.floor(resumeTime % 60);
           setResumeMessage(`Resume from ${minutes}:${seconds.toString().padStart(2, '0')}?`);
           setShowStartOverButton(true);
-          console.log('📺 Resume message set for', resumeTime, 'seconds');
+          if (import.meta.env.DEV) {
+            console.log('📺 Resume message set for', resumeTime, 'seconds');
+          }
         }
 
         // Get source section from session storage
@@ -314,10 +329,14 @@ const VideoPlayer = () => {
   useEffect(() => {
     if (!videoRef.current || !videoUrl) return;
 
-    console.log('🎥 Setting up video player');
+    if (import.meta.env.DEV) {
+      console.log('🎥 Setting up video player');
+    }
 
   const handleLoadedMetadata = async () => {
-    console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
+    if (import.meta.env.DEV) {
+      console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
+    }
     
     const videoElement = videoRef.current;
     if (!videoElement) return;
@@ -497,7 +516,7 @@ const VideoPlayer = () => {
       // Check feature flag from PostHog
       const flagEnabled = posthog.getFeatureFlag('early_access_ai_summaries') === true;
       
-      if (hasAccess && flagEnabled) {
+      if (hasAccess && flagEnabled && import.meta.env.DEV) {
         console.log('✨ AI Summaries early access enabled');
       }
     };
@@ -533,7 +552,9 @@ const VideoPlayer = () => {
       });
       
       toast.success('✨ AI Summary generated!');
-      console.log('✅ AI Summary generated');
+      if (import.meta.env.DEV) {
+        console.log('✅ AI Summary generated');
+      }
     } catch (error) {
       console.error('Failed to generate summary:', error);
       toast.error('Failed to generate summary. Please try again.');
@@ -771,6 +792,7 @@ const VideoPlayer = () => {
   return (
     <div className="min-h-screen bg-background-dark">
       <Header />
+      <DemoBanner />
       
       <div className="container-netflix py-8">
         {/* Back Button */}

@@ -4,6 +4,7 @@ import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
+import DemoBanner from '@/components/DemoBanner';
 import { HeroCarousel } from '@/components/HeroCarousel';
 import { ResumeWatchingCarousel } from '@/components/ResumeWatchingCarousel';
 import { PopularCarousel } from '@/components/PopularCarousel';
@@ -189,6 +190,7 @@ const Browse = () => {
   return (
     <div className="min-h-screen bg-background-dark">
       <Header />
+      <DemoBanner />
       
       {/* Hero Section */}
       <HeroCarousel />

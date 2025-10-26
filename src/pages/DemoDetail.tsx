@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useSyntheticCheck } from '@/hooks/useSyntheticCheck';
 import Header from '@/components/Header';
+import DemoBanner from '@/components/DemoBanner';
 import { DemoVideoPlayer } from '@/components/DemoVideoPlayer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,7 +57,7 @@ export default function DemoDetail() {
       // Check feature flag from PostHog
       const flagEnabled = posthog.getFeatureFlag('early_access_ai_summaries') === true;
       
-      if (hasAccess && flagEnabled) {
+      if (hasAccess && flagEnabled && import.meta.env.DEV) {
         console.log('✨ AI Summaries early access enabled');
       }
     };
@@ -129,7 +130,9 @@ export default function DemoDetail() {
             profile_id: selectedProfile.id,
             duration_sec: videoData.duration,
           });
-          console.log('📂 PostHog: demo_video_opened');
+          if (import.meta.env.DEV) {
+            console.log('📂 PostHog: demo_video_opened');
+          }
         }
 
         setLoading(false);
@@ -171,7 +174,9 @@ export default function DemoDetail() {
       });
       
       toast.success('✨ AI Summary generated!');
-      console.log('✅ AI Summary generated');
+      if (import.meta.env.DEV) {
+        console.log('✅ AI Summary generated');
+      }
     } catch (error) {
       console.error('Failed to generate summary:', error);
       toast.error('Failed to generate summary. Please try again.');
@@ -221,6 +226,7 @@ export default function DemoDetail() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
+      <DemoBanner />
       
       <main className="flex-1 container mx-auto px-4 py-8 max-w-7xl">
         {/* Back Button */}

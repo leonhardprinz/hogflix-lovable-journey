@@ -36,7 +36,9 @@ const CheckoutSuccess = () => {
           return;
         }
 
-        console.log('Verifying subscription with backend...');
+        if (import.meta.env.DEV) {
+          console.log('Verifying subscription with backend...');
+        }
 
         // Call verify-subscription edge function to securely check subscription
         const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
@@ -54,7 +56,9 @@ const CheckoutSuccess = () => {
           return;
         }
 
-        console.log('Verification response:', verifyData);
+        if (import.meta.env.DEV) {
+          console.log('Verification response:', verifyData);
+        }
 
         if (verifyData.hasSubscription && verifyData.subscription) {
           const sub = verifyData.subscription;
