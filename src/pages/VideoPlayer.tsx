@@ -8,7 +8,6 @@ import { useProfile } from '@/contexts/ProfileContext';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 import Header from '@/components/Header';
-import DemoBanner from '@/components/DemoBanner';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { Button } from '@/components/ui/button';
@@ -792,7 +791,6 @@ const VideoPlayer = () => {
   return (
     <div className="min-h-screen bg-background-dark">
       <Header />
-      <DemoBanner />
       
       <div className="container-netflix py-8">
         {/* Back Button */}

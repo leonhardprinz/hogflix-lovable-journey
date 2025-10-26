@@ -6,7 +6,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useSyntheticCheck } from '@/hooks/useSyntheticCheck';
 import Header from '@/components/Header';
-import DemoBanner from '@/components/DemoBanner';
 import { DemoVideoPlayer } from '@/components/DemoVideoPlayer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -226,7 +225,6 @@ export default function DemoDetail() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
-      <DemoBanner />
       
       <main className="flex-1 container mx-auto px-4 py-8 max-w-7xl">
         {/* Back Button */}
