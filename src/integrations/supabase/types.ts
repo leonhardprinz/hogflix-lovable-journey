@@ -289,7 +289,7 @@ export type Database = {
           issue_category: string
           status: string
           updated_at: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -298,7 +298,7 @@ export type Database = {
           issue_category: string
           status?: string
           updated_at?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -307,7 +307,7 @@ export type Database = {
           issue_category?: string
           status?: string
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -840,7 +840,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      video_ratings_aggregate: {
+        Row: {
+          avg_rating: number | null
+          rating_1_count: number | null
+          rating_2_count: number | null
+          rating_3_count: number | null
+          rating_4_count: number | null
+          rating_5_count: number | null
+          rating_count: number | null
+          video_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_ratings_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       bulk_update_videos: {

@@ -65,10 +65,20 @@ const Support = () => {
     setLoading(true);
 
     try {
-      // Store the ticket in Supabase (user_id will be auto-populated by trigger)
+      // Store the ticket in Supabase with explicit user_id
+      if (!user?.id) {
+        toast({
+          title: "Authentication Required",
+          description: "You must be logged in to submit a support ticket.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('support_tickets')
         .insert({
+          user_id: user.id,
           issue_category: result.data.issueCategory,
           description: result.data.description,
           status: 'open'

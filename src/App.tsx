@@ -27,6 +27,10 @@ import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import NewsletterPreferences from "./pages/NewsletterPreferences";
 import BetaFeatures from "./pages/BetaFeatures";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import FAQ from "./pages/FAQ";
+import Help from "./pages/Help";
 import FloatingHedgehog from "./components/FloatingHedgehog";
 import SyntheticMarker from "./components/SyntheticMarker";
 
@@ -105,6 +109,10 @@ const AppContent = () => {
               <BetaFeatures />
             </ProtectedRoute>
           } />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/help" element={<Help />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
