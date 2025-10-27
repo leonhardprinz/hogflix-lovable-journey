@@ -36,11 +36,15 @@ export const useWatchProgress = (videoId?: string) => {
   // Load existing progress for a video
   const loadProgress = useCallback(async (id: string) => {
     if (!user || !selectedProfile) {
-      console.log('Skip loading progress - no user or profile');
+      if (import.meta.env.DEV) {
+        console.log('Skip loading progress - no user or profile');
+      }
       return null;
     }
 
-    console.log('Loading progress for video:', id);
+    if (import.meta.env.DEV) {
+      console.log('Loading progress for video:', id);
+    }
 
     try {
       const { data, error } = await supabase
@@ -56,7 +60,9 @@ export const useWatchProgress = (videoId?: string) => {
         return null;
       }
 
-      console.log('Loaded progress data:', data);
+      if (import.meta.env.DEV) {
+        console.log('Loaded progress data:', data);
+      }
       return data;
     } catch (error) {
       console.error('Error loading progress:', error);
@@ -90,11 +96,13 @@ export const useWatchProgress = (videoId?: string) => {
       const isCompleted = progressPercentage >= 90;
       const progressSeconds = Math.floor(currentTime);
 
-      console.log('💾 Queued progress save:', {
-        video_id: id,
-        progress_seconds: progressSeconds,
-        percentage: progressPercentage.toFixed(2) + '%'
-      });
+      if (import.meta.env.DEV) {
+        console.log('💾 Queued progress save:', {
+          video_id: id,
+          progress_seconds: progressSeconds,
+          percentage: progressPercentage.toFixed(2) + '%'
+        });
+      }
 
       try {
         // Check for existing record first
@@ -133,7 +141,9 @@ export const useWatchProgress = (videoId?: string) => {
         }
 
       if (!error) {
-        console.log('✅ Progress saved');
+        if (import.meta.env.DEV) {
+          console.log('✅ Progress saved');
+        }
         // Don't update state during playback to avoid re-renders
         // setProgress(progressData); // REMOVED - prevents glitches
         
@@ -158,11 +168,15 @@ export const useWatchProgress = (videoId?: string) => {
   // Get videos with resume progress - improved query and lower threshold
   const getResumeWatchingVideos = useCallback(async (): Promise<VideoWithProgress[]> => {
     if (!user || !selectedProfile) {
-      console.log('🚫 No user or profile for resume videos');
+      if (import.meta.env.DEV) {
+        console.log('🚫 No user or profile for resume videos');
+      }
       return [];
     }
 
-    console.log('🔍 Fetching resume watching videos...');
+    if (import.meta.env.DEV) {
+      console.log('🔍 Fetching resume watching videos...');
+    }
     setLoading(true);
     
     try {
@@ -198,21 +212,23 @@ export const useWatchProgress = (videoId?: string) => {
         return [];
       }
 
-      console.log('📊 Resume videos query result:', data?.length || 0, 'videos');
-      
-      if (!data || data.length === 0) {
-        console.log('ℹ️ No resume videos found - checking all progress records...');
+      if (import.meta.env.DEV) {
+        console.log('📊 Resume videos query result:', data?.length || 0, 'videos');
         
-        // Debug query to see what we have
-        const { data: debugData } = await supabase
-          .from('watch_progress')
-          .select('progress_seconds, progress_percentage, completed')
-          .eq('user_id', user.id)
-          .eq('profile_id', selectedProfile.id)
-          .order('last_watched_at', { ascending: false })
-          .limit(5);
+        if (!data || data.length === 0) {
+          console.log('ℹ️ No resume videos found - checking all progress records...');
           
-        console.log('🔍 Recent progress records:', debugData);
+          // Debug query to see what we have
+          const { data: debugData } = await supabase
+            .from('watch_progress')
+            .select('progress_seconds, progress_percentage, completed')
+            .eq('user_id', user.id)
+            .eq('profile_id', selectedProfile.id)
+            .order('last_watched_at', { ascending: false })
+            .limit(5);
+            
+          console.log('🔍 Recent progress records:', debugData);
+        }
       }
 
       // Transform the data properly
@@ -226,7 +242,9 @@ export const useWatchProgress = (videoId?: string) => {
           category_name: item.videos?.categories?.name,
         }));
 
-      console.log('✅ Returning', resumeVideos.length, 'resume videos');
+      if (import.meta.env.DEV) {
+        console.log('✅ Returning', resumeVideos.length, 'resume videos');
+      }
       return resumeVideos;
       
     } catch (error) {

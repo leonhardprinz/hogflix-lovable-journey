@@ -6,6 +6,14 @@
     <title>HogFlix - Premium Streaming Experience</title>
     <meta name="description" content="Netflix-style streaming platform built with PostHog analytics" />
     <meta name="author" content="HogFlix" />
+    
+    <!-- Security Headers -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://eu.i.posthog.com https://eu-assets.i.posthog.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://lovable.dev; media-src 'self' blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co https://eu.i.posthog.com wss://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=()";
 
     <!-- Google Fonts - Manrope -->
     <link rel="preconnect" href="https://fonts.googleapis.com">

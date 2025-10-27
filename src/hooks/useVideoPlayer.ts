@@ -21,9 +21,13 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
         await videoRef.current.play();
         setIsPlaying(true);
         onPlay?.();
-        console.log('▶️ Video playing');
+        if (import.meta.env.DEV) {
+          console.log('▶️ Video playing');
+        }
       } catch (error) {
-        console.log('⚠️ Play failed:', error);
+        if (import.meta.env.DEV) {
+          console.log('⚠️ Play failed:', error);
+        }
       }
     }
   }, [onPlay]);
@@ -33,7 +37,9 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
       videoRef.current.pause();
       setIsPlaying(false);
       onPause?.();
-      console.log('⏸️ Video paused');
+      if (import.meta.env.DEV) {
+        console.log('⏸️ Video paused');
+      }
     }
   }, [onPause]);
 
@@ -48,7 +54,9 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
   const seekTo = useCallback((time: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = Math.max(0, time);
-      console.log('⏭️ Seeked to:', time, 'seconds');
+      if (import.meta.env.DEV) {
+        console.log('⏭️ Seeked to:', time, 'seconds');
+      }
     }
   }, []);
 
@@ -56,13 +64,17 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
     if (videoRef.current) {
       videoRef.current.playbackRate = rate;
       setPlaybackRate(rate);
-      console.log('⚡ Playback rate changed to:', rate);
+      if (import.meta.env.DEV) {
+        console.log('⚡ Playback rate changed to:', rate);
+      }
       
       // Store preference in localStorage
       try {
         localStorage.setItem('hogflix_playback_speed', rate.toString());
       } catch (error) {
-        console.warn('Failed to save playback speed preference:', error);
+        if (import.meta.env.DEV) {
+          console.warn('Failed to save playback speed preference:', error);
+        }
       }
     }
   }, []);
@@ -70,7 +82,9 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
   const skipBackward = useCallback((seconds: number = 10) => {
     if (videoRef.current) {
       videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - seconds);
-      console.log('⏪ Skipped backward:', seconds, 'seconds');
+      if (import.meta.env.DEV) {
+        console.log('⏪ Skipped backward:', seconds, 'seconds');
+      }
     }
   }, []);
 
@@ -80,7 +94,9 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
         videoRef.current.duration || 0,
         videoRef.current.currentTime + seconds
       );
-      console.log('⏩ Skipped forward:', seconds, 'seconds');
+      if (import.meta.env.DEV) {
+        console.log('⏩ Skipped forward:', seconds, 'seconds');
+      }
     }
   }, []);
 
@@ -91,19 +107,27 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture();
         setIsPiPActive(false);
-        console.log('📺 PiP disabled');
+        if (import.meta.env.DEV) {
+          console.log('📺 PiP disabled');
+        }
       } else {
         await videoRef.current.requestPictureInPicture();
         setIsPiPActive(true);
-        console.log('📺 PiP enabled');
+        if (import.meta.env.DEV) {
+          console.log('📺 PiP enabled');
+        }
       }
     } catch (error) {
-      console.warn('⚠️ PiP error:', error);
+      if (import.meta.env.DEV) {
+        console.warn('⚠️ PiP error:', error);
+      }
     }
   }, []);
 
   const handleLoadedMetadata = useCallback(() => {
-    console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
+    if (import.meta.env.DEV) {
+      console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
+    }
     setIsReady(true);
     
     // Apply saved playback speed preference
@@ -115,11 +139,15 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
           if (rate >= 0.25 && rate <= 2) {
             videoRef.current.playbackRate = rate;
             setPlaybackRate(rate);
-            console.log('⚡ Applied saved playback speed:', rate);
+            if (import.meta.env.DEV) {
+              console.log('⚡ Applied saved playback speed:', rate);
+            }
           }
         }
       } catch (error) {
-        console.warn('Failed to load playback speed preference:', error);
+        if (import.meta.env.DEV) {
+          console.warn('Failed to load playback speed preference:', error);
+        }
       }
     }
     

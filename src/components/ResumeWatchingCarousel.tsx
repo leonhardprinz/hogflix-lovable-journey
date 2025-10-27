@@ -60,9 +60,13 @@ export const ResumeWatchingCarousel = () => {
   }, []);
 
   const loadVideos = async () => {
-    console.log('🔄 Loading resume watching videos...');
+    if (import.meta.env.DEV) {
+      console.log('🔄 Loading resume watching videos...');
+    }
     const resumeVideos = await getResumeWatchingVideos();
-    console.log('📺 Resume videos loaded:', resumeVideos.length);
+    if (import.meta.env.DEV) {
+      console.log('📺 Resume videos loaded:', resumeVideos.length);
+    }
     setVideos(resumeVideos);
     
     if (resumeVideos.length > 0) {
@@ -111,7 +115,9 @@ export const ResumeWatchingCarousel = () => {
 
   // Don't show section if no videos
   if (videos.length === 0) {
-    console.log('🚫 No resume videos to display');
+    if (import.meta.env.DEV) {
+      console.log('🚫 No resume videos to display');
+    }
     return null;
   }
 

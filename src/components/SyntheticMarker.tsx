@@ -23,7 +23,9 @@ export default function SyntheticMarker() {
       // Persist flag in sessionStorage for page refreshes
       if (isSynthetic && !wasSynthetic) {
         sessionStorage.setItem('hogflix_synthetic', 'true')
-        console.log('🤖 Synthetic session registered in PostHog')
+        if (import.meta.env.DEV) {
+          console.log('🤖 Synthetic session registered in PostHog')
+        }
       }
     }
   }, [posthog])
