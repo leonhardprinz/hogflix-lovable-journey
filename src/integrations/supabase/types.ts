@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -867,6 +867,8 @@ export type Database = {
         Args: { updates: Json; video_ids: string[] }
         Returns: number
       }
+      cleanup_synthetic_data: { Args: never; Returns: Json }
+      count_synthetic_data: { Args: never; Returns: Json }
       get_my_profiles_public: {
         Args: never
         Returns: {

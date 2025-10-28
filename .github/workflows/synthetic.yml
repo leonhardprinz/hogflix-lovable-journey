@@ -20,7 +20,7 @@ jobs:
 
       - name: Install deps (server + browser)
         run: |
-          npm i posthog-node playwright
+          npm i posthog-node playwright @supabase/supabase-js
           npx playwright install --with-deps chromium
 
       - name: Restore persona state
@@ -35,6 +35,8 @@ jobs:
         env:
           PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.PH_HOST }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: https://kawxtrzyllgzmmwfddil.supabase.co
           STATE_DIR: .synthetic_state
           PERSONA_POOL: 400
 

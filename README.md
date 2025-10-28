@@ -71,3 +71,35 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Synthetic Traffic System
+
+This project includes a comprehensive synthetic traffic generation system for demo and testing purposes. See [SYNTHETIC_TRAFFIC.md](./SYNTHETIC_TRAFFIC.md) for full documentation.
+
+### Quick Start
+
+**Run synthetic traffic locally:**
+
+```bash
+# PostHog events only (lightweight)
+PH_PROJECT_API_KEY=your_key node scripts/synthetic-traffic.js
+
+# Full database mode (creates real users + interactions)
+PH_PROJECT_API_KEY=your_key \
+SUPABASE_SERVICE_ROLE_KEY=your_service_key \
+node scripts/synthetic-traffic.js
+```
+
+**What it does:**
+- Creates 400 synthetic user personas
+- Generates realistic video viewing patterns
+- Simulates subscriptions, ratings, watchlists, and support tickets
+- Runs automatically every 30 minutes via GitHub Actions
+
+**Clean up synthetic data:**
+```sql
+-- As admin in Supabase SQL Editor
+SELECT * FROM cleanup_synthetic_data();
+```
+
+See [SYNTHETIC_TRAFFIC.md](./SYNTHETIC_TRAFFIC.md) for complete documentation.
