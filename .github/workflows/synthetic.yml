@@ -41,8 +41,24 @@ jobs:
           PERSONA_POOL: 400
 
       # --- BROWSER FLOWS ---
-      # NOTE: path points to scripts/playwright-bot.js (matches your repo)
-      - name: Run Playwright bot (real sessions)
+      # New user signup journeys (creates real users)
+      - name: Run new user signup journeys
+        run: node scripts/playwright-journey-new-user.js
+        env:
+          STATE_DIR: .synthetic_state
+          APP_URL: https://hogflix-demo.lovable.app
+          NEW_USER_COUNT: 10
+      
+      # Returning user engagement sessions
+      - name: Run returning user sessions
+        run: node scripts/playwright-journey-returning-user.js
+        env:
+          STATE_DIR: .synthetic_state
+          APP_URL: https://hogflix-demo.lovable.app
+          RETURNING_USER_COUNT: 30
+      
+      # Legacy lightweight bot (optional, for quick funnel events)
+      - name: Run legacy bot (quick funnel events)
         run: node scripts/playwright-bot.js
         env:
           STATE_DIR: .synthetic_state
