@@ -586,7 +586,7 @@ async function simulateFlixBuddy(p, flixbuddyCallCount) {
 
     p.flixbuddy_conversations++
     
-    // Track in PostHog
+    // Track in PostHog with device/browser properties
     await posthog.capture({
       distinctId: p.distinct_id,
       event: 'flixbuddy_interaction',
@@ -594,7 +594,10 @@ async function simulateFlixBuddy(p, flixbuddyCallCount) {
         plan: p.plan,
         is_synthetic: true,
         question: question,
-        conversation_id: conv.id
+        conversation_id: conv.id,
+        $browser: p.browser,
+        $device_type: p.device_type,
+        $os: p.os
       }
     })
 
@@ -630,7 +633,7 @@ async function simulateSession(p, flixbuddyCallCount) {
     }
   }
 
-  // PostHog entry event
+  // PostHog entry event with device/browser properties
   await posthog.capture({
     distinctId: p.distinct_id,
     event: 'page_view',
@@ -640,7 +643,13 @@ async function simulateSession(p, flixbuddyCallCount) {
       source: p.source,
       page: entryPoint,
       state: p.state,
-      pattern: p.activity_pattern
+      pattern: p.activity_pattern,
+      $browser: p.browser,
+      $browser_version: p.browser_version,
+      $device_type: p.device_type,
+      $os: p.os,
+      $screen_width: p.screen_width,
+      $screen_height: p.screen_height
     }
   })
 
@@ -658,14 +667,28 @@ async function simulateSession(p, flixbuddyCallCount) {
       await posthog.capture({
         distinctId: p.distinct_id,
         event: 'title_opened',
-        properties: { plan: p.plan, is_synthetic: true, title_id: videoId }
+        properties: { 
+          plan: p.plan, 
+          is_synthetic: true, 
+          title_id: videoId,
+          $browser: p.browser,
+          $device_type: p.device_type,
+          $os: p.os
+        }
       })
 
       if (rand() < 0.60) {
         await posthog.capture({
           distinctId: p.distinct_id,
           event: 'video_started',
-          properties: { plan: p.plan, is_synthetic: true, video_id: videoId }
+          properties: { 
+            plan: p.plan, 
+            is_synthetic: true, 
+            video_id: videoId,
+            $browser: p.browser,
+            $device_type: p.device_type,
+            $os: p.os
+          }
         })
 
         if (USE_DATABASE && p.db_initialized && p.profile_id) {
@@ -678,7 +701,15 @@ async function simulateSession(p, flixbuddyCallCount) {
           await posthog.capture({
             distinctId: p.distinct_id,
             event: 'video_progress',
-            properties: { plan: p.plan, is_synthetic: true, video_id: videoId, milestone: 50 }
+            properties: { 
+              plan: p.plan, 
+              is_synthetic: true, 
+              video_id: videoId, 
+              milestone: 50,
+              $browser: p.browser,
+              $device_type: p.device_type,
+              $os: p.os
+            }
           })
         }
       }
@@ -780,16 +811,23 @@ async function main() {
   await Promise.all(personas.map(p => posthog.identify({
     distinctId: p.distinct_id,
     properties: {
+      email: p.email,
       plan: p.plan,
-      company_plan: p.plan,
-      acq_source: p.source,
-      is_synthetic: true,
       state: p.state,
-      activity_pattern: p.activity_pattern,
+      pattern: p.activity_pattern,
+      days_since_signup: p.days_since_signup,
       engagement_score: p.engagement_score,
-      $initial_utm_source: p.source,
-      $initial_utm_medium: 'synthetic',
-      $initial_utm_campaign: 'hogflix-dynamic'
+      is_synthetic: true,
+      source: p.source,
+      $browser: p.browser,
+      $browser_version: p.browser_version,
+      $device_type: p.device_type,
+      $os: p.os,
+      $screen_width: p.screen_width,
+      $screen_height: p.screen_height,
+      $initial_utm_source: p.utm_source || p.source,
+      $initial_utm_medium: p.utm_medium || 'synthetic',
+      $initial_utm_campaign: p.utm_campaign || 'hogflix-dynamic'
     }
   })))
 

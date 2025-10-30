@@ -25,10 +25,15 @@ This document describes the **fully dynamic** synthetic traffic system that simu
 ### What's Simulated
 
 ✅ **User Lifecycles**: NEW → ACTIVE → CASUAL → DORMANT → CHURNED  
+✅ **Complete User Journeys**: Signup → Browse → Watch → Engage → Subscribe  
 ✅ **Activity Patterns**: DAILY, REGULAR, WEEKEND, BINGE, MONTHLY  
+✅ **Acquisition Channels**: 7+ sources (organic, social, paid, email, referral)  
+✅ **Device Diversity**: Desktop (70%), Mobile (25%), Tablet (5%)  
+✅ **Browser Mix**: Chrome, Safari, Firefox, Edge across platforms  
 ✅ **Dynamic Returns**: Irregular visit patterns based on user type  
 ✅ **Life Events**: Vacations, sick days, busy periods, hype periods  
-✅ **New Signups**: 2-5 new users daily, replacing churned users  
+✅ **New Signups**: 10-20 new users daily via browser flows  
+✅ **Pricing/Checkout**: Simulated Stripe test mode purchases  
 ✅ **Churn Management**: Natural attrition with database cleanup  
 ✅ **FlixBuddy Chats**: 10% of active users engage with AI assistant  
 ✅ **Watch Behavior**: Variable session depths, completion rates  
@@ -38,31 +43,45 @@ This document describes the **fully dynamic** synthetic traffic system that simu
 ### Target Scale
 
 - **~400 active users** (fluctuates naturally between 380-420)
-- **2-5 new signups per day** (replacing churned users)
-- **30-150 active sessions per day** (varies by day of week)
-- **8-12 FlixBuddy interactions per day** (rate limited to 50/run)
+- **10-20 new signups per day** (via browser signup flows)
+- **80-150 active sessions per day** (varies by day of week)
+- **20-40 FlixBuddy interactions per day** (rate limited to 50/run)
+- **30-60 pricing page visits per day** (upgrade intent tracking)
+- **10-20 checkout attempts per day** (simulated Stripe test mode)
 
 ---
 
 ## System Architecture
 
-### Two-Tier Approach
+### Three-Tier Approach
 
 **Tier 1: Server-Side** (`scripts/synthetic-traffic.js`)
 - User lifecycle management
 - Database operations (Supabase)
-- PostHog event generation
+- PostHog event generation with device/browser properties
 - FlixBuddy API calls
 
-**Tier 2: Browser-Based** (`scripts/playwright-bot.js`)
-- Real browser sessions
-- Cookie/localStorage persistence
-- Navigation flows
+**Tier 2: Browser-Based New Users** (`scripts/playwright-journey-new-user.js`)
+- Complete signup flows with real form fills
+- Pricing page interactions
+- Feature flag exposure (A/B tests)
+- Simulated Stripe checkout (test mode)
+- UTM parameter tracking (acquisition source)
+- Device/browser rotation
+- Creates 10-20 new users per run
+
+**Tier 3: Browser-Based Returning Users** (`scripts/playwright-journey-returning-user.js`)
+- Login flows for existing personas
+- Content browsing and watching
+- Pricing page revisits (upgrade intent)
+- FlixBuddy interactions
+- Watchlist/rating actions
+- 80-100 sessions per run
 
 ### State Persistence
 
 All persona state is stored in `.synthetic_state/`:
-- `personas.json` - Complete user state (lifecycles, patterns, metrics)
+- `personas.json` - Complete user state (lifecycles, patterns, metrics, device/browser, UTMs)
 - `daily_metrics.json` - Historical analytics (last 90 days)
 
 Both files are cached in GitHub Actions and persist across runs.
@@ -323,8 +342,23 @@ Basic:    mean 3.2, std 1.2  // More critical
   state: "ACTIVE",
   state_changed_at: "2025-10-28T10:15:00Z",
   days_since_signup: 45,
+  signup_date: "2025-09-13T10:15:00Z",
+  first_visit_date: "2025-09-12T18:30:00Z",
   last_active: "2025-10-28T10:15:00Z",
   created_at: "2025-09-13T10:15:00Z",
+  
+  // Device & Browser
+  browser: "Chrome",
+  browser_version: "120.0",
+  device_type: "Desktop",
+  os: "Windows",
+  screen_width: 1920,
+  screen_height: 1080,
+  
+  // Acquisition
+  utm_source: "google",
+  utm_medium: "organic",
+  utm_campaign: "hogflix-dynamic",
   
   // Activity pattern
   activity_pattern: "REGULAR",
@@ -339,6 +373,16 @@ Basic:    mean 3.2, std 1.2  // More critical
   ratings_given: 12,
   watchlist_size: 5,
   flixbuddy_conversations: 2,
+  
+  // Journey tracking
+  pricing_visits: 5,
+  checkout_attempts: 1,
+  checkout_completions: 1,
+  
+  // Feature flags
+  feature_flags: {
+    pricing_upgrade_cta_experiment: "value_focused"
+  },
   
   // Temporal state
   in_life_event: null,
@@ -450,31 +494,85 @@ properties.state in ['NEW', 'ACTIVE', 'DORMANT']
 properties.activity_pattern in ['DAILY', 'BINGE', 'WEEKEND']
 ```
 
+**Device & Browser Segmentation**:
+```
+properties.$device_type in ['Desktop', 'Mobile', 'Tablet']
+properties.$browser in ['Chrome', 'Safari', 'Firefox', 'Edge']
+properties.$os in ['Windows', 'macOS', 'iOS', 'Android']
+```
+
+**Acquisition Channel Analysis**:
+```
+properties.$initial_utm_source in ['google', 'facebook', 'google_ads', 'newsletter']
+properties.$initial_utm_medium in ['organic', 'social', 'cpc', 'email']
+```
+
+### Expected Distributions
+
+**Device & Browser**:
+- Desktop: ~70% (Chrome 40%, Safari 20%, Firefox 10%)
+- Mobile: ~25% (Safari iOS 15%, Chrome Android 10%)
+- Tablet: ~5%
+
+**Acquisition Channels**:
+- Organic (google): ~30%
+- Social (facebook, twitter, reddit): ~30%
+- Paid (google_ads, facebook_ads): ~15%
+- Email (newsletter): ~15%
+- Direct: ~10%
+
 ### Key Metrics to Track
 
 #### Daily KPIs
-- Active users vs. total pool
-- New signups vs. churned
-- FlixBuddy usage rate
-- Support ticket volume
+- Active users (80-150 per day)
+- New signups (10-20 per day via browser flows)
+- Signup conversion rate (70-80% from pricing)
+- Pricing page visits (30-60 per day)
+- Checkout attempts (10-20 per day)
+- Checkout completion rate (60-70%)
+- FlixBuddy usage (20-40 interactions per day)
+- Support ticket volume (2-5 per day)
 
 #### Lifecycle Health
-- State distribution (% in each state)
-- Average engagement score by state
-- Churn rate (DORMANT → CHURNED)
-- Reactivation rate (DORMANT → ACTIVE)
+- State distribution (% in each state: NEW 5%, ACTIVE 60%, CASUAL 20%, DORMANT 10%, CHURNED 5%)
+- Average engagement score by state (NEW 90+, ACTIVE 70-80, CASUAL 50-60)
+- Churn rate (DORMANT → CHURNED: ~7-10% monthly)
+- Reactivation rate (DORMANT → ACTIVE: ~5-8%)
 
 #### Pattern Analysis
-- Pattern distribution alignment with targets
-- Binge cycle completion rates
-- Weekend user peak activity
-- Monthly spike days (1-3)
+- Pattern distribution alignment (DAILY 15%, REGULAR 40%, WEEKEND 20%, BINGE 15%, MONTHLY 10%)
+- Binge cycle completion rates (80%+ complete 5-15 videos)
+- Weekend user peak activity (15% boost Sat/Sun)
+- Monthly spike days (1-3 per month for MONTHLY users)
 
 #### Engagement Quality
-- Average watch completion by state
-- Rating distribution by plan
-- Watchlist growth rate
-- Session depth trends
+- Average watch completion by state (NEW 45%, ACTIVE 65%, BINGE 85%)
+- Rating distribution by plan (Premium 4.2, Standard 3.8, Basic 3.2)
+- Watchlist growth rate (3-8 items per active user)
+- Session depth trends (NEW 3-8, ACTIVE 2-5, BINGE 5-15 videos)
+
+#### Funnel Performance
+- **Signup Funnel**: Homepage → Pricing → Signup → Success (70-80% conversion)
+- **Upgrade Funnel**: Browse → Pricing → Checkout → Success (60-70% conversion)
+- **Engagement Funnel**: Login → Browse → Title → Video → Watch50% (40-50% reach milestone)
+
+#### Feature Flag Experiments
+- `pricing_upgrade_cta_experiment`: Should show ~50/50 variant split
+- Each variant: 100+ exposures within 7 days
+- Conversion rate variance: 5-15% between variants
+
+#### Retention Cohorts
+**Week-over-Week**:
+- Week 0: 100%
+- Week 1: 65-75%
+- Week 2: 50-60%
+- Month 1: 35-45%
+- Month 3: 25-35%
+
+**By Plan (Month 1)**:
+- Basic: ~30%
+- Standard: ~40%
+- Premium: ~50%
 
 ### Daily Metrics History
 
@@ -482,8 +580,33 @@ View `.synthetic_state/daily_metrics.json`:
 ```javascript
 // Last 90 days of metrics for cohort analysis
 [
-  { date: "2025-10-28", active_today: 87, ... },
-  { date: "2025-10-27", active_today: 92, ... },
+  {
+    date: "2025-10-28",
+    active_today: 124,
+    new_signups: 12,
+    churned: 5,
+    total_personas: 398,
+    device_distribution: {
+      Desktop: 275,
+      Mobile: 100,
+      Tablet: 23
+    },
+    browser_distribution: {
+      Chrome: 160,
+      Safari: 120,
+      Firefox: 70,
+      Edge: 48
+    },
+    acquisition_distribution: {
+      google: 120,
+      facebook: 60,
+      google_ads: 60,
+      newsletter: 60,
+      twitter: 40,
+      reddit: 20,
+      direct: 38
+    }
+  },
   ...
 ]
 ```
