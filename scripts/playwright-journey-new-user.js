@@ -1,7 +1,15 @@
 // New User Signup Journey - Full funnel from landing to conversion
 import { chromium } from 'playwright'
+import { PostHog } from 'posthog-node'
 
 const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
+const DEBUG = process.env.DEBUG === 'true'
+
+// Initialize PostHog for server-side event capture
+const posthog = new PostHog(
+  process.env.POSTHOG_KEY || 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
+  { host: 'https://eu.i.posthog.com' }
+)
 
 // Device profiles for realistic diversity
 const DEVICES = [
@@ -80,16 +88,27 @@ async function simulateNewUserJourney(count = 10) {
       await page.goto(landingUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
       await page.waitForTimeout(1000 + Math.random() * 2000)
 
-      // Set device properties in PostHog
-      await page.evaluate(({ device, acquisition }) => {
-        window.posthog?.register({
+      if (DEBUG) {
+        console.log(`  [DEBUG] Landing page loaded: ${page.url()}`)
+      }
+
+      // Capture page view (server-side)
+      posthog.capture({
+        distinctId: email,
+        event: '$pageview',
+        properties: {
+          $current_url: landingUrl,
           $browser: device.browser,
           $device_type: device.type,
           $os: device.os,
           $screen_width: device.width,
-          $screen_height: device.height
-        })
-      }, { device, acquisition })
+          $screen_height: device.height,
+          utm_source: acquisition.source,
+          utm_medium: acquisition.medium,
+          utm_campaign: 'hogflix-dynamic',
+          is_synthetic: true
+        }
+      })
 
       // Step 2: Navigate to pricing page (75% chance)
       if (Math.random() < 0.75) {
@@ -97,14 +116,20 @@ async function simulateNewUserJourney(count = 10) {
         await page.goto(`${APP_URL}/pricing?utm_source=${acquisition.source}&utm_medium=${acquisition.medium}`, { waitUntil: 'domcontentloaded', timeout: 15000 })
         await page.waitForTimeout(2000 + Math.random() * 3000)
 
-        // Capture pricing view
-        await page.evaluate(({ plan, device }) => {
-          window.posthog?.capture('pricing_page_viewed', {
-            plan_interest: plan,
+        // Capture pricing view (server-side)
+        posthog.capture({
+          distinctId: email,
+          event: 'pricing_page_viewed',
+          properties: {
+            plan_interest: plan.id,
             device_type: device.type,
+            $browser: device.browser,
+            $device_type: device.type,
+            $os: device.os,
+            $current_url: `${APP_URL}/pricing`,
             is_synthetic: true
-          })
-        }, { plan: plan.id, device })
+          }
+        })
 
         // Try to click a plan button (if exists)
         try {
@@ -115,7 +140,7 @@ async function simulateNewUserJourney(count = 10) {
             await page.waitForTimeout(1000)
           }
         } catch (e) {
-          // Button not found, continue
+          if (DEBUG) console.log(`  [DEBUG] Button not found:`, e.message)
         }
       }
 
@@ -147,15 +172,20 @@ async function simulateNewUserJourney(count = 10) {
         }
       }
 
-      // Capture form filled event
-      await page.evaluate(({ plan, device, acquisition }) => {
-        window.posthog?.capture('signup_form_filled', {
-          plan: plan,
+      // Capture form filled event (server-side)
+      posthog.capture({
+        distinctId: email,
+        event: 'signup_form_filled',
+        properties: {
+          plan: plan.id,
           device_type: device.type,
           source: acquisition.source,
+          $browser: device.browser,
+          $device_type: device.type,
+          $os: device.os,
           is_synthetic: true
-        })
-      }, { plan: plan.id, device, acquisition })
+        }
+      })
 
       // Step 5: Submit form
       console.log(`  → Submitting signup`)
@@ -171,40 +201,59 @@ async function simulateNewUserJourney(count = 10) {
       if (currentUrl.includes('/profiles') || currentUrl.includes('/checkout') || currentUrl.includes('/browse')) {
         console.log(`  ✓ Signup successful`)
         
-        // Capture signup success
-        await page.evaluate(({ email, plan, device, acquisition }) => {
-          window.posthog?.capture('signup_completed', {
+        // Capture signup success (server-side)
+        posthog.capture({
+          distinctId: email,
+          event: 'signup_completed',
+          properties: {
             email: email,
-            plan: plan,
+            plan: plan.id,
             device_type: device.type,
             source: acquisition.source,
-            is_synthetic: true
-          })
-          
-          // Set person properties
-          window.posthog?.setPersonProperties({
-            email: email,
-            plan: plan,
-            device_type: device.type,
+            $browser: device.browser,
+            $device_type: device.type,
+            $os: device.os,
+            $screen_width: device.width,
+            $screen_height: device.height,
             $initial_utm_source: acquisition.source,
             $initial_utm_medium: acquisition.medium,
             $initial_utm_campaign: 'hogflix-dynamic',
             is_synthetic: true
-          })
-        }, { email, plan: plan.id, device, acquisition })
+          }
+        })
+        
+        // Set person properties (server-side)
+        posthog.identify({
+          distinctId: email,
+          properties: {
+            email: email,
+            plan: plan.id,
+            device_type: device.type,
+            browser: device.browser,
+            os: device.os,
+            $initial_utm_source: acquisition.source,
+            $initial_utm_medium: acquisition.medium,
+            $initial_utm_campaign: 'hogflix-dynamic',
+            is_synthetic: true
+          }
+        })
 
         // Step 6: If on checkout page, simulate Stripe flow (paid plans)
         if (currentUrl.includes('/checkout') && plan.id !== 'basic') {
           console.log(`  → Starting checkout flow`)
           await page.waitForTimeout(2000)
 
-          // Capture checkout started
-          await page.evaluate(({ plan }) => {
-            window.posthog?.capture('checkout_started', {
-              plan: plan,
+          // Capture checkout started (server-side)
+          posthog.capture({
+            distinctId: email,
+            event: 'checkout_started',
+            properties: {
+              plan: plan.id,
+              $browser: device.browser,
+              $device_type: device.type,
               is_synthetic: true
-            })
-          }, { plan: plan.id })
+            }
+          })
 
           // Try to interact with checkout (if demo Stripe or payment buttons exist)
           try {
@@ -215,14 +264,18 @@ async function simulateNewUserJourney(count = 10) {
               await paymentButtons[0].click()
               await page.waitForTimeout(2000)
 
-              // Capture checkout completed (mock)
-              await page.evaluate(({ plan }) => {
-                window.posthog?.capture('checkout_completed', {
-                  plan: plan,
+              // Capture checkout completed (server-side)
+              posthog.capture({
+                distinctId: email,
+                event: 'checkout_completed',
+                properties: {
+                  plan: plan.id,
                   payment_method: 'test_card',
+                  $browser: device.browser,
+                  $device_type: device.type,
                   is_synthetic: true
-                })
-              }, { plan: plan.id })
+                }
+              })
             }
           } catch (e) {
             console.log(`  ! Checkout interaction failed:`, e.message)
@@ -250,6 +303,10 @@ async function simulateNewUserJourney(count = 10) {
 
     } catch (error) {
       console.error(`  ! Error in journey ${i + 1}:`, error.message)
+      if (DEBUG) {
+        console.error(`  [DEBUG] Full error:`, error)
+        await page.screenshot({ path: `./error_${Date.now()}.png` }).catch(() => {})
+      }
       journeys.push({ email, success: false, error: error.message })
     } finally {
       await context.close()
@@ -274,9 +331,14 @@ async function simulateNewUserJourney(count = 10) {
   
   try {
     const results = await simulateNewUserJourney(count)
-    console.log(`\nAll journeys completed. Check PostHog for signup funnel data.`)
+    console.log(`\nAll journeys completed. Flushing PostHog events...`)
+    
+    // Ensure all events are sent to PostHog
+    await posthog.shutdown()
+    console.log(`✓ PostHog events flushed. Check PostHog for signup funnel data.`)
   } catch (error) {
     console.error('Fatal error:', error)
+    await posthog.shutdown()
     process.exit(1)
   }
 })()

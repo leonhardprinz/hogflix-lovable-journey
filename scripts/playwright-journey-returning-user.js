@@ -1,11 +1,19 @@
 // Returning User Journey - Existing users engaging with content
 import { chromium } from 'playwright'
+import { PostHog } from 'posthog-node'
 import fs from 'node:fs'
 import path from 'node:path'
 
 const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const PERSONAS_FILE = path.join(STATE_DIR, 'personas.json')
+const DEBUG = process.env.DEBUG === 'true'
+
+// Initialize PostHog for server-side event capture
+const posthog = new PostHog(
+  process.env.POSTHOG_KEY || 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
+  { host: 'https://eu.i.posthog.com' }
+)
 
 // Demo video ID to use
 const DEMO_VIDEO_ID = '6f4d68aa-3d28-43eb-a16d-31848741832b'
@@ -80,31 +88,48 @@ async function simulateReturningUserJourney(personas, count = 25) {
     const page = await context.newPage()
 
     try {
-      // Set localStorage with PostHog distinct_id for continuity
-      await page.addInitScript(({ id }) => {
-        try {
-          localStorage.setItem('posthog_distinct_id', JSON.stringify({ distinct_id: id }))
-        } catch {}
-      }, { id: p.distinct_id })
-
       // Navigate to browse page with UTM (returning traffic)
-      const entryUrl = `${APP_URL}/browse?utm_source=${encodeURIComponent(p.source || 'direct')}&utm_medium=synthetic&utm_campaign=hogflix-returning`
+      const entryUrl = `${APP_URL}/browse?utm_source=${encodeURIComponent(p.utm_source || 'direct')}&utm_medium=synthetic&utm_campaign=hogflix-returning`
       await page.goto(entryUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
       await page.waitForTimeout(1000)
 
-      // Identify user with person properties
-      await page.evaluate(({ p }) => {
-        window.posthog?.identify(p.distinct_id, {
+      if (DEBUG) {
+        console.log(`  [DEBUG] Browse page loaded for ${p.email}`)
+      }
+
+      // Capture page view (server-side)
+      posthog.capture({
+        distinctId: p.distinct_id,
+        event: '$pageview',
+        properties: {
+          $current_url: entryUrl,
+          $browser: p.browser || 'Chrome',
+          $device_type: p.device_type || 'Desktop',
+          $os: p.os || 'Windows',
+          $screen_width: p.screen_width || 1920,
+          $screen_height: p.screen_height || 1080,
+          is_synthetic: true,
+          returning_user: true
+        }
+      })
+
+      // Identify user with person properties (server-side)
+      posthog.identify({
+        distinctId: p.distinct_id,
+        properties: {
           email: p.email,
           plan: p.plan,
           state: p.state,
           activity_pattern: p.activity_pattern,
           device_type: p.device_type || 'Desktop',
           browser: p.browser || 'Chrome',
+          os: p.os || 'Windows',
+          $initial_utm_source: p.utm_source,
+          $initial_utm_medium: p.utm_medium,
           is_synthetic: true,
           returning_user: true
-        })
-      }, { p })
+        }
+      })
 
       // Determine journey based on state and activity pattern
       const sessionDepth = p.state === 'ACTIVE' ? 3 + Math.floor(Math.random() * 3)
@@ -120,35 +145,47 @@ async function simulateReturningUserJourney(personas, count = 25) {
         // 70% - Watch videos (main engagement)
         console.log(`  → Journey: Video watching`)
         
-        // Capture section click
-        await page.evaluate(({ p }) => {
-          window.posthog?.capture('section_clicked', {
+        // Capture section click (server-side)
+        posthog.capture({
+          distinctId: p.distinct_id,
+          event: 'section_clicked',
+          properties: {
             section: 'Popular',
             plan: p.plan,
             state: p.state,
+            $browser: p.browser || 'Chrome',
+            $device_type: p.device_type || 'Desktop',
             is_synthetic: true
-          })
-        }, { p })
+          }
+        })
 
-        // Open video detail
-        await page.evaluate(({ p, videoId }) => {
-          window.posthog?.capture('title_opened', {
-            title_id: videoId,
+        // Open video detail (server-side)
+        posthog.capture({
+          distinctId: p.distinct_id,
+          event: 'title_opened',
+          properties: {
+            title_id: DEMO_VIDEO_ID,
             plan: p.plan,
+            $browser: p.browser || 'Chrome',
+            $device_type: p.device_type || 'Desktop',
             is_synthetic: true
-          })
-        }, { p, videoId: DEMO_VIDEO_ID })
+          }
+        })
 
         await page.waitForTimeout(500)
 
-        // Start video
-        await page.evaluate(({ p, videoId }) => {
-          window.posthog?.capture('video_started', {
-            video_id: videoId,
+        // Start video (server-side)
+        posthog.capture({
+          distinctId: p.distinct_id,
+          event: 'video_started',
+          properties: {
+            video_id: DEMO_VIDEO_ID,
             plan: p.plan,
+            $browser: p.browser || 'Chrome',
+            $device_type: p.device_type || 'Desktop',
             is_synthetic: true
-          })
-        }, { p, videoId: DEMO_VIDEO_ID })
+          }
+        })
 
         // Watch progress (based on engagement)
         const watchProgress = p.engagement_score > 7 ? 75 + Math.random() * 25
@@ -156,15 +193,19 @@ async function simulateReturningUserJourney(personas, count = 25) {
           : 25 + Math.random() * 30
 
         if (watchProgress >= 50) {
-          await page.evaluate(({ p, videoId, progress }) => {
-            window.posthog?.capture('video_progress', {
-              video_id: videoId,
+          posthog.capture({
+            distinctId: p.distinct_id,
+            event: 'video_progress',
+            properties: {
+              video_id: DEMO_VIDEO_ID,
               milestone: 50,
-              progress_percentage: Math.floor(progress),
+              progress_percentage: Math.floor(watchProgress),
               plan: p.plan,
+              $browser: p.browser || 'Chrome',
+              $device_type: p.device_type || 'Desktop',
               is_synthetic: true
-            })
-          }, { p, videoId: DEMO_VIDEO_ID, progress: watchProgress })
+            }
+          })
         }
 
         // Rate video (30% chance for engaged users)
@@ -173,14 +214,18 @@ async function simulateReturningUserJourney(personas, count = 25) {
             : p.plan === 'standard' ? 3 + Math.floor(Math.random() * 3)
             : 2 + Math.floor(Math.random() * 4)
 
-          await page.evaluate(({ p, videoId, rating }) => {
-            window.posthog?.capture('video_rated', {
-              video_id: videoId,
+          posthog.capture({
+            distinctId: p.distinct_id,
+            event: 'video_rated',
+            properties: {
+              video_id: DEMO_VIDEO_ID,
               rating: rating,
               plan: p.plan,
+              $browser: p.browser || 'Chrome',
+              $device_type: p.device_type || 'Desktop',
               is_synthetic: true
-            })
-          }, { p, videoId: DEMO_VIDEO_ID, rating })
+            }
+          })
         }
 
       } else if (journeyType < 0.85) {
@@ -190,14 +235,19 @@ async function simulateReturningUserJourney(personas, count = 25) {
         await page.goto(`${APP_URL}/pricing`, { waitUntil: 'domcontentloaded', timeout: 15000 })
         await page.waitForTimeout(2000 + Math.random() * 3000)
 
-        await page.evaluate(({ p }) => {
-          window.posthog?.capture('pricing_page_viewed', {
+        posthog.capture({
+          distinctId: p.distinct_id,
+          event: 'pricing_page_viewed',
+          properties: {
             current_plan: p.plan,
             state: p.state,
             upgrade_intent: true,
+            $browser: p.browser || 'Chrome',
+            $device_type: p.device_type || 'Desktop',
+            $current_url: `${APP_URL}/pricing`,
             is_synthetic: true
-          })
-        }, { p })
+          }
+        })
 
         // Some click on plan cards (50%)
         if (Math.random() < 0.5) {
@@ -207,15 +257,19 @@ async function simulateReturningUserJourney(personas, count = 25) {
               await buttons[0].click()
               await page.waitForTimeout(1000)
               
-              await page.evaluate(({ p }) => {
-                window.posthog?.capture('upgrade_button_clicked', {
+              posthog.capture({
+                distinctId: p.distinct_id,
+                event: 'upgrade_button_clicked',
+                properties: {
                   current_plan: p.plan,
+                  $browser: p.browser || 'Chrome',
+                  $device_type: p.device_type || 'Desktop',
                   is_synthetic: true
-                })
-              }, { p })
+                }
+              })
             }
           } catch (e) {
-            // Button not found
+            if (DEBUG) console.log(`  [DEBUG] Button not found`)
           }
         }
 
@@ -227,23 +281,31 @@ async function simulateReturningUserJourney(personas, count = 25) {
           await page.goto(`${APP_URL}/flixbuddy`, { waitUntil: 'domcontentloaded', timeout: 15000 })
           await page.waitForTimeout(1500)
 
-          await page.evaluate(({ p }) => {
-            window.posthog?.capture('flixbuddy_opened', {
+          posthog.capture({
+            distinctId: p.distinct_id,
+            event: 'flixbuddy_opened',
+            properties: {
               plan: p.plan,
               state: p.state,
+              $browser: p.browser || 'Chrome',
+              $device_type: p.device_type || 'Desktop',
               is_synthetic: true
-            })
-          }, { p })
+            }
+          })
 
           // Simulate typing and sending a message
           await page.waitForTimeout(2000 + Math.random() * 3000)
           
-          await page.evaluate(({ p }) => {
-            window.posthog?.capture('flixbuddy_message_sent', {
+          posthog.capture({
+            distinctId: p.distinct_id,
+            event: 'flixbuddy_message_sent',
+            properties: {
               plan: p.plan,
+              $browser: p.browser || 'Chrome',
+              $device_type: p.device_type || 'Desktop',
               is_synthetic: true
-            })
-          }, { p })
+            }
+          })
 
         } catch (e) {
           console.log(`  ! FlixBuddy page not accessible`)
@@ -255,6 +317,10 @@ async function simulateReturningUserJourney(personas, count = 25) {
 
     } catch (error) {
       console.error(`  ! Error:`, error.message)
+      if (DEBUG) {
+        console.error(`  [DEBUG] Full error:`, error)
+        await page.screenshot({ path: `./error_${Date.now()}.png` }).catch(() => {})
+      }
       results.push({ email: p.email, success: false, error: error.message })
     } finally {
       await context.close()
@@ -285,9 +351,14 @@ async function simulateReturningUserJourney(personas, count = 25) {
     }
     
     await simulateReturningUserJourney(personas, count)
-    console.log(`\nAll sessions completed. Check PostHog for engagement data.`)
+    console.log(`\nAll sessions completed. Flushing PostHog events...`)
+    
+    // Ensure all events are sent to PostHog
+    await posthog.shutdown()
+    console.log(`✓ PostHog events flushed. Check PostHog for engagement data.`)
   } catch (error) {
     console.error('Fatal error:', error)
+    await posthog.shutdown()
     process.exit(1)
   }
 })()

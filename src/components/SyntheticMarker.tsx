@@ -16,8 +16,7 @@ export default function SyntheticMarker() {
       // Register event-level super properties for this entire session
       posthog.register({ 
         synthetic: true, 
-        is_synthetic: true, 
-        source: 'hogflix-bot' 
+        is_synthetic: true
       })
       
       // Persist flag in sessionStorage for page refreshes

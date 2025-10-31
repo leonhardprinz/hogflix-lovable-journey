@@ -31,7 +31,11 @@ jobs:
 
       # --- SERVER EVENTS ---
       - name: Run synthetic server events
-        run: node scripts/synthetic-traffic.js
+        run: |
+          node scripts/synthetic-traffic.js || {
+            echo "❌ Server script failed with exit code $?"
+            exit 1
+          }
         env:
           PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.PH_HOST }}
@@ -39,23 +43,36 @@ jobs:
           SUPABASE_URL: https://kawxtrzyllgzmmwfddil.supabase.co
           STATE_DIR: .synthetic_state
           PERSONA_POOL: 400
+        continue-on-error: false
 
       # --- BROWSER FLOWS ---
       # New user signup journeys (creates real users)
       - name: Run new user signup journeys
-        run: node scripts/playwright-journey-new-user.js
+        run: |
+          node scripts/playwright-journey-new-user.js || {
+            echo "❌ New user script failed with exit code $?"
+            exit 1
+          }
         env:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-demo.lovable.app
           NEW_USER_COUNT: 10
+          DEBUG: false
+        continue-on-error: false
       
       # Returning user engagement sessions
       - name: Run returning user sessions
-        run: node scripts/playwright-journey-returning-user.js
+        run: |
+          node scripts/playwright-journey-returning-user.js || {
+            echo "❌ Returning user script failed with exit code $?"
+            exit 1
+          }
         env:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-demo.lovable.app
           RETURNING_USER_COUNT: 30
+          DEBUG: false
+        continue-on-error: false
       
       # Legacy lightweight bot (optional, for quick funnel events)
       - name: Run legacy bot (quick funnel events)

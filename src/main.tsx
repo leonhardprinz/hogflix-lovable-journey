@@ -10,31 +10,29 @@ const options = {
   capture_pageview: true,
   capture_pageleave: true,
   
-  // Drop synthetic demo events before they are sent to PostHog
+  // Drop ONLY synthetic demo VIDEO events (not all synthetic traffic)
   before_send: (event: any) => {
     const props = event?.properties || {};
     
     // Check if event is from synthetic traffic
     const isSynthetic = 
       props?.synthetic === true || 
-      props?.is_synthetic === true ||
-      props?.$current_url?.includes('synthetic=1') ||
-      props?.source === 'hogflix-bot';
+      props?.is_synthetic === true;
     
-    // Check if event is related to PostHog Demo category
-    const isDemo = 
-      props?.category === 'PostHog Demo' ||
-      props?.$pathname?.includes('/demos') ||
-      props?.$current_url?.includes('/demos') ||
-      event?.event?.includes('demo_video');
+    // Check if event is related to the specific PostHog Demo VIDEO
+    const isDemoVideo = 
+      props?.video_id === '6f4d68aa-3d28-43eb-a16d-31848741832b' ||
+      props?.category === 'PostHog Demo';
     
-    // Block synthetic demo events
-    if (isSynthetic && isDemo) {
-      console.log('🚫 Blocked synthetic demo event:', event.event);
+    // Block ONLY synthetic demo video events, allow all other synthetic traffic
+    if (isSynthetic && isDemoVideo) {
+      if (import.meta.env.DEV) {
+        console.log('🚫 Blocked synthetic demo video event:', event.event);
+      }
       return null; // Drop the event
     }
     
-    return event; // Allow all other events
+    return event; // Allow all other events including synthetic traffic
   },
 }
 
