@@ -29,13 +29,35 @@ jobs:
           path: .synthetic_state
           key: personas-shared-v1
 
+      # --- ENVIRONMENT VALIDATION ---
+      - name: Validate environment variables
+        run: |
+          echo "🔍 Checking required secrets..."
+          if [ -z "$PH_PROJECT_API_KEY" ]; then
+            echo "❌ Missing PH_PROJECT_API_KEY"
+            exit 1
+          fi
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "❌ Missing SUPABASE_SERVICE_ROLE_KEY"
+            exit 1
+          fi
+          echo "✅ All required secrets are configured"
+        env:
+          PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
       # --- SERVER EVENTS ---
       - name: Run synthetic server events
         run: |
-          node scripts/synthetic-traffic.js || {
-            echo "❌ Server script failed with exit code $?"
+          set -e
+          echo "🚀 Starting server-side synthetic traffic..."
+          node scripts/synthetic-traffic.js 2>&1 | tee server_events.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "❌ Server script failed"
+            cat server_events.log
             exit 1
-          }
+          fi
+          echo "✅ Server script completed successfully"
         env:
           PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.PH_HOST }}
@@ -49,24 +71,35 @@ jobs:
       # New user signup journeys (creates real users)
       - name: Run new user signup journeys
         run: |
-          node scripts/playwright-journey-new-user.js || {
-            echo "❌ New user script failed with exit code $?"
+          set -e
+          echo "🎭 Starting new user signup journeys..."
+          node scripts/playwright-journey-new-user.js 2>&1 | tee new_user.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "❌ New user script failed"
+            cat new_user.log
             exit 1
-          }
+          fi
+          echo "✅ New user journeys completed"
         env:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-demo.lovable.app
           NEW_USER_COUNT: 10
           DEBUG: false
+          POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
         continue-on-error: false
       
       # Returning user engagement sessions
       - name: Run returning user sessions
         run: |
-          node scripts/playwright-journey-returning-user.js || {
-            echo "❌ Returning user script failed with exit code $?"
+          set -e
+          echo "🔄 Starting returning user sessions..."
+          node scripts/playwright-journey-returning-user.js 2>&1 | tee returning_user.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "❌ Returning user script failed"
+            cat returning_user.log
             exit 1
-          }
+          fi
+          echo "✅ Returning user sessions completed"
         env:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-demo.lovable.app
@@ -76,10 +109,22 @@ jobs:
       
       # Legacy lightweight bot (optional, for quick funnel events)
       - name: Run legacy bot (quick funnel events)
-        run: node scripts/playwright-bot.js
+        run: |
+          echo "🤖 Running legacy bot..."
+          node scripts/playwright-bot.js || echo "⚠️  Legacy bot completed with warnings"
         env:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-demo.lovable.app
+        continue-on-error: true
+
+      # --- EVENT VERIFICATION ---
+      - name: Verify PostHog events (optional)
+        if: false  # Disabled until verify script is implemented
+        run: node scripts/verify-posthog-events.js
+        env:
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+          POSTHOG_PROJECT_ID: your_project_id_here
+        continue-on-error: true
 
       - name: Save persona state
         if: always()

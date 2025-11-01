@@ -81,6 +81,13 @@ async function simulateNewUserJourney(count = 10) {
     })
 
     const page = await context.newPage()
+    
+    // Monitor console errors in debug mode
+    page.on('console', msg => {
+      if (DEBUG && (msg.type() === 'error' || msg.type() === 'warning')) {
+        console.log(`  [BROWSER ${msg.type().toUpperCase()}]:`, msg.text())
+      }
+    })
 
     try {
       // Step 1: Landing page with UTM parameters
@@ -196,9 +203,42 @@ async function simulateNewUserJourney(count = 10) {
 
       // Check if signup was successful (look for redirect or success message)
       const currentUrl = page.url()
+      const signupFailed = currentUrl.includes('/signup')
+      const signupSuccess = currentUrl.includes('/profiles') || 
+                            currentUrl.includes('/checkout') || 
+                            currentUrl.includes('/browse')
+      
       console.log(`  → After signup: ${currentUrl}`)
 
-      if (currentUrl.includes('/profiles') || currentUrl.includes('/checkout') || currentUrl.includes('/browse')) {
+      if (signupFailed) {
+        // Check for error messages on page
+        const errorText = await page.textContent('body').catch(() => '')
+        console.log(`  ❌ Signup failed for ${email}`)
+        
+        // Look for specific auth errors
+        const authError = await page.locator('[role="alert"], .error-message, .text-red-500, .text-destructive')
+          .first()
+          .textContent()
+          .catch(() => null)
+        
+        if (authError) {
+          console.log(`  ❌ Auth error: ${authError}`)
+        } else if (errorText.length > 0) {
+          console.log(`  ❌ Page error (first 200 chars): ${errorText.substring(0, 200)}`)
+        }
+        
+        // Take screenshot in debug mode
+        if (DEBUG) {
+          const screenshotPath = `./debug_signup_fail_${Date.now()}.png`
+          await page.screenshot({ path: screenshotPath })
+          console.log(`  📸 Screenshot saved: ${screenshotPath}`)
+        }
+        
+        await context.close()
+        continue // Skip to next user
+      }
+
+      if (signupSuccess) {
         console.log(`  ✓ Signup successful`)
         
         // Capture signup success (server-side)

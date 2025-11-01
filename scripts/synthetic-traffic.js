@@ -91,6 +91,16 @@ const randInt = (min, max) => Math.floor(rand() * (max - min + 1)) + min
 const randomElement = (arr) => arr[Math.floor(rand() * arr.length)]
 const randomChoice = (arr) => arr[randInt(0, arr.length - 1)]
 
+// Safe date helper to prevent "Invalid time value" errors
+function safeDate(timestamp) {
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) {
+    console.error(`⚠️  Invalid timestamp: ${timestamp}, using current time`)
+    return new Date() // Fallback to now
+  }
+  return date
+}
+
 function dowFactor() {
   const day = new Date().getUTCDay()
   return [0.85, 0.9, 0.95, 1.0, 1.1, 1.15, 1.05][day]
@@ -188,6 +198,17 @@ function loadPersonas() {
       if (!p.binge_state) p.binge_state = { is_binging: false, binge_day: 0, cooldown_until: null }
       if (!p.flixbuddy_conversations) p.flixbuddy_conversations = 0
       if (!p.days_since_signup) p.days_since_signup = Math.floor((Date.now() - new Date(p.created_at).getTime()) / (24 * 60 * 60 * 1000))
+      
+      // Add default device/browser properties
+      if (!p.screen_width) p.screen_width = 1920
+      if (!p.screen_height) p.screen_height = 1080
+      if (!p.utm_source) p.utm_source = p.source || 'direct'
+      if (!p.utm_medium) p.utm_medium = 'none'
+      if (!p.utm_campaign) p.utm_campaign = 'hogflix-dynamic'
+      if (!p.browser) p.browser = 'Chrome'
+      if (!p.browser_version) p.browser_version = '120.0'
+      if (!p.device_type) p.device_type = 'Desktop'
+      if (!p.os) p.os = 'Windows'
     })
     return arr
   }
@@ -219,7 +240,7 @@ function saveDailyMetrics(metrics) {
 
 function updatePersonaLifecycle(p) {
   const now = Date.now()
-  const lastActive = p.last_active ? new Date(p.last_active).getTime() : null
+  const lastActive = p.last_active ? safeDate(p.last_active).getTime() : null
   const daysSinceActive = lastActive ? Math.floor((now - lastActive) / (24 * 60 * 60 * 1000)) : 999
   
   p.days_since_signup++
@@ -382,12 +403,32 @@ async function initializePersonaInDatabase(p) {
       }
     })
 
-    if (userError && !userError.message.includes('already registered')) {
-      console.error(`❌ Error creating user ${p.distinct_id}:`, userError.message)
-      return
+    if (userError) {
+      if (userError.message.includes('already registered')) {
+        console.log(`♻️  User ${p.distinct_id} already exists, fetching user ID...`)
+        const userId = await getUserIdByEmail(email)
+        if (!userId) {
+          console.error(`❌ Could not retrieve existing user ${email}`)
+          return
+        }
+        p.user_id = userId
+        p.email = email
+        // Continue with profile/subscription creation below
+      } else {
+        console.error(`❌ Error creating user ${p.distinct_id}:`, userError.message)
+        return
+      }
+    } else {
+      const userId = userData?.user?.id
+      if (!userId) {
+        console.error(`❌ No user ID returned for ${p.distinct_id}`)
+        return
+      }
+      p.user_id = userId
+      p.email = email
     }
 
-    const userId = userData?.user?.id || (await getUserIdByEmail(email))
+    const userId = p.user_id
     if (!userId) return
 
     p.user_id = userId
@@ -403,8 +444,9 @@ async function initializePersonaInDatabase(p) {
     }, { onConflict: 'user_id' })
 
     const planId = PLAN_IDS[p.plan]
-    const daysAgo = Math.min(p.days_since_signup, 90)
-    const startedAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString()
+    const daysAgo = Math.max(0, Math.min(p.days_since_signup || 0, 90))
+    const timestamp = Date.now() - (daysAgo * 24 * 60 * 60 * 1000)
+    const startedAt = safeDate(timestamp).toISOString()
 
     await supabase.from('user_subscriptions').upsert({
       user_id: userId,
