@@ -48,10 +48,17 @@ function weightedChoice(arr) {
   return arr[0]
 }
 
+const FIRST_NAMES = ['john', 'jane', 'alex', 'sarah', 'michael', 'emma', 'david', 'olivia', 'james', 'sophia', 'william', 'ava', 'robert', 'isabella', 'chris', 'mia', 'daniel', 'charlotte', 'matthew', 'amelia']
+const LAST_NAMES = ['smith', 'johnson', 'williams', 'brown', 'jones', 'garcia', 'miller', 'davis', 'rodriguez', 'martinez', 'hernandez', 'lopez', 'gonzalez', 'wilson', 'anderson', 'thomas', 'taylor', 'moore', 'jackson', 'martin']
+const EMAIL_DOMAINS = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com']
+
 function generateEmail() {
-  const timestamp = Date.now()
-  const random = Math.floor(Math.random() * 10000)
-  return `user_${timestamp}_${random}@example.com`
+  const firstName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]
+  const lastName = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]
+  const number = Math.floor(Math.random() * 9999)
+  const domain = EMAIL_DOMAINS[Math.floor(Math.random() * EMAIL_DOMAINS.length)]
+  
+  return `${firstName}.${lastName}${number}@${domain}`
 }
 
 function generatePassword() {
