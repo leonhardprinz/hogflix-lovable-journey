@@ -390,9 +390,28 @@ async function initializePersonaInDatabase(p) {
   if (!USE_DATABASE || p.db_initialized) return
 
   try {
-    const email = `${p.distinct_id}@hogflix-synthetic.test`
+    const email = `${p.distinct_id}@example.com`
     const password = `synthetic_${p.distinct_id}_pass_${Date.now()}`
 
+    // Check if user already exists BEFORE attempting to create
+    const { data: existingUsers } = await supabase.auth.admin.listUsers()
+    const userExists = existingUsers?.users?.some(u => u.email === email)
+    
+    if (userExists) {
+      console.log(`  ℹ️  User ${email} already exists, skipping creation`)
+      const existingUser = existingUsers.users.find(u => u.email === email)
+      if (existingUser) {
+        p.user_id = existingUser.id
+        p.email = email
+        p.db_initialized = true
+        
+        // Still ensure profile and subscription exist
+        await ensureProfileAndSubscription(p)
+      }
+      return
+    }
+
+    // Only create if doesn't exist
     const { data: userData, error: userError } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -404,63 +423,52 @@ async function initializePersonaInDatabase(p) {
     })
 
     if (userError) {
-      if (userError.message.includes('already registered')) {
-        console.log(`♻️  User ${p.distinct_id} already exists, fetching user ID...`)
-        const userId = await getUserIdByEmail(email)
-        if (!userId) {
-          console.error(`❌ Could not retrieve existing user ${email}`)
-          return
-        }
-        p.user_id = userId
-        p.email = email
-        // Continue with profile/subscription creation below
-      } else {
-        console.error(`❌ Error creating user ${p.distinct_id}:`, userError.message)
-        return
-      }
-    } else {
-      const userId = userData?.user?.id
-      if (!userId) {
-        console.error(`❌ No user ID returned for ${p.distinct_id}`)
-        return
-      }
-      p.user_id = userId
-      p.email = email
+      console.error(`❌ Error creating user ${p.distinct_id}:`, userError.message)
+      return
     }
 
-    const userId = p.user_id
-    if (!userId) return
+    const userId = userData?.user?.id
+    if (!userId) {
+      console.error(`❌ No user ID returned for ${p.distinct_id}`)
+      return
+    }
 
     p.user_id = userId
     p.email = email
 
-    await supabase.from('profiles').upsert({
-      id: userId,
-      user_id: userId,
-      email: email,
-      display_name: `${p.plan}_${p.distinct_id.substring(0, 12)}`,
-      is_kids_profile: false,
-      marketing_opt_in: rand() > 0.5
-    }, { onConflict: 'user_id' })
-
-    const planId = PLAN_IDS[p.plan]
-    const daysAgo = Math.max(0, Math.min(p.days_since_signup || 0, 90))
-    const timestamp = Date.now() - (daysAgo * 24 * 60 * 60 * 1000)
-    const startedAt = safeDate(timestamp).toISOString()
-
-    await supabase.from('user_subscriptions').upsert({
-      user_id: userId,
-      plan_id: planId,
-      status: p.state === LIFECYCLE_STATES.CHURNED ? 'expired' : 'active',
-      started_at: startedAt
-    }, { onConflict: 'user_id' })
+    await ensureProfileAndSubscription(p)
 
     p.db_initialized = true
     console.log(`✅ Initialized ${p.distinct_id} in database`)
-
-  } catch (error) {
-    console.error(`❌ Failed to initialize ${p.distinct_id}:`, error.message)
+  } catch (err) {
+    console.error(`❌ Database error for ${p.distinct_id}:`, err.message)
   }
+}
+
+// Helper function to ensure profile and subscription exist
+async function ensureProfileAndSubscription(p) {
+  if (!p.user_id) return
+
+  await supabase.from('profiles').upsert({
+    id: p.user_id,
+    user_id: p.user_id,
+    email: p.email,
+    display_name: `${p.plan}_${p.distinct_id.substring(0, 12)}`,
+    is_kids_profile: false,
+    marketing_opt_in: rand() > 0.5
+  }, { onConflict: 'user_id' })
+
+  const planId = PLAN_IDS[p.plan]
+  const daysAgo = Math.max(0, Math.min(p.days_since_signup || 0, 90))
+  const timestamp = Date.now() - (daysAgo * 24 * 60 * 60 * 1000)
+  const startedAt = safeDate(timestamp).toISOString()
+
+  await supabase.from('user_subscriptions').upsert({
+    user_id: p.user_id,
+    plan_id: planId,
+    status: p.state === LIFECYCLE_STATES.CHURNED ? 'expired' : 'active',
+    started_at: startedAt
+  }, { onConflict: 'user_id' })
 }
 
 async function getUserIdByEmail(email) {

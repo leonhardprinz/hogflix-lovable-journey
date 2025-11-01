@@ -51,7 +51,7 @@ function weightedChoice(arr) {
 function generateEmail() {
   const timestamp = Date.now()
   const random = Math.floor(Math.random() * 10000)
-  return `user_${timestamp}_${random}@hogflix-synthetic.test`
+  return `user_${timestamp}_${random}@example.com`
 }
 
 function generatePassword() {
