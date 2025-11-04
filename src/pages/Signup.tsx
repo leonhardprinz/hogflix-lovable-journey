@@ -66,13 +66,13 @@ const Signup = () => {
           marketing_opt_in: marketingOptIn
         });
         
-        posthog.capture('user:signed_up', { 
+        posthog.capture('signup:completed', { 
           signup_method: 'email',
           selected_plan: selectedPlan,
           marketing_opt_in: marketingOptIn
         });
         
-        posthog.capture('email_captured', {
+        posthog.capture('email:captured', {
           source: 'signup',
           marketing_opt_in: marketingOptIn
         });

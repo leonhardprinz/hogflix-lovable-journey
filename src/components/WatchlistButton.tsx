@@ -3,6 +3,8 @@ import { Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWatchlist } from '@/contexts/WatchlistContext';
 import { cn } from '@/lib/utils';
+import { usePostHog } from 'posthog-js/react';
+import { useProfile } from '@/contexts/ProfileContext';
 
 interface WatchlistButtonProps {
   videoId: string;
@@ -17,7 +19,9 @@ export const WatchlistButton = ({
   size = 'default',
   className
 }: WatchlistButtonProps) => {
-  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist, watchlist } = useWatchlist();
+  const { selectedProfile } = useProfile();
+  const posthog = usePostHog();
   const [isLoading, setIsLoading] = useState(false);
   
   const inWatchlist = isInWatchlist(videoId);
@@ -30,8 +34,19 @@ export const WatchlistButton = ({
     try {
       if (inWatchlist) {
         await removeFromWatchlist(videoId);
+        posthog?.capture('watchlist:removed', {
+          video_id: videoId,
+          profile_id: selectedProfile?.id,
+          watchlist_count: watchlist.length - 1
+        });
       } else {
         await addToWatchlist(videoId);
+        posthog?.capture('watchlist:added', {
+          video_id: videoId,
+          profile_id: selectedProfile?.id,
+          source: 'watchlist_button',
+          watchlist_count: watchlist.length + 1
+        });
       }
     } finally {
       setIsLoading(false);

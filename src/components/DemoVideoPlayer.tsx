@@ -64,8 +64,8 @@ export const DemoVideoPlayer = ({
         for (let decile = 10; decile <= 90; decile += 10) {
           if (progressPct >= decile && !trackedDeciles.current.has(decile)) {
             trackedDeciles.current.add(decile);
-            posthog.capture('demo_video_progress', getSharedProperties(decile, currentTimeValue));
-            console.log(`📊 PostHog: demo_video_progress at ${decile}%`);
+            posthog.capture('demo_video:progress', getSharedProperties(decile, currentTimeValue));
+            console.log(`📊 PostHog: demo_video:progress at ${decile}%`);
           }
         }
       }
@@ -75,8 +75,8 @@ export const DemoVideoPlayer = ({
   const handlePlay = useCallback(() => {
     if (!hasPlayedRef.current && !isSynthetic) {
       hasPlayedRef.current = true;
-      posthog.capture('demo_video_play', getSharedProperties(0, 0));
-      console.log('▶️ PostHog: demo_video_play');
+      posthog.capture('demo_video:played', getSharedProperties(0, 0));
+      console.log('▶️ PostHog: demo_video:played');
     }
   }, [posthog, getSharedProperties, isSynthetic]);
 
@@ -102,8 +102,8 @@ export const DemoVideoPlayer = ({
 
   const handleEnded = useCallback(() => {
     if (!isSynthetic) {
-      posthog.capture('demo_video_complete', getSharedProperties(100, duration));
-      console.log('✅ PostHog: demo_video_complete');
+      posthog.capture('demo_video:completed', getSharedProperties(100, duration));
+      console.log('✅ PostHog: demo_video:completed');
     }
   }, [posthog, getSharedProperties, duration, isSynthetic]);
 

@@ -58,7 +58,20 @@ const Checkout = () => {
 
     fetchPlanDetails(selectedPlan);
     posthog?.capture('checkout:viewed', { plan: selectedPlan });
-  }, [searchParams, navigate, posthog]);
+    
+    // Track checkout abandonment on page unload
+    const handleBeforeUnload = () => {
+      if (!success && !processing) {
+        posthog?.capture('checkout:abandoned', {
+          plan: selectedPlan,
+          selected_method: processingMethod || null
+        });
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [searchParams, navigate, posthog, success, processing, processingMethod]);
 
   const fetchPlanDetails = async (planName: string) => {
     const { data, error } = await supabase
@@ -106,6 +119,11 @@ const Checkout = () => {
       posthog?.capture('checkout:stripe_selected', { plan });
       setShowStripeWarning(true);
     } else {
+      // Track checkout started
+      posthog?.capture('checkout:started', { 
+        plan,
+        method: methodId
+      });
       handlePaymentMethod(methodId);
     }
   };

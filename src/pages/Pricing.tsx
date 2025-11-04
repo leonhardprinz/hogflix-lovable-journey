@@ -176,7 +176,7 @@ const Pricing = () => {
       }
     }
     
-    posthog?.capture('plan_selected', { 
+    posthog?.capture('pricing:plan_selected', { 
       plan: planName,
       plan_display: displayName,
       cta_variant: ctaVariant,

@@ -10,6 +10,16 @@ const options = {
   capture_pageview: true,
   capture_pageleave: true,
   
+  loaded: (posthog: any) => {
+    // Register session-level super properties
+    posthog.register({
+      app_version: '1.0.0',
+      environment: import.meta.env.MODE,
+      platform: 'web',
+      device_type: /mobile/i.test(navigator.userAgent) ? 'mobile' : 'desktop'
+    });
+  },
+  
   // Drop ONLY synthetic demo VIDEO events (not all synthetic traffic)
   before_send: (event: any) => {
     const props = event?.properties || {};

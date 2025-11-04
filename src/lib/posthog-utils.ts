@@ -93,6 +93,38 @@ export const trackVideoStarted = (totalWatchedCount: number) => {
 };
 
 /**
+ * Track watchlist changes
+ */
+export const trackWatchlistChange = (
+  action: 'added' | 'removed',
+  videoId: string,
+  newCount: number
+) => {
+  updateUserProperties({
+    watchlist_count: newCount,
+    last_active_at: new Date().toISOString()
+  });
+};
+
+/**
+ * Track profile group
+ */
+export const setProfileGroup = (profile: {
+  id: string;
+  display_name: string | null;
+  is_kids_profile: boolean;
+  user_id: string;
+}) => {
+  if (!posthog.__loaded) return;
+  
+  posthog.group('profile', profile.id, {
+    display_name: profile.display_name,
+    is_kids_profile: profile.is_kids_profile,
+    user_id: profile.user_id
+  });
+};
+
+/**
  * Initialize user properties on login
  */
 export const initializeUserProperties = async (

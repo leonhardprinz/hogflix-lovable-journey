@@ -46,7 +46,7 @@ const FloatingHedgehog = () => {
 
       // Fire impression event when widget is shown
       if (showWidget) {
-        posthog.capture('floatinghedgehog_impression', {
+        posthog.capture('floatinghedgehog:impression', {
           variant: variant || 'control',
           current_page: location.pathname,
           timestamp: new Date().toISOString()
@@ -64,7 +64,7 @@ const FloatingHedgehog = () => {
     setIsClicked(true);
     
     // Track widget click with feature flag context
-    posthog.capture('flixbuddy_click_through', {
+    posthog.capture('flixbuddy:clicked', {
       variant: flagVariant,
       current_page: location.pathname,
       timestamp: new Date().toISOString()

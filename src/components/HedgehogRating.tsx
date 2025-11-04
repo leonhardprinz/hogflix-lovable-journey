@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useToast } from '@/hooks/use-toast';
+import { usePostHog } from 'posthog-js/react';
 
 interface HedgehogRatingProps {
   videoId: string;
@@ -29,6 +30,7 @@ export const HedgehogRating = ({
   const { user } = useAuth();
   const { selectedProfile } = useProfile();
   const { toast } = useToast();
+  const posthog = usePostHog();
 
   const hedgehogSize = size === 'large' ? 'text-2xl' : 'text-lg';
   const isInteractive = user && selectedProfile && !readOnly;
@@ -50,6 +52,15 @@ export const HedgehogRating = ({
       if (error) throw error;
 
       setLocalRating(rating);
+      
+      // Track rating event
+      posthog?.capture('video:rated', {
+        video_id: videoId,
+        profile_id: selectedProfile.id,
+        rating: rating,
+        previous_rating: localRating || null
+      });
+      
       toast({
         title: "Rating saved!",
         description: `You rated this video ${rating} hedgehog${rating !== 1 ? 's' : ''}`,

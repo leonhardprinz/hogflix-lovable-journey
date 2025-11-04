@@ -101,7 +101,7 @@ const FlixBuddy = () => {
         setConversationId(conversation.id);
         
         // Track conversation start
-        posthog.capture('flixbuddy:conversation_started', {
+        posthog.capture('flixbuddy:opened', {
           initial_query: initialQuery,
           profile_id: selectedProfile.id
         });
@@ -308,7 +308,7 @@ const FlixBuddy = () => {
   };
 
   const handleVideoClick = (videoId: string) => {
-    posthog.capture('flixbuddy:video_clicked', {
+    posthog.capture('flixbuddy:clicked', {
       video_id: videoId,
       conversation_id: conversationId
     });
