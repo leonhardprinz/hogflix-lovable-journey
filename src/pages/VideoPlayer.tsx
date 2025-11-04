@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
+import { trackVideoCompletion, trackVideoStarted } from '@/lib/posthog-utils';
 import Header from '@/components/Header';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { WatchlistButton } from '@/components/WatchlistButton';
@@ -154,6 +155,26 @@ const VideoPlayer = () => {
             profile_id: selectedProfile.id,
             session_id: sessionId
           });
+          
+          // Update user properties - query for accurate totals
+          setTimeout(async () => {
+            const { count: completedCount } = await supabase
+              .from('watch_progress')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user?.id)
+              .eq('completed', true);
+            
+            const { data: watchData } = await supabase
+              .from('watch_progress')
+              .select('progress_seconds')
+              .eq('user_id', user?.id);
+            
+            const totalMinutes = Math.round(
+              (watchData?.reduce((sum, w) => sum + (w.progress_seconds || 0), 0) || 0) / 60
+            );
+            
+            trackVideoCompletion(completedCount || 0, totalMinutes);
+          }, 0);
         }
       }
     }
@@ -288,6 +309,16 @@ const VideoPlayer = () => {
           profile_id: selectedProfile?.id,
           session_id: sessionId
         });
+        
+        // Update user properties - query for total videos watched count
+        setTimeout(async () => {
+          const { count: watchedCount } = await supabase
+            .from('watch_progress')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user?.id);
+          
+          trackVideoStarted(watchedCount || 0);
+        }, 0);
 
       } catch (err) {
         console.error('❌ Error initializing player:', err);

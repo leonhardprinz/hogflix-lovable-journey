@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
+import { trackSubscriptionChange } from '@/lib/posthog-utils';
 
 interface SubscriptionPlan {
   id: string;
@@ -62,6 +63,13 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
           features: Array.isArray(sub.features) ? sub.features : []
         } as UserSubscription;
         setSubscription(subscription);
+        
+        // Track subscription in PostHog user properties
+        trackSubscriptionChange(
+          subscription.plan_name,
+          subscription.status,
+          subscription.features as string[]
+        );
       } else {
         setSubscription(null);
       }
