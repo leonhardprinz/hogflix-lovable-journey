@@ -131,6 +131,7 @@ jobs:
           APP_URL: https://hogflix-demo.lovable.app
           RETURNING_USER_COUNT: 30
           DEBUG: false
+          POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
         continue-on-error: false
       
       # Legacy lightweight bot (optional, for quick funnel events)
@@ -145,11 +146,11 @@ jobs:
 
       # --- EVENT VERIFICATION ---
       - name: Verify PostHog events (optional)
-        if: false  # Disabled until verify script is implemented
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: node scripts/verify-posthog-events.js
         env:
           POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
-          POSTHOG_PROJECT_ID: your_project_id_here
+          POSTHOG_PROJECT_ID: 0191db49-6f72-0000-e9a2-66ad8c3dda1a
         continue-on-error: true
 
       - name: Save persona state

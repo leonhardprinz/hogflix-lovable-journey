@@ -610,7 +610,7 @@ async function simulateSupportTicket(p) {
 }
 
 async function simulatePricingPageVisit(p) {
-  if (rand() > 0.05) return // 5% visit pricing page
+  if (rand() > 0.80) return // 20% visit pricing page
   
   // Capture pricing page view
   await posthog.capture({
@@ -643,9 +643,11 @@ async function simulatePricingPageVisit(p) {
         $browser: p.browser,
         $device_type: p.device_type,
         $os: p.os,
-        is_synthetic: true
-      }
-    })
+      is_synthetic: true
+    }
+  })
+  
+  console.log(`  ✓ Captured pricing:plan_selected: ${selectedPlan} (from ${p.plan})`)
   }
 }
 
@@ -921,8 +923,8 @@ async function simulateSession(p, flixbuddyCallCount) {
   // Support tickets
   await simulateSupportTicket(p)
   
-  // Pricing page exploration (5% chance per session)
-  if (rand() < 0.05) {
+  // Pricing page exploration (20% chance per session)
+  if (rand() < 0.20) {
     await simulatePricingPageVisit(p)
   }
   

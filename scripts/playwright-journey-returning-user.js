@@ -260,8 +260,8 @@ async function simulateReturningUserJourney(personas, count = 25) {
           })
         }
 
-      } else if (journeyType < 0.85) {
-        // 15% - Pricing page visit (upgrade intent)
+      } else if (journeyType < 0.95) {
+        // 25% - Pricing page visit (upgrade intent)
         console.log(`  → Journey: Pricing exploration`)
         
         await page.goto(`${APP_URL}/pricing`, { waitUntil: 'domcontentloaded', timeout: 15000 })
@@ -304,6 +304,8 @@ async function simulateReturningUserJourney(personas, count = 25) {
                   is_synthetic: true
                 }
               })
+              
+              console.log(`  ✓ Captured pricing:plan_selected: ${targetPlan} (was: ${p.plan})`)
               
               posthog.capture({
                 distinctId: p.distinct_id,
