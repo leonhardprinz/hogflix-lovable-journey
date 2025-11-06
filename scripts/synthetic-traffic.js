@@ -609,6 +609,46 @@ async function simulateSupportTicket(p) {
   }
 }
 
+async function simulatePricingPageVisit(p) {
+  if (rand() > 0.05) return // 5% visit pricing page
+  
+  // Capture pricing page view
+  await posthog.capture({
+    distinctId: p.distinct_id,
+    event: 'pricing:page_viewed',
+    properties: {
+      current_plan: p.plan,
+      state: p.state,
+      $browser: p.browser,
+      $device_type: p.device_type,
+      $os: p.os,
+      is_synthetic: true
+    }
+  })
+  
+  // 30% actually select a plan
+  if (rand() < 0.30) {
+    const targetPlans = ['Basic', 'Standard', 'Premium']
+    const currentIndex = targetPlans.indexOf(p.plan)
+    const possiblePlans = targetPlans.filter((_, idx) => idx !== currentIndex)
+    const selectedPlan = randomElement(possiblePlans)
+    
+    await posthog.capture({
+      distinctId: p.distinct_id,
+      event: 'pricing:plan_selected',
+      properties: {
+        plan: selectedPlan,
+        current_plan: p.plan,
+        is_upgrade: targetPlans.indexOf(selectedPlan) > currentIndex,
+        $browser: p.browser,
+        $device_type: p.device_type,
+        $os: p.os,
+        is_synthetic: true
+      }
+    })
+  }
+}
+
 async function simulateFlixBuddy(p, flixbuddyCallCount) {
   if (!USE_DATABASE || !p.user_id || !p.profile_id) return null
   if (rand() > 0.10) return null // 10% engage with FlixBuddy
@@ -783,6 +823,11 @@ async function simulateSession(p, flixbuddyCallCount) {
 
   // Support tickets
   await simulateSupportTicket(p)
+  
+  // Pricing page exploration (5% chance per session)
+  if (rand() < 0.05) {
+    await simulatePricingPageVisit(p)
+  }
 
   return flixbuddyCallCount
 }

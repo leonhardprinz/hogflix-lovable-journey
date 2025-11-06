@@ -152,6 +152,22 @@ async function simulateNewUserJourney(count = 10) {
             const randomButton = planButtons[Math.floor(Math.random() * planButtons.length)]
             await randomButton.click()
             await page.waitForTimeout(1000)
+            
+            // Capture plan selection (server-side)
+            posthog.capture({
+              distinctId: email,
+              event: 'pricing:plan_selected',
+              properties: {
+                plan: plan.id,
+                plan_display: plan.id,
+                user_current_plan: 'none',
+                is_upgrade: false,
+                $browser: device.browser,
+                $device_type: device.type,
+                $os: device.os,
+                is_synthetic: true
+              }
+            })
           }
         } catch (e) {
           if (DEBUG) console.log(`  [DEBUG] Button not found:`, e.message)

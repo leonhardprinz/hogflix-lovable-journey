@@ -257,6 +257,22 @@ async function simulateReturningUserJourney(personas, count = 25) {
               await buttons[0].click()
               await page.waitForTimeout(1000)
               
+              // Capture plan selection (server-side)
+              const targetPlan = p.plan === 'Basic' ? 'Standard' : 'Premium'
+              posthog.capture({
+                distinctId: p.distinct_id,
+                event: 'pricing:plan_selected',
+                properties: {
+                  plan: targetPlan,
+                  current_plan: p.plan,
+                  is_upgrade: true,
+                  $browser: p.browser || 'Chrome',
+                  $device_type: p.device_type || 'Desktop',
+                  $os: p.os || 'Windows',
+                  is_synthetic: true
+                }
+              })
+              
               posthog.capture({
                 distinctId: p.distinct_id,
                 event: 'upgrade:button_clicked',

@@ -37,16 +37,17 @@ async function verifyEvents() {
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
   
   const events = [
-    'signup_completed',
-    'pricing_page_viewed',
-    'checkout_started',
-    'checkout_completed',
-    'video_started',
-    'video_progress',
-    'section_clicked',
-    'title_opened',
-    'flixbuddy_opened',
-    'flixbuddy_message_sent'
+    'signup:completed',
+    'pricing:page_viewed',
+    'pricing:plan_selected',
+    'checkout:started',
+    'checkout:completed',
+    'video:started',
+    'video:progress',
+    'section:clicked',
+    'video:title_opened',
+    'flixbuddy:opened',
+    'flixbuddy:message_sent'
   ]
 
   const results = []
