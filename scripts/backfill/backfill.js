@@ -91,45 +91,45 @@ async function main() {
       const active = Math.random() < Math.min(Math.max(p.return_prob * factor, 0.02), 0.95)
       if (!active) continue
 
-      // section_clicked
+      // section:clicked
       await posthog.capture({
         distinctId: p.distinct_id,
-        event: 'section_clicked',
+        event: 'section:clicked',
         properties: { ...baseProps(p), section: 'Popular' },
         timestamp: ts,
       })
 
-      // title_opened
+      // video:title_opened
       await posthog.capture({
         distinctId: p.distinct_id,
-        event: 'title_opened',
+        event: 'video:title_opened',
         properties: { ...baseProps(p), title_id: VIDEO_ID },
         timestamp: ts,
       })
 
-      // video_started (60%) and progress >=50 (55% of starters)
+      // video:started (60%) and progress >=50 (55% of starters)
       if (Math.random() < 0.6) {
         await posthog.capture({
           distinctId: p.distinct_id,
-          event: 'video_started',
+          event: 'video:started',
           properties: { ...baseProps(p), video_id: VIDEO_ID },
           timestamp: ts,
         })
         if (Math.random() < 0.55) {
           await posthog.capture({
             distinctId: p.distinct_id,
-            event: 'video_progress',
+            event: 'video:progress',
             properties: { ...baseProps(p), video_id: VIDEO_ID, milestone: 50 },
             timestamp: ts,
           })
         }
       }
 
-      // rare plan_selected
+      // rare pricing:plan_selected
       if (Math.random() < 0.01) {
         await posthog.capture({
           distinctId: p.distinct_id,
-          event: 'plan_selected',
+          event: 'pricing:plan_selected',
           properties: { ...baseProps(p), selected_plan: p.plan ?? p['plan'] },
           timestamp: ts,
         })

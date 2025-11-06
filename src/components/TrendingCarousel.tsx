@@ -52,7 +52,7 @@ export const TrendingCarousel = () => {
     // Store source section for video player tracking
     sessionStorage.setItem('video_source_section', 'trending');
     
-    posthog.capture('home_section_click', {
+    posthog.capture('section:clicked', {
       section: 'trending',
       video_id: video.id,
       video_title: video.title,

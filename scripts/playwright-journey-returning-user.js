@@ -148,7 +148,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
         // Capture section click (server-side)
         posthog.capture({
           distinctId: p.distinct_id,
-          event: 'section_clicked',
+          event: 'section:clicked',
           properties: {
             section: 'Popular',
             plan: p.plan,
@@ -162,7 +162,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
         // Open video detail (server-side)
         posthog.capture({
           distinctId: p.distinct_id,
-          event: 'title_opened',
+          event: 'video:title_opened',
           properties: {
             title_id: DEMO_VIDEO_ID,
             plan: p.plan,
@@ -177,7 +177,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
         // Start video (server-side)
         posthog.capture({
           distinctId: p.distinct_id,
-          event: 'video_started',
+          event: 'video:started',
           properties: {
             video_id: DEMO_VIDEO_ID,
             plan: p.plan,
@@ -195,7 +195,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
         if (watchProgress >= 50) {
           posthog.capture({
             distinctId: p.distinct_id,
-            event: 'video_progress',
+            event: 'video:progress',
             properties: {
               video_id: DEMO_VIDEO_ID,
               milestone: 50,
@@ -216,7 +216,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
 
           posthog.capture({
             distinctId: p.distinct_id,
-            event: 'video_rated',
+            event: 'video:rated',
             properties: {
               video_id: DEMO_VIDEO_ID,
               rating: rating,
@@ -237,7 +237,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
 
         posthog.capture({
           distinctId: p.distinct_id,
-          event: 'pricing_page_viewed',
+          event: 'pricing:page_viewed',
           properties: {
             current_plan: p.plan,
             state: p.state,
@@ -259,7 +259,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
               
               posthog.capture({
                 distinctId: p.distinct_id,
-                event: 'upgrade_button_clicked',
+                event: 'upgrade:button_clicked',
                 properties: {
                   current_plan: p.plan,
                   $browser: p.browser || 'Chrome',
@@ -283,7 +283,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
 
           posthog.capture({
             distinctId: p.distinct_id,
-            event: 'flixbuddy_opened',
+            event: 'flixbuddy:opened',
             properties: {
               plan: p.plan,
               state: p.state,
@@ -298,7 +298,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
           
           posthog.capture({
             distinctId: p.distinct_id,
-            event: 'flixbuddy_message_sent',
+            event: 'flixbuddy:message_sent',
             properties: {
               plan: p.plan,
               $browser: p.browser || 'Chrome',

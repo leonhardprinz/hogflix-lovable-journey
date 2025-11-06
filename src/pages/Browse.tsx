@@ -309,7 +309,7 @@ const DynamicSections = ({ posthog, selectedProfile }: { posthog: any; selectedP
 
   // Track section interactions
   const handleSectionView = (sectionName: string, position: number) => {
-    posthog.capture('home_section_impression', {
+    posthog.capture('section:viewed', {
       section: sectionName.toLowerCase().includes('popular') ? 'popular' : 'trending',
       position: position,
       variant: sectionPriorityVariant || 'popular-first',

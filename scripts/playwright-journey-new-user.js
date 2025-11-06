@@ -133,7 +133,7 @@ async function simulateNewUserJourney(count = 10) {
         // Capture pricing view (server-side)
         posthog.capture({
           distinctId: email,
-          event: 'pricing_page_viewed',
+          event: 'pricing:page_viewed',
           properties: {
             plan_interest: plan.id,
             device_type: device.type,
@@ -189,7 +189,7 @@ async function simulateNewUserJourney(count = 10) {
       // Capture form filled event (server-side)
       posthog.capture({
         distinctId: email,
-        event: 'signup_form_filled',
+        event: 'signup:form_filled',
         properties: {
           plan: plan.id,
           device_type: device.type,
@@ -251,7 +251,7 @@ async function simulateNewUserJourney(count = 10) {
         // Capture signup success (server-side)
         posthog.capture({
           distinctId: email,
-          event: 'signup_completed',
+          event: 'signup:completed',
           properties: {
             email: email,
             plan: plan.id,
@@ -293,7 +293,7 @@ async function simulateNewUserJourney(count = 10) {
           // Capture checkout started (server-side)
           posthog.capture({
             distinctId: email,
-            event: 'checkout_started',
+            event: 'checkout:started',
             properties: {
               plan: plan.id,
               $browser: device.browser,
@@ -314,7 +314,7 @@ async function simulateNewUserJourney(count = 10) {
               // Capture checkout completed (server-side)
               posthog.capture({
                 distinctId: email,
-                event: 'checkout_completed',
+                event: 'checkout:completed',
                 properties: {
                   plan: plan.id,
                   payment_method: 'test_card',

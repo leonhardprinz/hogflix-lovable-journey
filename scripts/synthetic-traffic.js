@@ -639,7 +639,7 @@ async function simulateFlixBuddy(p, flixbuddyCallCount) {
     // Track in PostHog with device/browser properties
     await posthog.capture({
       distinctId: p.distinct_id,
-      event: 'flixbuddy_interaction',
+      event: 'flixbuddy:interaction',
       properties: {
         plan: p.plan,
         is_synthetic: true,
@@ -686,7 +686,7 @@ async function simulateSession(p, flixbuddyCallCount) {
   // PostHog entry event with device/browser properties
   await posthog.capture({
     distinctId: p.distinct_id,
-    event: 'page_view',
+    event: 'page:viewed',
     properties: {
       plan: p.plan,
       is_synthetic: true,
@@ -716,7 +716,7 @@ async function simulateSession(p, flixbuddyCallCount) {
     if (rand() < 0.75) {
       await posthog.capture({
         distinctId: p.distinct_id,
-        event: 'title_opened',
+        event: 'video:title_opened',
         properties: { 
           plan: p.plan, 
           is_synthetic: true, 
@@ -730,7 +730,7 @@ async function simulateSession(p, flixbuddyCallCount) {
       if (rand() < 0.60) {
         await posthog.capture({
           distinctId: p.distinct_id,
-          event: 'video_started',
+          event: 'video:started',
           properties: { 
             plan: p.plan, 
             is_synthetic: true, 
@@ -750,7 +750,7 @@ async function simulateSession(p, flixbuddyCallCount) {
         if (rand() < 0.55) {
           await posthog.capture({
             distinctId: p.distinct_id,
-            event: 'video_progress',
+            event: 'video:progress',
             properties: { 
               plan: p.plan, 
               is_synthetic: true, 

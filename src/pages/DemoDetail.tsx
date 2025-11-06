@@ -120,9 +120,9 @@ export default function DemoDetail() {
         if (!data?.signedUrl) throw new Error('Failed to get video URL');
         setSignedUrl(data.signedUrl);
 
-        // Capture demo_video_opened event (skip if synthetic)
+        // Capture demo_video:opened event (skip if synthetic)
         if (!isSynthetic) {
-          posthog.capture('demo_video_opened', {
+          posthog.capture('demo_video:opened', {
             category: "PostHog Demo",
             video_id: videoData.id,
             video_title: videoData.title,
@@ -130,7 +130,7 @@ export default function DemoDetail() {
             duration_sec: videoData.duration,
           });
           if (import.meta.env.DEV) {
-            console.log('📂 PostHog: demo_video_opened');
+            console.log('📂 PostHog: demo_video:opened');
           }
         }
 

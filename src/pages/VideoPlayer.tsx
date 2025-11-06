@@ -145,8 +145,8 @@ const VideoPlayer = () => {
             total_duration: duration
           });
           
-          // Content complete event for A/B test tracking
-          posthog.capture('content_complete', {
+          // Video completed event for A/B test tracking
+          posthog.capture('video:completed', {
             content_id: video.id,
             category: categoryName,
             source_section: sourceSection,
@@ -300,8 +300,8 @@ const VideoPlayer = () => {
           source_section_variant: sectionPriorityVariant
         });
         
-        // Content start event for A/B test tracking
-        posthog.capture('content_start', {
+        // Video started event for A/B test tracking
+        posthog.capture('video:started', {
           content_id: videoId,
           category: fetchedCategoryName,
           source_section: sourceSection,
