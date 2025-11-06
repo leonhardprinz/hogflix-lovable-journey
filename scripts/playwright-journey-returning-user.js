@@ -145,6 +145,21 @@ async function simulateReturningUserJourney(personas, count = 25) {
         // 70% - Watch videos (main engagement)
         console.log(`  → Journey: Video watching`)
         
+        // Capture section viewed (server-side)
+        posthog.capture({
+          distinctId: p.distinct_id,
+          event: 'section:viewed',
+          properties: {
+            section: 'Popular',
+            position: 1,
+            variant: 'popular-first',
+            profile_id: p.profile_id,
+            $browser: p.browser || 'Chrome',
+            $device_type: p.device_type || 'Desktop',
+            is_synthetic: true
+          }
+        })
+        
         // Capture section click (server-side)
         posthog.capture({
           distinctId: p.distinct_id,
@@ -206,6 +221,23 @@ async function simulateReturningUserJourney(personas, count = 25) {
               is_synthetic: true
             }
           })
+          
+          // Video completed if watched >95%
+          if (watchProgress >= 95) {
+            posthog.capture({
+              distinctId: p.distinct_id,
+              event: 'video:completed',
+              properties: {
+                video_id: DEMO_VIDEO_ID,
+                completion_pct: Math.round(watchProgress),
+                plan: p.plan,
+                $browser: p.browser || 'Chrome',
+                $device_type: p.device_type || 'Desktop',
+                $os: p.os || 'Windows',
+                is_synthetic: true
+              }
+            })
+          }
         }
 
         // Rate video (30% chance for engaged users)

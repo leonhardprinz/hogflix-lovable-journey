@@ -649,6 +649,69 @@ async function simulatePricingPageVisit(p) {
   }
 }
 
+async function simulateDemoVideoEngagement(p) {
+  if (rand() > 0.08) return // 8% watch demo videos
+  
+  const demoVideoId = 'demo-video-1'
+  
+  // Demo opened
+  await posthog.capture({
+    distinctId: p.distinct_id,
+    event: 'demo_video:opened',
+    properties: {
+      video_id: demoVideoId,
+      category: 'PostHog Demo',
+      profile_id: p.profile_id,
+      $browser: p.browser,
+      $device_type: p.device_type,
+      $os: p.os,
+      is_synthetic: true
+    }
+  })
+  
+  // Demo played (90% play after opening)
+  if (rand() < 0.90) {
+    await posthog.capture({
+      distinctId: p.distinct_id,
+      event: 'demo_video:played',
+      properties: {
+        video_id: demoVideoId,
+        $browser: p.browser,
+        is_synthetic: true
+      }
+    })
+    
+    // Demo progress at 50% (70% reach halfway)
+    if (rand() < 0.70) {
+      await posthog.capture({
+        distinctId: p.distinct_id,
+        event: 'demo_video:progress',
+        properties: {
+          video_id: demoVideoId,
+          decile: 50,
+          $browser: p.browser,
+          is_synthetic: true
+        }
+      })
+      
+      // Demo completed (60% complete)
+      if (rand() < 0.60) {
+        await posthog.capture({
+          distinctId: p.distinct_id,
+          event: 'demo_video:completed',
+          properties: {
+            video_id: demoVideoId,
+            decile: 100,
+            $browser: p.browser,
+            is_synthetic: true
+          }
+        })
+      }
+    }
+  }
+}
+}
+
 async function simulateFlixBuddy(p, flixbuddyCallCount) {
   if (!USE_DATABASE || !p.user_id || !p.profile_id) return null
   if (rand() > 0.10) return null // 10% engage with FlixBuddy
@@ -768,6 +831,23 @@ async function simulateSession(p, flixbuddyCallCount) {
   for (let i = 0; i < sessionDepth; i++) {
     const videoId = randomElement(VIDEO_IDS)
 
+    // Section viewed (80% see sections)
+    if (i === 0 && rand() < 0.80) {
+      await posthog.capture({
+        distinctId: p.distinct_id,
+        event: 'section:viewed',
+        properties: {
+          section: randomElement(['popular', 'trending']),
+          position: Math.floor(rand() * 3) + 1,
+          variant: 'popular-first',
+          $browser: p.browser,
+          $device_type: p.device_type,
+          $os: p.os,
+          is_synthetic: true
+        }
+      })
+    }
+
     if (rand() < 0.75) {
       await posthog.capture({
         distinctId: p.distinct_id,
@@ -816,6 +896,23 @@ async function simulateSession(p, flixbuddyCallCount) {
               $os: p.os
             }
           })
+          
+          // 55% complete the video
+          if (rand() < 0.55) {
+            await posthog.capture({
+              distinctId: p.distinct_id,
+              event: 'video:completed',
+              properties: { 
+                plan: p.plan, 
+                is_synthetic: true, 
+                video_id: videoId,
+                total_duration: 600,
+                $browser: p.browser,
+                $device_type: p.device_type,
+                $os: p.os
+              }
+            })
+          }
         }
       }
     }
@@ -827,6 +924,11 @@ async function simulateSession(p, flixbuddyCallCount) {
   // Pricing page exploration (5% chance per session)
   if (rand() < 0.05) {
     await simulatePricingPageVisit(p)
+  }
+  
+  // Demo video engagement (8% chance per session)
+  if (rand() < 0.08) {
+    await simulateDemoVideoEngagement(p)
   }
 
   return flixbuddyCallCount

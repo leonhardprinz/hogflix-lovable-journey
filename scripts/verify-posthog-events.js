@@ -44,8 +44,12 @@ async function verifyEvents() {
     'checkout:completed',
     'video:started',
     'video:progress',
+    'video:completed',
     'section:clicked',
+    'section:viewed',
     'video:title_opened',
+    'demo_video:opened',
+    'demo_video:completed',
     'flixbuddy:opened',
     'flixbuddy:message_sent'
   ]
