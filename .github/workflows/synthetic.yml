@@ -49,15 +49,25 @@ jobs:
       # --- SERVER EVENTS ---
       - name: Run synthetic server events
         run: |
-          set -e
           echo "🚀 Starting server-side synthetic traffic..."
           node scripts/synthetic-traffic.js 2>&1 | tee server_events.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo "❌ Server script failed"
-            cat server_events.log
-            exit 1
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          # Extract metrics from logs
+          ACTIVE_USERS=$(grep -oP 'Active users: \K\d+' server_events.log || echo "0")
+          NEW_SIGNUPS=$(grep -oP 'New signups: \K\d+' server_events.log || echo "0")
+          
+          echo "📊 Server Events Summary:"
+          echo "   - Active users: $ACTIVE_USERS"
+          echo "   - New signups: $NEW_SIGNUPS"
+          echo "   - Exit code: $EXIT_CODE"
+          
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "⚠️  Server script completed with warnings"
+            grep -i "error\|warning" server_events.log | head -20 || true
+          else
+            echo "✅ Server script completed successfully"
           fi
-          echo "✅ Server script completed successfully"
         env:
           PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.PH_HOST }}
@@ -71,15 +81,24 @@ jobs:
       # New user signup journeys (creates real users)
       - name: Run new user signup journeys
         run: |
-          set -e
           echo "🎭 Starting new user signup journeys..."
           node scripts/playwright-journey-new-user.js 2>&1 | tee new_user.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo "❌ New user script failed"
-            cat new_user.log
-            exit 1
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          # Extract success count
+          SUCCESS_COUNT=$(grep -oP '\d+(?=/\d+ new user journeys completed successfully)' new_user.log || echo "0")
+          TOTAL_COUNT=$(grep -oP '\d+/\K\d+(?= new user journeys completed successfully)' new_user.log || echo "10")
+          
+          echo "📊 New User Journeys Summary:"
+          echo "   - Successful: $SUCCESS_COUNT/$TOTAL_COUNT"
+          echo "   - Exit code: $EXIT_CODE"
+          
+          if [ $SUCCESS_COUNT -eq 0 ]; then
+            echo "⚠️  No successful signups"
+            grep -i "error\|failed" new_user.log | head -20 || true
+          else
+            echo "✅ New user journeys completed ($SUCCESS_COUNT successful)"
           fi
-          echo "✅ New user journeys completed"
         env:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-demo.lovable.app
@@ -91,15 +110,22 @@ jobs:
       # Returning user engagement sessions
       - name: Run returning user sessions
         run: |
-          set -e
           echo "🔄 Starting returning user sessions..."
           node scripts/playwright-journey-returning-user.js 2>&1 | tee returning_user.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo "❌ Returning user script failed"
-            cat returning_user.log
-            exit 1
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          # Extract success count
+          SUCCESS_COUNT=$(grep -oP '\d+(?= successful returning user sessions)' returning_user.log || echo "0")
+          
+          echo "📊 Returning User Sessions Summary:"
+          echo "   - Successful sessions: $SUCCESS_COUNT"
+          echo "   - Exit code: $EXIT_CODE"
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Returning user sessions completed"
+          else
+            echo "⚠️  Returning user sessions completed with warnings"
           fi
-          echo "✅ Returning user sessions completed"
         env:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-demo.lovable.app

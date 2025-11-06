@@ -140,11 +140,11 @@ function createNewPersona(index) {
     source: pickSourceByIndex(index),
     created_at: new Date().toISOString(),
     
-    // Lifecycle
+    // Lifecycle - NEW users start with current timestamp to avoid immediate DORMANT
     state: LIFECYCLE_STATES.NEW,
     state_changed_at: new Date().toISOString(),
     days_since_signup: 0,
-    last_active: null,
+    last_active: new Date().toISOString(), // START ACTIVE
     
     // Activity pattern (starts as DAILY for NEW users)
     activity_pattern: ACTIVITY_PATTERNS.DAILY,
@@ -393,13 +393,28 @@ async function initializePersonaInDatabase(p) {
     const email = `${p.distinct_id}@example.com`
     const password = `synthetic_${p.distinct_id}_pass_${Date.now()}`
 
-    // Check if user already exists BEFORE attempting to create
-    const { data: existingUsers } = await supabase.auth.admin.listUsers()
-    const userExists = existingUsers?.users?.some(u => u.email === email)
+    // Check if user already exists with FULL pagination
+    let allUsers = []
+    let page = 1
+    let hasMore = true
+    
+    while (hasMore) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
+      if (error) throw error
+      if (!data?.users || data.users.length === 0) {
+        hasMore = false
+      } else {
+        allUsers = allUsers.concat(data.users)
+        page++
+        // If we got less than 1000, we're done
+        if (data.users.length < 1000) hasMore = false
+      }
+    }
+    
+    const userExists = allUsers.some(u => u.email === email)
     
     if (userExists) {
-      console.log(`  ℹ️  User ${email} already exists, skipping creation`)
-      const existingUser = existingUsers.users.find(u => u.email === email)
+      const existingUser = allUsers.find(u => u.email === email)
       if (existingUser) {
         p.user_id = existingUser.id
         p.email = email
@@ -885,12 +900,19 @@ async function main() {
   console.log('\n🎬 Simulating user sessions...')
   let activeCount = 0
   let flixbuddyCallCount = 0
+  
+  // Force minimum activity rate (NEW users always active, plus 25% of others)
+  const forcedActivePersonas = personas.filter(p => 
+    p.state !== LIFECYCLE_STATES.CHURNED && 
+    (p.state === LIFECYCLE_STATES.NEW || rand() < 0.25)
+  )
 
   for (const p of personas) {
     if (p.state === LIFECYCLE_STATES.CHURNED) continue
 
     const returnProb = calculateReturnProbability(p)
-    const isActive = rand() < returnProb
+    const forcedActive = forcedActivePersonas.includes(p)
+    const isActive = forcedActive || rand() < returnProb
 
     if (isActive) {
       activeCount++

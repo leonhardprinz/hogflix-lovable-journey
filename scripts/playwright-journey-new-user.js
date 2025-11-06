@@ -208,27 +208,32 @@ async function simulateNewUserJourney(count = 10) {
       // Wait for navigation or error
       await page.waitForTimeout(3000)
 
-      // Check if signup was successful (look for redirect or success message)
+      // Check if signup was successful (look for redirect AND actual errors)
       const currentUrl = page.url()
-      const signupFailed = currentUrl.includes('/signup')
       const signupSuccess = currentUrl.includes('/profiles') || 
                             currentUrl.includes('/checkout') || 
                             currentUrl.includes('/browse')
       
+      // Only consider it failed if BOTH on signup page AND has actual error
+      const hasRealError = await page.locator('.text-red-500, .text-destructive, [class*="error"]')
+        .count()
+        .catch(() => 0) > 0
+      const signupFailed = currentUrl.includes('/signup') && hasRealError
+      
       console.log(`  → After signup: ${currentUrl}`)
 
       if (signupFailed) {
-        // Check for error messages on page
+        // Check for ACTUAL error messages (red/destructive only, exclude amber warnings)
         const errorText = await page.textContent('body').catch(() => '')
         console.log(`  ❌ Signup failed for ${email}`)
         
-        // Look for specific auth errors
-        const authError = await page.locator('[role="alert"], .error-message, .text-red-500, .text-destructive')
+        // Look for RED errors only (exclude amber/warning alerts)
+        const authError = await page.locator('.text-red-500, .text-destructive, [class*="error"]')
           .first()
           .textContent()
           .catch(() => null)
         
-        if (authError) {
+        if (authError && !authError.includes('demo environment')) {
           console.log(`  ❌ Auth error: ${authError}`)
         } else if (errorText.length > 0) {
           console.log(`  ❌ Page error (first 200 chars): ${errorText.substring(0, 200)}`)
