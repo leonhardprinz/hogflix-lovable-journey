@@ -10,6 +10,14 @@ const options = {
   capture_pageview: true,
   capture_pageleave: true,
   
+  // Enable session recording (session replay)
+  session_recording: {
+    enabled: true,
+    recordCrossOriginIframes: false, // Don't record iframes from other domains
+    maskAllInputs: false, // Show form inputs (safe for demo)
+    maskTextSelector: '.sensitive', // Mask elements with .sensitive class
+  },
+  
   loaded: (posthog: any) => {
     // Register session-level super properties
     posthog.register({
