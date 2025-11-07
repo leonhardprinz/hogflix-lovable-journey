@@ -610,8 +610,6 @@ async function simulateSupportTicket(p) {
 }
 
 async function simulatePricingPageVisit(p) {
-  if (rand() > 0.20) return // 20% visit pricing page
-  
   // Capture pricing page view
   await posthog.capture({
     distinctId: p.distinct_id,
