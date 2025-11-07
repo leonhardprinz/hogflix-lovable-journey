@@ -26,6 +26,18 @@ const options = {
       platform: 'web',
       device_type: /mobile/i.test(navigator.userAgent) ? 'mobile' : 'desktop'
     });
+    
+    // Log PostHog initialization status
+    console.log('✅ PostHog loaded successfully')
+    console.log('📹 Session recording enabled:', posthog.config.session_recording?.enabled)
+    console.log('🆔 Session ID:', posthog.get_session_id())
+    
+    // Verify session recording is active
+    if (posthog.sessionRecording) {
+      console.log('✅ Session recording initialized')
+    } else {
+      console.error('❌ Session recording failed to initialize')
+    }
   },
   
   // Drop ONLY synthetic demo VIDEO events (not all synthetic traffic)

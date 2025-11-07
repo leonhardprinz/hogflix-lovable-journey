@@ -43,6 +43,17 @@ async function runSessionReplayDemo() {
     log('📍 Step 1: Landing on homepage', '?synthetic=1')
     await page.goto(`${APP_URL}/?synthetic=1`, { waitUntil: 'domcontentloaded', timeout: 20000 })
     await page.waitForTimeout(3000)
+    
+    // Verify PostHog loaded and session recording is active
+    const posthogLoaded = await page.evaluate(() => {
+      return !!(window.posthog && window.posthog.__loaded && window.posthog.sessionRecording)
+    })
+    if (posthogLoaded) {
+      log('✓ PostHog session recording active')
+    } else {
+      log('⚠️  PostHog not loaded properly')
+    }
+    
     log('✓ Homepage loaded')
 
     // STEP 2: Navigate to Signup
@@ -265,6 +276,29 @@ async function runSessionReplayDemo() {
     }
 
     log('🎉 Session replay demo completed successfully!')
+    
+    // CRITICAL: Wait for PostHog to capture all events, then force flush
+    log('⏳ Waiting for PostHog to capture all events...')
+    await page.waitForTimeout(10000)
+    
+    log('📹 Flushing PostHog session recording data...')
+    await page.evaluate(() => {
+      return new Promise((resolve) => {
+        if (window.posthog && window.posthog.sessionRecording) {
+          console.log('PostHog session recording status:', window.posthog.sessionRecording.status)
+          console.log('PostHog session ID:', window.posthog.get_session_id())
+          // Force flush the session recording buffer
+          window.posthog.sessionRecording.flush()
+          // Wait 5 seconds for flush to complete
+          setTimeout(resolve, 5000)
+        } else {
+          console.error('❌ PostHog or session recording not found!')
+          resolve()
+        }
+      })
+    })
+    log('✓ PostHog data flushed')
+    
     log('📹 Check PostHog Session Replay for this session')
     log(`   Filter by: is_synthetic = true OR email contains "${email}"`)
 

@@ -1,9 +1,15 @@
 // Verify that synthetic events are reaching PostHog
 // Uses PostHog Query API to check event counts
 
-const POSTHOG_PROJECT_ID = process.env.POSTHOG_PROJECT_ID || '0191db49-6f72-0000-e9a2-66ad8c3dda1a'
+const POSTHOG_PROJECT_ID = process.env.POSTHOG_PROJECT_ID
 const POSTHOG_PERSONAL_API_KEY = process.env.POSTHOG_PERSONAL_API_KEY
 const POSTHOG_HOST = 'https://eu.i.posthog.com'
+
+if (!POSTHOG_PROJECT_ID) {
+  console.error('❌ POSTHOG_PROJECT_ID environment variable not set')
+  console.error('   Add your PostHog project ID to GitHub Secrets')
+  process.exit(1)
+}
 
 if (!POSTHOG_PERSONAL_API_KEY) {
   console.error('❌ POSTHOG_PERSONAL_API_KEY environment variable not set')
