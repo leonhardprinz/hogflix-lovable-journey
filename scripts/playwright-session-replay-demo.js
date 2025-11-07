@@ -5,6 +5,7 @@ import { chromium } from 'playwright'
 
 const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
 const DEBUG = process.env.DEBUG === 'true'
+const IS_CI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
 
 // Helper to log each step clearly
 const log = (step, detail = '') => {
@@ -16,9 +17,11 @@ async function runSessionReplayDemo() {
   log('🎬 Starting session replay demo...')
   
   const browser = await chromium.launch({
-    headless: !DEBUG,
+    headless: IS_CI ? true : !DEBUG, // Always headless in CI, honor DEBUG locally
     slowMo: DEBUG ? 1000 : 0, // Slow down in debug mode
-    args: ['--window-size=1920,1080']
+    args: IS_CI 
+      ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] // CI-safe args
+      : ['--window-size=1920,1080'] // Local args
   })
 
   const context = await browser.newContext({
