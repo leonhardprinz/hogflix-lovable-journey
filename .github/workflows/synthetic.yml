@@ -4,7 +4,13 @@ on:
   schedule:
     - cron: '15 7 * * *'      # daily at 07:15 UTC
     - cron: '*/30 * * * *'    # every 30 minutes
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      run_session_replay:
+        description: 'Run session replay demo'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   run:
@@ -143,6 +149,29 @@ jobs:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-demo.lovable.app
         continue-on-error: true
+
+      # --- SESSION REPLAY DEMO ---
+      - name: Run session replay demo (manual trigger)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_session_replay == 'true'
+        run: |
+          echo "🎬 Starting session replay demo journey..."
+          node scripts/playwright-session-replay-demo.js 2>&1 | tee session_replay.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Session replay demo completed successfully"
+            echo "📹 Check PostHog Session Replay for synthetic sessions tagged with 'is_synthetic=true'"
+            echo "   Journey: Landing → Register → Watch Movie → Pricing → Checkout → Watch Movie"
+          else
+            echo "⚠️  Session replay demo failed"
+            cat session_replay.log
+            exit 1
+          fi
+        env:
+          APP_URL: https://hogflix-demo.lovable.app
+          DEBUG: true
+          POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+        continue-on-error: false
 
       # --- EVENT VERIFICATION ---
       - name: Verify PostHog events (optional)
