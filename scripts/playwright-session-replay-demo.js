@@ -29,29 +29,93 @@ async function runSessionReplayDemo() {
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   })
 
+  // Remove automation signals that PostHog might detect
+  await context.addInitScript(() => {
+    // Remove webdriver property
+    delete Object.getPrototypeOf(navigator).webdriver
+    
+    // Override permissions API to avoid bot detection
+    const originalQuery = window.navigator.permissions.query
+    window.navigator.permissions.query = (parameters) => (
+      parameters.name === 'notifications' ?
+        Promise.resolve({ state: Notification.permission }) :
+        originalQuery(parameters)
+    )
+    
+    // Override plugins to appear more like a real browser
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [1, 2, 3, 4, 5]
+    })
+  })
+
   const page = await context.newPage()
 
-  // Monitor console errors
+  // Capture ALL console messages to diagnose PostHog issues
   page.on('console', msg => {
-    if (DEBUG && (msg.type() === 'error' || msg.type() === 'warning')) {
-      console.log(`  [BROWSER ${msg.type().toUpperCase()}]: ${msg.text()}`)
-    }
+    const type = msg.type()
+    const text = msg.text()
+    console.log(`  [BROWSER ${type.toUpperCase()}]: ${text}`)
   })
 
   try {
     // STEP 1: Landing Page with synthetic marker
     log('📍 Step 1: Landing on homepage', '?synthetic=1')
-    await page.goto(`${APP_URL}/?synthetic=1`, { waitUntil: 'domcontentloaded', timeout: 20000 })
-    await page.waitForTimeout(3000)
+    await page.goto(`${APP_URL}/?synthetic=1`, { waitUntil: 'networkidle', timeout: 30000 })
+    await page.waitForTimeout(8000) // Increased timeout for PostHog to initialize
     
-    // Verify PostHog loaded and session recording is active
-    const posthogLoaded = await page.evaluate(() => {
-      return !!(window.posthog && window.posthog.__loaded && window.posthog.sessionRecording)
+    // Check if PostHog loaded with detailed diagnostics
+    log('🔍 Checking PostHog initialization...')
+    const posthogDiagnostics = await page.evaluate(() => {
+      return {
+        posthogExists: !!window.posthog,
+        isLoaded: !!(window.posthog && window.posthog.__loaded),
+        sessionRecordingExists: !!(window.posthog && window.posthog.sessionRecording),
+        sessionRecordingStatus: window.posthog?.sessionRecording?.status || 'not_available',
+        sessionId: window.posthog?.get_session_id?.() || 'no_session_id',
+        config: window.posthog?.config ? {
+          api_host: window.posthog.config.api_host,
+          session_recording_enabled: window.posthog.config.session_recording?.enabled
+        } : 'no_config'
+      }
     })
-    if (posthogLoaded) {
-      log('✓ PostHog session recording active')
+
+    log('📊 PostHog Diagnostics:', JSON.stringify(posthogDiagnostics, null, 2))
+
+    if (posthogDiagnostics.sessionRecordingExists) {
+      log(`✅ PostHog session recording active - Session ID: ${posthogDiagnostics.sessionId}`)
+    } else if (posthogDiagnostics.posthogExists) {
+      log(`⚠️  PostHog loaded but session recording not initialized`)
+      log(`   Status: ${posthogDiagnostics.sessionRecordingStatus}`)
     } else {
-      log('⚠️  PostHog not loaded properly')
+      log(`❌ PostHog failed to load - attempting manual initialization...`)
+      
+      // Fallback: Manually initialize PostHog if it didn't load
+      await page.evaluate((key, host) => {
+        const script = document.createElement('script')
+        script.src = 'https://eu-assets.i.posthog.com/static/array.js'
+        script.onload = () => {
+          if (window.posthog) {
+            window.posthog.init(key, {
+              api_host: host,
+              session_recording: {
+                enabled: true,
+                recordCrossOriginIframes: false
+              },
+              loaded: (ph) => {
+                console.log('✅ PostHog manually initialized')
+                if (ph.sessionRecording) {
+                  ph.startSessionRecording()
+                  console.log('✅ Session recording manually started')
+                }
+              }
+            })
+          }
+        }
+        document.head.appendChild(script)
+      }, process.env.POSTHOG_KEY || 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh', 'https://eu.i.posthog.com')
+      
+      await page.waitForTimeout(5000) // Wait for manual init
+      log('✓ Manual PostHog initialization attempted')
     }
     
     log('✓ Homepage loaded')

@@ -24,6 +24,22 @@ if (typeof window !== 'undefined') {
       } as any,
       
       loaded: (posthog) => {
+        console.log('==========================================')
+        console.log('📊 PostHog Initialization Debug Info:')
+        console.log('✅ PostHog loaded successfully')
+        console.log('🔑 API Key:', import.meta.env.VITE_POSTHOG_KEY?.substring(0, 15) + '...')
+        console.log('🌐 API Host:', import.meta.env.VITE_POSTHOG_HOST)
+        console.log('🆔 Session ID:', posthog.get_session_id())
+        console.log('📹 sessionRecording object exists:', !!posthog.sessionRecording)
+        console.log('📹 sessionRecording status:', posthog.sessionRecording?.status)
+        console.log('🪟 window.posthog exists:', !!(window as any).posthog)
+        console.log('📊 Config:', JSON.stringify({
+          api_host: posthog.config.api_host,
+          autocapture: posthog.config.autocapture,
+          session_recording: posthog.config.session_recording
+        }, null, 2))
+        console.log('==========================================')
+        
         // Register session-level super properties
         posthog.register({
           app_version: '1.0.0',
@@ -32,17 +48,15 @@ if (typeof window !== 'undefined') {
           device_type: /mobile/i.test(navigator.userAgent) ? 'mobile' : 'desktop'
         });
         
-        // Log PostHog initialization status
-        console.log('✅ PostHog loaded successfully')
-        console.log('📹 Session recording active:', !!posthog.sessionRecording)
-        console.log('🆔 Session ID:', posthog.get_session_id())
-        
-        // Verify session recording is active
+        // FORCE start session recording
         if (posthog.sessionRecording) {
-          console.log('✅ Session recording initialized')
-          console.log('📹 window.posthog is available:', !!(window as any).posthog)
+          posthog.startSessionRecording()
+          console.log('✅ Session recording FORCE STARTED')
+          console.log('📹 Recording status after start:', posthog.sessionRecording.status)
         } else {
-          console.error('❌ Session recording failed to initialize')
+          console.error('❌ Session recording object is NULL')
+          console.error('   This means the /decide endpoint did not return session_recording config')
+          console.error('   Check PostHog project settings: https://eu.posthog.com/settings/project-replay')
         }
       },
       
