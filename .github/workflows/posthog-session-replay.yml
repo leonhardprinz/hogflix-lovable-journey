@@ -23,6 +23,5 @@ jobs:
       - name: Generate Session Replay
         env:
           BROWSERLESS_API_KEY: ${{ secrets.BROWSERLESS_API_KEY }}
-          POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
           APP_URL: 'https://hogflix.lovable.app'
-        run: node scripts/browserless-session-replay.js
+        run: node scripts/browserless-session-replay.cjs
