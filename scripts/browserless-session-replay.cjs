@@ -21,7 +21,7 @@ async function runSessionReplay() {
   console.log(`🔑 Using API key: ${BROWSERLESS_API_KEY.substring(0, 8)}...`);
   
   const browser = await puppeteer.connect({
-    browserWSEndpoint: `wss://chrome.browserless.io/?token=${BROWSERLESS_API_KEY}`,
+    browserWSEndpoint: `wss://production-sfo.browserless.io/?token=${BROWSERLESS_API_KEY}`,
   });
 
   const page = await browser.newPage();
