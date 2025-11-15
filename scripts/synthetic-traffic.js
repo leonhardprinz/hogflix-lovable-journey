@@ -91,6 +91,70 @@ const randInt = (min, max) => Math.floor(rand() * (max - min + 1)) + min
 const randomElement = (arr) => arr[Math.floor(rand() * arr.length)]
 const randomChoice = (arr) => arr[randInt(0, arr.length - 1)]
 
+// ============ PHASE 1: FEATURE FLAG INTEGRATION ============
+
+/**
+ * Fetch feature flag variants for a persona from PostHog API
+ * This allows synthetic users to automatically adapt to experiments
+ */
+async function fetchFeatureFlagsForPersona(persona, posthog) {
+  try {
+    // Use PostHog's decide endpoint to get feature flags for this user
+    const response = await fetch(`${PH_HOST}/decide/?v=3`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        api_key: PH_PROJECT_API_KEY,
+        distinct_id: persona.distinct_id,
+        person_properties: {
+          email: persona.email,
+          plan: persona.plan,
+          state: persona.state,
+          activity_pattern: persona.activity_pattern,
+          engagement_score: persona.engagement_score,
+        },
+        groups: {}
+      })
+    })
+
+    if (!response.ok) {
+      console.warn(`⚠️  Failed to fetch feature flags for ${persona.distinct_id}: ${response.status}`)
+      return {}
+    }
+
+    const data = await response.json()
+    const flags = data.featureFlags || {}
+    
+    // Store flags in persona
+    persona.feature_flags = flags
+    persona.feature_flags_last_fetched = new Date().toISOString()
+    
+    if (Object.keys(flags).length > 0) {
+      console.log(`🚩 Fetched ${Object.keys(flags).length} feature flags for ${persona.distinct_id}`)
+    }
+    
+    return flags
+  } catch (error) {
+    console.warn(`⚠️  Error fetching feature flags for ${persona.distinct_id}:`, error.message)
+    return {}
+  }
+}
+
+/**
+ * Check if feature flags need to be refreshed (every 24 hours)
+ */
+function shouldRefreshFeatureFlags(persona) {
+  if (!persona.feature_flags_last_fetched) return true
+  
+  const lastFetched = new Date(persona.feature_flags_last_fetched)
+  const now = new Date()
+  const hoursSinceLastFetch = (now - lastFetched) / (1000 * 60 * 60)
+  
+  return hoursSinceLastFetch >= 24
+}
+
 // Safe date helper to prevent "Invalid time value" errors
 function safeDate(timestamp) {
   const date = new Date(timestamp)
@@ -173,6 +237,10 @@ function createNewPersona(index) {
     churned_at: null,
     churn_reason: null,
     
+    // Feature flags - Phase 1 Integration
+    feature_flags: {},
+    feature_flags_last_fetched: null,
+    
     // Database sync
     initialized: false,
     db_initialized: false,
@@ -209,6 +277,10 @@ function loadPersonas() {
       if (!p.browser_version) p.browser_version = '120.0'
       if (!p.device_type) p.device_type = 'Desktop'
       if (!p.os) p.os = 'Windows'
+      
+      // Phase 1: Feature flag migration
+      if (!p.feature_flags) p.feature_flags = {}
+      if (!p.feature_flags_last_fetched) p.feature_flags_last_fetched = null
     })
     return arr
   }
@@ -1042,6 +1114,21 @@ async function main() {
       $initial_utm_campaign: p.utm_campaign || 'hogflix-dynamic'
     }
   })))
+
+  // ===== PHASE 5.5: FEATURE FLAG FETCHING (PHASE 1 INTEGRATION) =====
+  console.log('\n🚩 Fetching feature flags for personas...')
+  const needsFlagRefresh = personas.filter(p => shouldRefreshFeatureFlags(p))
+  console.log(`   Refreshing flags for ${needsFlagRefresh.length} personas`)
+  
+  // Fetch flags in batches to avoid rate limiting
+  const flagBatchSize = 10
+  for (let i = 0; i < needsFlagRefresh.length; i += flagBatchSize) {
+    const batch = needsFlagRefresh.slice(i, i + flagBatchSize)
+    await Promise.all(batch.map(p => fetchFeatureFlagsForPersona(p, posthog)))
+    if (i + flagBatchSize < needsFlagRefresh.length) {
+      await new Promise(resolve => setTimeout(resolve, 500)) // Rate limiting
+    }
+  }
 
   // ===== PHASE 6: ACTIVITY SIMULATION =====
   console.log('\n🎬 Simulating user sessions...')
