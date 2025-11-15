@@ -1039,6 +1039,23 @@ async function main() {
   let personas = loadPersonas()
   console.log(`👥 Loaded ${personas.length} personas`)
 
+  // ===== PHASE 0: AI BEHAVIOR ANALYSIS (Weekly) =====
+  // Check if Phase 4 AI analysis should run (every 7 days)
+  const lastPhase4Run = process.env.LAST_PHASE4_RUN
+  const shouldRunPhase4 = !lastPhase4Run || 
+    (Date.now() - new Date(lastPhase4Run).getTime()) > (7 * 24 * 60 * 60 * 1000)
+  
+  if (shouldRunPhase4) {
+    try {
+      console.log('\n🤖 Running Phase 4: AI-Powered Behavior Analysis...')
+      const { runPhase4Analysis } = await import('./synthetic/phase4-ai-behaviors.js')
+      await runPhase4Analysis()
+      // Note: In production, store LAST_PHASE4_RUN in state file
+    } catch (error) {
+      console.error('⚠️  Phase 4 analysis failed (continuing with cached behaviors):', error.message)
+    }
+  }
+
   // ===== PHASE 1: STATE UPDATES =====
   console.log('\n📈 Updating persona lifecycles...')
   for (const p of personas) {
