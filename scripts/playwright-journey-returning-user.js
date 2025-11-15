@@ -18,6 +18,42 @@ const posthog = new PostHog(
 // Demo video ID to use
 const DEMO_VIDEO_ID = '6f4d68aa-3d28-43eb-a16d-31848741832b'
 
+// ============ PHASE 1: FEATURE FLAG HELPERS ============
+
+/**
+ * Get feature flag value for a persona
+ * Returns the flag value or a default
+ */
+function getFeatureFlag(persona, flagKey, defaultValue = false) {
+  if (!persona.feature_flags || typeof persona.feature_flags !== 'object') {
+    return defaultValue
+  }
+  return persona.feature_flags[flagKey] ?? defaultValue
+}
+
+/**
+ * Check if persona should interact with FloatingHedgehog based on flag
+ */
+function shouldShowFloatingHedgehog(persona) {
+  const variant = getFeatureFlag(persona, 'FloatingHedgehog_Widget_Visibility_UXUI_Test', 'hide_all')
+  return variant === 'show_all' || variant === 'show_on_pages'
+}
+
+/**
+ * Get section priority order based on feature flag
+ */
+function getSectionPriority(persona) {
+  const variant = getFeatureFlag(persona, 'Popular_vs_Trending_Priority_Algo_Test', 'popular-first')
+  return variant // Returns 'popular-first', 'trending-first', or 'popular-only', etc.
+}
+
+/**
+ * Check if persona has early access to AI summaries
+ */
+function hasEarlyAccessAISummaries(persona) {
+  return getFeatureFlag(persona, 'early_access_ai_summaries', false) === true
+}
+
 function loadPersonas() {
   if (!fs.existsSync(PERSONAS_FILE)) {
     console.log('No personas file found. Run synthetic-traffic.js first.')
@@ -152,7 +188,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
           properties: {
             section: 'Popular',
             position: 1,
-            variant: 'popular-first',
+            variant: getSectionPriority(p), // PHASE 1: Use feature flag variant
             profile_id: p.profile_id,
             $browser: p.browser || 'Chrome',
             $device_type: p.device_type || 'Desktop',
@@ -168,6 +204,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
             section: 'Popular',
             plan: p.plan,
             state: p.state,
+            section_priority_variant: getSectionPriority(p), // PHASE 1: Track flag variant
             $browser: p.browser || 'Chrome',
             $device_type: p.device_type || 'Desktop',
             is_synthetic: true
@@ -325,40 +362,48 @@ async function simulateReturningUserJourney(personas, count = 25) {
 
       } else {
         // 10% - FlixBuddy engagement (if implemented)
-        console.log(`  → Journey: FlixBuddy chat`)
+        // PHASE 1: Check feature flag before engaging with FlixBuddy
+        const shouldShowWidget = shouldShowFloatingHedgehog(p)
         
-        try {
-          await page.goto(`${APP_URL}/flixbuddy`, { waitUntil: 'domcontentloaded', timeout: 15000 })
-          await page.waitForTimeout(1500)
-
-          posthog.capture({
-            distinctId: p.distinct_id,
-            event: 'flixbuddy:opened',
-            properties: {
-              plan: p.plan,
-              state: p.state,
-              $browser: p.browser || 'Chrome',
-              $device_type: p.device_type || 'Desktop',
-              is_synthetic: true
-            }
-          })
-
-          // Simulate typing and sending a message
-          await page.waitForTimeout(2000 + Math.random() * 3000)
+        if (shouldShowWidget && Math.random() < 0.8) {
+          console.log(`  → Journey: FlixBuddy chat (feature flag enabled)`)
           
-          posthog.capture({
-            distinctId: p.distinct_id,
-            event: 'flixbuddy:message_sent',
-            properties: {
-              plan: p.plan,
-              $browser: p.browser || 'Chrome',
-              $device_type: p.device_type || 'Desktop',
-              is_synthetic: true
-            }
-          })
+          try {
+            await page.goto(`${APP_URL}/flixbuddy`, { waitUntil: 'domcontentloaded', timeout: 15000 })
+            await page.waitForTimeout(1500)
 
-        } catch (e) {
-          console.log(`  ! FlixBuddy page not accessible`)
+            posthog.capture({
+              distinctId: p.distinct_id,
+              event: 'flixbuddy:opened',
+              properties: {
+                plan: p.plan,
+                state: p.state,
+                feature_flag_variant: getFeatureFlag(p, 'FloatingHedgehog_Widget_Visibility_UXUI_Test'),
+                $browser: p.browser || 'Chrome',
+                $device_type: p.device_type || 'Desktop',
+                is_synthetic: true
+              }
+            })
+
+            // Simulate typing and sending a message
+            await page.waitForTimeout(2000 + Math.random() * 3000)
+            
+            posthog.capture({
+              distinctId: p.distinct_id,
+              event: 'flixbuddy:message_sent',
+              properties: {
+                plan: p.plan,
+                $browser: p.browser || 'Chrome',
+                $device_type: p.device_type || 'Desktop',
+                is_synthetic: true
+              }
+            })
+
+          } catch (e) {
+            console.log(`  ! FlixBuddy page not accessible`)
+          }
+        } else {
+          console.log(`  → Journey: FlixBuddy skipped (feature flag: ${shouldShowWidget ? 'enabled but random skip' : 'disabled'})`)
         }
       }
 
