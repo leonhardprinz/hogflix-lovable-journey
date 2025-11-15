@@ -81,6 +81,8 @@ jobs:
           SUPABASE_URL: https://kawxtrzyllgzmmwfddil.supabase.co
           STATE_DIR: .synthetic_state
           PERSONA_POOL: 400
+          ENABLE_ORGANIC_EXPLORATION: true
+          APP_URL: https://hogflix-demo.lovable.app
         continue-on-error: false
 
       # --- BROWSER FLOWS ---
