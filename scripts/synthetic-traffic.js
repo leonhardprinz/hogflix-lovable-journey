@@ -1151,12 +1151,17 @@ async function main() {
   console.log('\n🎬 Simulating user sessions...')
   let activeCount = 0
   let flixbuddyCallCount = 0
+  let organicExplorationCount = 0
   
   // Force minimum activity rate (NEW users always active, plus 25% of others)
   const forcedActivePersonas = personas.filter(p => 
     p.state !== LIFECYCLE_STATES.CHURNED && 
     (p.state === LIFECYCLE_STATES.NEW || rand() < 0.25)
   )
+
+  // Decide which users do organic exploration vs traditional sessions
+  const organicExplorationEnabled = process.env.ENABLE_ORGANIC_EXPLORATION === 'true'
+  const organicExplorationRate = 0.3 // 30% of sessions use organic exploration
 
   for (const p of personas) {
     if (p.state === LIFECYCLE_STATES.CHURNED) continue
@@ -1173,17 +1178,41 @@ async function main() {
       p.consecutive_missed_days = 0
       p.engagement_score = Math.min(100, p.engagement_score + 2)
 
-      flixbuddyCallCount = await simulateSession(p, flixbuddyCallCount)
+      // Choose exploration type
+      const useOrganicExploration = organicExplorationEnabled && rand() < organicExplorationRate
+      
+      if (useOrganicExploration) {
+        organicExplorationCount++
+        // Organic exploration will be handled separately
+        p.use_organic_exploration = true
+      } else {
+        // Traditional session simulation
+        flixbuddyCallCount = await simulateSession(p, flixbuddyCallCount)
+        p.use_organic_exploration = false
+      }
     } else {
       p.consecutive_missed_days++
       if (p.consecutive_active_days >= 7) {
         p.engagement_score = Math.max(0, p.engagement_score - 10) // Streak break penalty
       }
       p.consecutive_active_days = 0
+      p.use_organic_exploration = false
     }
   }
 
-  // ===== PHASE 7: METRICS & CLEANUP =====
+  // ===== PHASE 7: ORGANIC EXPLORATION (if enabled) =====
+  if (organicExplorationEnabled && organicExplorationCount > 0) {
+    console.log(`\n🌐 Running ${organicExplorationCount} organic exploration sessions...`)
+    try {
+      const { runOrganicExplorers } = await import('./synthetic/organic-explorer.js')
+      const explorersToRun = personas.filter(p => p.use_organic_exploration)
+      await runOrganicExplorers(explorersToRun, explorersToRun.length)
+    } catch (error) {
+      console.error('⚠️  Organic exploration failed:', error.message)
+    }
+  }
+
+  // ===== PHASE 8: METRICS & CLEANUP =====
   const stateDistribution = {}
   const patternDistribution = {}
   personas.forEach(p => {
@@ -1197,6 +1226,7 @@ async function main() {
     new_signups: actualNew,
     churned_cleaned: churned.length,
     flixbuddy_calls: flixbuddyCallCount,
+    organic_explorations: organicExplorationCount,
     state_distribution: stateDistribution,
     pattern_distribution: patternDistribution
   }
@@ -1210,6 +1240,9 @@ async function main() {
   console.log(`   - Active users: ${activeCount}/${personas.length}`)
   console.log(`   - New signups: ${actualNew}`)
   console.log(`   - FlixBuddy calls: ${flixbuddyCallCount}`)
+  if (organicExplorationEnabled) {
+    console.log(`   - Organic explorations: ${organicExplorationCount}`)
+  }
   console.log(`   - States: ${JSON.stringify(stateDistribution)}`)
   console.log(`   - Patterns: ${JSON.stringify(patternDistribution)}`)
 }

@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.generate-synthetic-behaviors]
 verify_jwt = false
+
+[functions.generate-organic-journey]
+verify_jwt = false
