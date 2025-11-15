@@ -1,0 +1,59 @@
+name: Phase 4 AI Behavior Test
+
+on:
+  workflow_dispatch: # Manual trigger for testing
+  schedule:
+    - cron: '0 3 * * 0' # Weekly on Sunday at 3 AM UTC
+
+jobs:
+  test-phase4:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install playwright
+          npm install @supabase/supabase-js
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: Run Phase 4 Analysis
+        env:
+          APP_URL: https://hogflix-demo.lovable.app
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEBUG: true
+        run: node scripts/synthetic/phase4-ai-behaviors.js
+
+      - name: Upload AI Behaviors
+        uses: actions/upload-artifact@v3
+        with:
+          name: ai-behaviors
+          path: .synthetic_state/ai_behaviors.json
+          retention-days: 90
+
+      - name: Display Summary
+        run: |
+          if [ -f .synthetic_state/ai_behaviors.json ]; then
+            echo "📊 Phase 4 Analysis Summary:"
+            echo "================================"
+            cat .synthetic_state/ai_behaviors.json | node -e "
+              const data = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+              for (const [page, info] of Object.entries(data)) {
+                console.log(\`\n📄 \${info.pageName}\`);
+                console.log(\`   Behaviors: \${info.behaviors?.length || 0}\`);
+                console.log(\`   Last Analyzed: \${info.lastAnalyzedAt}\`);
+                console.log(\`   Status: \${info.lastCheckResult}\`);
+              }
+            "
+          else
+            echo "⚠️  No behaviors file generated"
+          fi
