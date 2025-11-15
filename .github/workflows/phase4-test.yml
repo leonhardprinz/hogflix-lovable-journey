@@ -34,7 +34,7 @@ jobs:
         run: node scripts/synthetic/phase4-ai-behaviors.js
 
       - name: Upload AI Behaviors
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ai-behaviors
           path: .synthetic_state/ai_behaviors.json
