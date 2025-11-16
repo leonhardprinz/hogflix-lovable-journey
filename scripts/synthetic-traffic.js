@@ -5,6 +5,12 @@ import { PostHog } from 'posthog-node'
 import { createClient } from '@supabase/supabase-js'
 import fs from 'node:fs'
 import path from 'node:path'
+import { 
+  generateTemporalProperties, 
+  generateSessionTimestamp, 
+  generateEventTimestamp,
+  captureWithTimestamp 
+} from './synthetic/temporal-distribution.js'
 
 // ------------------ CONFIG ------------------
 const PH_HOST = process.env.PH_HOST || 'https://eu.i.posthog.com'
@@ -196,6 +202,7 @@ const posthog = new PostHog(PH_PROJECT_API_KEY, { host: PH_HOST })
 function createNewPersona(index) {
   const timestamp = Date.now()
   const plan = rand() < 0.6 ? 'Basic' : (rand() < 0.7 ? 'Standard' : 'Premium')
+  const temporalProps = generateTemporalProperties()
   
   return {
     distinct_id: `p_${String(index).padStart(5, '0')}_${timestamp}`,
@@ -241,6 +248,9 @@ function createNewPersona(index) {
     feature_flags: {},
     feature_flags_last_fetched: null,
     
+    // Temporal properties - Phase 4 Temporal Distribution
+    ...temporalProps,
+    
     // Database sync
     initialized: false,
     db_initialized: false,
@@ -278,6 +288,13 @@ function loadPersonas() {
       if (!p.device_type) p.device_type = 'Desktop'
       if (!p.os) p.os = 'Windows'
       
+      // Migrate temporal properties (Phase 4)
+      if (!p.preferred_session_times) {
+        const temporalProps = generateTemporalProperties()
+        p.preferred_session_times = temporalProps.preferred_session_times
+        p.session_duration_avg = temporalProps.session_duration_avg
+        p.timezone_offset = temporalProps.timezone_offset
+      }
       // Phase 1: Feature flag migration
       if (!p.feature_flags) p.feature_flags = {}
       if (!p.feature_flags_last_fetched) p.feature_flags_last_fetched = null
@@ -579,7 +596,7 @@ async function getProfileId(userId) {
 
 // ============ BEHAVIOR SIMULATION ============
 
-async function simulateWatchProgress(p, videoId, sessionDepth) {
+async function simulateWatchProgress(p, videoId, sessionDepth, timestamp) {
   if (!USE_DATABASE || !p.user_id || !p.profile_id) return
 
   try {
@@ -602,7 +619,8 @@ async function simulateWatchProgress(p, videoId, sessionDepth) {
       duration_seconds: duration,
       progress_percentage: progressPct,
       completed: progressPct >= 90,
-      last_watched_at: new Date().toISOString()
+      last_watched_at: timestamp ? timestamp.toISOString() : new Date().toISOString(),
+      created_at: timestamp ? timestamp.toISOString() : new Date().toISOString()
     }, { onConflict: 'user_id,profile_id,video_id' })
 
     p.videos_watched++
@@ -681,19 +699,15 @@ async function simulateSupportTicket(p) {
   }
 }
 
-async function simulatePricingPageVisit(p) {
+async function simulatePricingPageVisit(p, capture) {
   // Capture pricing page view
-  await posthog.capture({
-    distinctId: p.distinct_id,
-    event: 'pricing:page_viewed',
-    properties: {
-      current_plan: p.plan,
-      state: p.state,
-      $browser: p.browser,
-      $device_type: p.device_type,
-      $os: p.os,
-      is_synthetic: true
-    }
+  await capture('pricing:page_viewed', {
+    current_plan: p.plan,
+    state: p.state,
+    $browser: p.browser,
+    $device_type: p.device_type,
+    $os: p.os,
+    is_synthetic: true
   })
   
   // 30% actually select a plan
@@ -703,88 +717,67 @@ async function simulatePricingPageVisit(p) {
     const possiblePlans = targetPlans.filter((_, idx) => idx !== currentIndex)
     const selectedPlan = randomElement(possiblePlans)
     
-    await posthog.capture({
-      distinctId: p.distinct_id,
-      event: 'pricing:plan_selected',
-      properties: {
-        plan: selectedPlan,
-        current_plan: p.plan,
-        is_upgrade: targetPlans.indexOf(selectedPlan) > currentIndex,
-        $browser: p.browser,
-        $device_type: p.device_type,
-        $os: p.os,
-        is_synthetic: true
-      }
+    await capture('pricing:plan_selected', {
+      plan: selectedPlan,
+      current_plan: p.plan,
+      is_upgrade: targetPlans.indexOf(selectedPlan) > currentIndex,
+      $browser: p.browser,
+      $device_type: p.device_type,
+      $os: p.os,
+      is_synthetic: true
     })
   
     console.log(`  ✓ Captured pricing:plan_selected: ${selectedPlan} (from ${p.plan})`)
   }
 }
 
-async function simulateDemoVideoEngagement(p) {
+async function simulateDemoVideoEngagement(p, capture) {
   if (rand() > 0.08) return // 8% watch demo videos
   
   const demoVideoId = 'demo-video-1'
   
   // Demo opened
-  await posthog.capture({
-    distinctId: p.distinct_id,
-    event: 'demo_video:opened',
-    properties: {
-      video_id: demoVideoId,
-      category: 'PostHog Demo',
-      profile_id: p.profile_id,
-      $browser: p.browser,
-      $device_type: p.device_type,
-      $os: p.os,
-      is_synthetic: true
-    }
+  await capture('demo_video:opened', {
+    video_id: demoVideoId,
+    category: 'PostHog Demo',
+    profile_id: p.profile_id,
+    $browser: p.browser,
+    $device_type: p.device_type,
+    $os: p.os,
+    is_synthetic: true
   })
   
   // Demo played (90% play after opening)
   if (rand() < 0.90) {
-    await posthog.capture({
-      distinctId: p.distinct_id,
-      event: 'demo_video:played',
-      properties: {
-        video_id: demoVideoId,
-        $browser: p.browser,
-        is_synthetic: true
-      }
+    await capture('demo_video:played', {
+      video_id: demoVideoId,
+      $browser: p.browser,
+      is_synthetic: true
     })
     
     // Demo progress at 50% (70% reach halfway)
     if (rand() < 0.70) {
-      await posthog.capture({
-        distinctId: p.distinct_id,
-        event: 'demo_video:progress',
-        properties: {
-          video_id: demoVideoId,
-          decile: 50,
-          $browser: p.browser,
-          is_synthetic: true
-        }
+      await capture('demo_video:progress', {
+        video_id: demoVideoId,
+        decile: 50,
+        $browser: p.browser,
+        is_synthetic: true
       })
       
       // Demo completed (60% complete)
       if (rand() < 0.60) {
-        await posthog.capture({
-          distinctId: p.distinct_id,
-          event: 'demo_video:completed',
-          properties: {
-            video_id: demoVideoId,
-            decile: 100,
-            $browser: p.browser,
-            is_synthetic: true
-          }
+        await capture('demo_video:completed', {
+          video_id: demoVideoId,
+          decile: 100,
+          $browser: p.browser,
+          is_synthetic: true
         })
       }
     }
   }
 }
-}
 
-async function simulateFlixBuddy(p, flixbuddyCallCount) {
+async function simulateFlixBuddy(p, flixbuddyCallCount, capture) {
   if (!USE_DATABASE || !p.user_id || !p.profile_id) return null
   if (rand() > 0.10) return null // 10% engage with FlixBuddy
   if (flixbuddyCallCount >= MAX_FLIXBUDDY_CALLS) return null
@@ -827,10 +820,8 @@ async function simulateFlixBuddy(p, flixbuddyCallCount) {
     p.flixbuddy_conversations++
     
     // Track in PostHog with device/browser properties
-    await posthog.capture({
-      distinctId: p.distinct_id,
-      event: 'flixbuddy:interaction',
-      properties: {
+    if (capture) {
+      await capture('flixbuddy:interaction', {
         plan: p.plan,
         is_synthetic: true,
         question: question,
@@ -838,8 +829,23 @@ async function simulateFlixBuddy(p, flixbuddyCallCount) {
         $browser: p.browser,
         $device_type: p.device_type,
         $os: p.os
-      }
-    })
+      })
+    } else {
+      // Fallback for calls outside session context
+      await posthog.capture({
+        distinctId: p.distinct_id,
+        event: 'flixbuddy:interaction',
+        properties: {
+          plan: p.plan,
+          is_synthetic: true,
+          question: question,
+          conversation_id: conv.id,
+          $browser: p.browser,
+          $device_type: p.device_type,
+          $os: p.os
+        }
+      })
+    }
 
     return conv.id
 
@@ -852,12 +858,26 @@ async function simulateFlixBuddy(p, flixbuddyCallCount) {
 // ============ NAVIGATION & ENGAGEMENT ============
 
 async function simulateSession(p, flixbuddyCallCount) {
-  // Determine session depth based on state
+  // Generate realistic session start time
+  const sessionStart = generateSessionTimestamp(p, p.total_sessions)
+  const sessionDuration = p.session_duration_avg || 30
+  let eventIndex = 0
+  
+  // Estimate total events in session for proper distribution
   let sessionDepth = 2
   if (p.state === LIFECYCLE_STATES.NEW) sessionDepth = randInt(3, 8)
   else if (p.state === LIFECYCLE_STATES.ACTIVE) sessionDepth = randInt(2, 5)
   else if (p.binge_state.is_binging) sessionDepth = randInt(5, 15)
   else sessionDepth = randInt(1, 3)
+  
+  const estimatedTotalEvents = sessionDepth * 4 // ~4 events per video action
+
+  // Helper to capture events with temporal distribution
+  const capture = async (event, properties) => {
+    const timestamp = generateEventTimestamp(sessionStart, eventIndex++, estimatedTotalEvents, sessionDuration)
+    await captureWithTimestamp(posthog, p.distinct_id, event, properties, timestamp)
+    return timestamp
+  }
 
   // Entry point
   const entryPoints = ['homepage', 'search', 'category', 'watchlist', 'flixbuddy']
@@ -873,29 +893,25 @@ async function simulateSession(p, flixbuddyCallCount) {
     }
   }
 
-  // PostHog entry event with device/browser properties
-  await posthog.capture({
-    distinctId: p.distinct_id,
-    event: 'page:viewed',
-    properties: {
-      plan: p.plan,
-      is_synthetic: true,
-      source: p.source,
-      page: entryPoint,
-      state: p.state,
-      pattern: p.activity_pattern,
-      $browser: p.browser,
-      $browser_version: p.browser_version,
-      $device_type: p.device_type,
-      $os: p.os,
-      $screen_width: p.screen_width,
-      $screen_height: p.screen_height
-    }
+  // PostHog entry event with device/browser properties and timestamp
+  await capture('page:viewed', {
+    plan: p.plan,
+    is_synthetic: true,
+    source: p.source,
+    page: entryPoint,
+    state: p.state,
+    pattern: p.activity_pattern,
+    $browser: p.browser,
+    $browser_version: p.browser_version,
+    $device_type: p.device_type,
+    $os: p.os,
+    $screen_width: p.screen_width,
+    $screen_height: p.screen_height
   })
 
   // FlixBuddy interaction
   if (entryPoint === 'flixbuddy') {
-    await simulateFlixBuddy(p, flixbuddyCallCount)
+    await simulateFlixBuddy(p, flixbuddyCallCount, capture)
     flixbuddyCallCount++
   }
 
@@ -905,84 +921,64 @@ async function simulateSession(p, flixbuddyCallCount) {
 
     // Section viewed (80% see sections)
     if (i === 0 && rand() < 0.80) {
-      await posthog.capture({
-        distinctId: p.distinct_id,
-        event: 'section:viewed',
-        properties: {
-          section: randomElement(['popular', 'trending']),
-          position: Math.floor(rand() * 3) + 1,
-          variant: 'popular-first',
-          $browser: p.browser,
-          $device_type: p.device_type,
-          $os: p.os,
-          is_synthetic: true
-        }
+      await capture('section:viewed', {
+        section: randomElement(['popular', 'trending']),
+        position: Math.floor(rand() * 3) + 1,
+        variant: 'popular-first',
+        $browser: p.browser,
+        $device_type: p.device_type,
+        $os: p.os,
+        is_synthetic: true
       })
     }
 
     if (rand() < 0.75) {
-      await posthog.capture({
-        distinctId: p.distinct_id,
-        event: 'video:title_opened',
-        properties: { 
-          plan: p.plan, 
-          is_synthetic: true, 
-          title_id: videoId,
-          $browser: p.browser,
-          $device_type: p.device_type,
-          $os: p.os
-        }
+      await capture('video:title_opened', {
+        plan: p.plan, 
+        is_synthetic: true, 
+        title_id: videoId,
+        $browser: p.browser,
+        $device_type: p.device_type,
+        $os: p.os
       })
 
       if (rand() < 0.60) {
-        await posthog.capture({
-          distinctId: p.distinct_id,
-          event: 'video:started',
-          properties: { 
-            plan: p.plan, 
-            is_synthetic: true, 
-            video_id: videoId,
-            $browser: p.browser,
-            $device_type: p.device_type,
-            $os: p.os
-          }
+        const videoStartTime = await capture('video:started', {
+          plan: p.plan, 
+          is_synthetic: true, 
+          video_id: videoId,
+          $browser: p.browser,
+          $device_type: p.device_type,
+          $os: p.os
         })
 
         if (USE_DATABASE && p.db_initialized && p.profile_id) {
-          await simulateWatchProgress(p, videoId, sessionDepth)
+          await simulateWatchProgress(p, videoId, sessionDepth, videoStartTime)
           await simulateVideoRating(p, videoId)
           await simulateWatchlistAddition(p, videoId)
         }
 
         if (rand() < 0.55) {
-          await posthog.capture({
-            distinctId: p.distinct_id,
-            event: 'video:progress',
-            properties: { 
-              plan: p.plan, 
-              is_synthetic: true, 
-              video_id: videoId, 
-              milestone: 50,
-              $browser: p.browser,
-              $device_type: p.device_type,
-              $os: p.os
-            }
+          await capture('video:progress', {
+            plan: p.plan, 
+            is_synthetic: true, 
+            video_id: videoId, 
+            milestone: 50,
+            $browser: p.browser,
+            $device_type: p.device_type,
+            $os: p.os
           })
           
           // 55% complete the video
           if (rand() < 0.55) {
-            await posthog.capture({
-              distinctId: p.distinct_id,
-              event: 'video:completed',
-              properties: { 
-                plan: p.plan, 
-                is_synthetic: true, 
-                video_id: videoId,
-                total_duration: 600,
-                $browser: p.browser,
-                $device_type: p.device_type,
-                $os: p.os
-              }
+            await capture('video:completed', {
+              plan: p.plan, 
+              is_synthetic: true, 
+              video_id: videoId,
+              total_duration: 600,
+              $browser: p.browser,
+              $device_type: p.device_type,
+              $os: p.os
             })
           }
         }
@@ -995,12 +991,12 @@ async function simulateSession(p, flixbuddyCallCount) {
   
   // Pricing page exploration (20% chance per session)
   if (rand() < 0.20) {
-    await simulatePricingPageVisit(p)
+    await simulatePricingPageVisit(p, capture)
   }
   
   // Demo video engagement (8% chance per session)
   if (rand() < 0.08) {
-    await simulateDemoVideoEngagement(p)
+    await simulateDemoVideoEngagement(p, capture)
   }
 
   return flixbuddyCallCount
