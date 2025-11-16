@@ -4,6 +4,7 @@
 import { chromium } from 'playwright'
 import { PostHog } from 'posthog-node'
 import { discoverRoutes, getRouteMetadata, getNavigationSuggestions } from './route-discovery.js'
+import { generateSessionTimestamp, generateEventTimestamp } from './temporal-distribution.js'
 
 const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
 const SUPABASE_URL = 'https://kawxtrzyllgzmmwfddil.supabase.co'
@@ -123,8 +124,28 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
   console.log(`\n🌐 Starting organic exploration for ${persona.distinct_id}`)
   console.log(`   Pattern: ${persona.activity_pattern}, Engagement: ${persona.engagement_score}`)
 
+  // Generate session timestamp for temporal distribution
+  const sessionStart = generateSessionTimestamp(persona, persona.total_sessions || 0)
+  const sessionDuration = persona.session_duration_avg || 30
+  let eventIndex = 0
+
   const browser = await chromium.launch({ headless: true })
   const page = await browser.newPage()
+
+  // Helper to capture events with timestamp
+  const capture = async (event, properties) => {
+    const timestamp = generateEventTimestamp(sessionStart, eventIndex++, maxDepth * 3, sessionDuration)
+    await posthog.capture({
+      distinctId: persona.distinct_id,
+      event,
+      properties: {
+        ...properties,
+        synthetic_timestamp: timestamp.toISOString(),
+        synthetic_hour_utc: timestamp.getUTCHours()
+      },
+      timestamp
+    })
+  }
 
   const visitedPages = []
   const sessionEvents = []
@@ -149,19 +170,15 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
       visitedPages.push(currentUrl)
       currentDepth++
 
-      // Track page view
-      posthog.capture({
-        distinctId: persona.distinct_id,
-        event: '$pageview',
-        properties: {
-          $current_url: fullUrl,
-          $browser: persona.browser || 'Chrome',
-          $device_type: persona.device_type || 'Desktop',
-          is_synthetic: true,
-          organic_exploration: true,
-          session_depth: currentDepth,
-          session_goal: sessionGoal,
-        }
+      // Track page view with timestamp
+      await capture('$pageview', {
+        $current_url: fullUrl,
+        $browser: persona.browser || 'Chrome',
+        $device_type: persona.device_type || 'Desktop',
+        is_synthetic: true,
+        organic_exploration: true,
+        session_depth: currentDepth,
+        session_goal: sessionGoal,
       })
 
       sessionEvents.push({
@@ -200,19 +217,15 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
 
       console.log(`  💭 Decision: ${decision.action} - ${decision.reasoning}`)
 
-      // Track decision event
-      posthog.capture({
-        distinctId: persona.distinct_id,
-        event: 'organic:navigation_decision',
-        properties: {
-          current_page: currentUrl,
-          action: decision.action,
-          target: decision.target,
-          reasoning: decision.reasoning,
-          confidence: decision.confidence,
-          session_depth: currentDepth,
-          is_synthetic: true,
-        }
+      // Track decision event with timestamp
+      await capture('organic:navigation_decision', {
+        current_page: currentUrl,
+        action: decision.action,
+        target: decision.target,
+        reasoning: decision.reasoning,
+        confidence: decision.confidence,
+        session_depth: currentDepth,
+        is_synthetic: true,
       })
 
       // Execute decision
@@ -232,15 +245,11 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
         console.log(`  🎯 Interacting: ${decision.target}`)
         await page.waitForTimeout(decision.estimatedDuration || 2000)
         
-        // Track interaction
-        posthog.capture({
-          distinctId: persona.distinct_id,
-          event: 'organic:page_interaction',
-          properties: {
-            page: currentUrl,
-            interaction: decision.target,
-            is_synthetic: true,
-          }
+        // Track interaction with timestamp
+        await capture('organic:page_interaction', {
+          page: currentUrl,
+          interaction: decision.target,
+          is_synthetic: true,
         })
       }
 
@@ -254,17 +263,13 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
 
     console.log(`\n  ✅ Session complete: visited ${visitedPages.length} pages`)
     
-    // Track session summary
-    posthog.capture({
-      distinctId: persona.distinct_id,
-      event: 'organic:session_complete',
-      properties: {
-        pages_visited: visitedPages.length,
-        session_goal: sessionGoal,
-        goal_achieved: evaluateGoalAchievement(sessionGoal, visitedPages),
-        duration_minutes: sessionEvents.length * 0.5, // Rough estimate
-        is_synthetic: true,
-      }
+    // Track session summary with timestamp
+    await capture('organic:session_complete', {
+      pages_visited: visitedPages.length,
+      session_goal: sessionGoal,
+      goal_achieved: evaluateGoalAchievement(sessionGoal, visitedPages),
+      duration_minutes: sessionEvents.length * 0.5, // Rough estimate
+      is_synthetic: true,
     })
 
     return {
