@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, Info, ArrowRight, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useRageClickDetection } from '@/hooks/useRageClickDetection';
 
 const Pricing = () => {
   const posthog = usePostHog();
@@ -19,6 +20,15 @@ const Pricing = () => {
   const { subscription } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [ctaVariant, setCtaVariant] = useState<string>('control');
+  const [ultimateButtonBroken, setUltimateButtonBroken] = useState(false);
+  const ultimateButtonRef = useRef<HTMLButtonElement>(null);
+  
+  // Rage click detection for Ultimate button
+  useRageClickDetection(ultimateButtonRef, {
+    threshold: 3,
+    timeWindow: 2000,
+    elementSelector: 'button.ultimate-subscribe-button'
+  });
 
   useEffect(() => {
     document.title = "Pricing – HogFlix";
@@ -27,14 +37,26 @@ const Pricing = () => {
       is_free_user: subscription?.plan_name === 'basic' || !subscription
     });
     
-    // Load feature flag variant
+    // Load feature flag variants
     posthog?.onFeatureFlags(() => {
-      const variant = posthog.getFeatureFlag('pricing_upgrade_cta_experiment');
-      if (variant && typeof variant === 'string') {
-        setCtaVariant(variant);
+      const ctaExperimentVariant = posthog.getFeatureFlag('pricing_upgrade_cta_experiment');
+      if (ctaExperimentVariant && typeof ctaExperimentVariant === 'string') {
+        setCtaVariant(ctaExperimentVariant);
         
         posthog?.capture('pricing:cta_variant_assigned', {
-          variant: variant,
+          variant: ctaExperimentVariant,
+          user_plan: subscription?.plan_name || 'none',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Check if Ultimate button should be broken
+      const buttonFailureVariant = posthog.getFeatureFlag('ultimate_subscription_button_failure');
+      setUltimateButtonBroken(buttonFailureVariant === 'broken');
+      
+      if (buttonFailureVariant) {
+        posthog?.capture('feature_flag:ultimate_button_variant_assigned', {
+          variant: buttonFailureVariant,
           user_plan: subscription?.plan_name || 'none',
           timestamp: new Date().toISOString()
         });
@@ -54,6 +76,7 @@ const Pricing = () => {
       case 'benefit_led':
         if (planName === 'standard') return 'Unlock Full HD & Downloads';
         if (planName === 'premium') return 'Unlock 4K & Early Access';
+        if (planName === 'ultimate') return 'Unlock 8K & Exclusive Content';
         return 'Preview Subscription (No Charge)';
       
       case 'action_simple':
@@ -117,6 +140,26 @@ const Pricing = () => {
       ],
       cta: getCtaTextByVariant('premium', '$19.99', ctaVariant),
       popular: false
+    },
+    {
+      name: 'ultimate',
+      displayName: 'Ultimate',
+      price: '$29.99',
+      priceDetail: '/month',
+      features: [
+        '8K + Dolby Vision',
+        '10 profiles',
+        'Dedicated support',
+        'Watch on any device',
+        'Ad-free experience',
+        'Download for offline viewing',
+        'Exclusive early access content',
+        'Behind-the-scenes extras',
+        'FlixBuddy AI assistant with priority',
+        'Director\'s commentary tracks'
+      ],
+      cta: getCtaTextByVariant('ultimate', '$29.99', ctaVariant),
+      popular: false
     }
   ];
 
@@ -132,7 +175,7 @@ const Pricing = () => {
       return 'Current Plan ✓';
     }
     
-    const planOrder = { basic: 0, standard: 1, premium: 2 };
+    const planOrder = { basic: 0, standard: 1, premium: 2, ultimate: 3 };
     const currentOrder = planOrder[currentPlan as keyof typeof planOrder] || 0;
     const targetOrder = planOrder[plan.name as keyof typeof planOrder] || 0;
     
@@ -146,6 +189,38 @@ const Pricing = () => {
   };
 
   const handlePlanSelect = async (planName: string) => {
+    if (loading) return;
+    
+    // Check if Ultimate button is broken (feature flag experiment)
+    if (planName === 'ultimate' && ultimateButtonBroken) {
+      setLoading(true);
+      
+      posthog?.capture('checkout:button_click_failed', {
+        plan: planName,
+        variant: 'broken',
+        user_plan: subscription?.plan_name || 'none',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Simulate loading for 3 seconds, then show error
+      setTimeout(() => {
+        setLoading(false);
+        toast.error('Unable to process subscription', {
+          description: 'We\'re experiencing technical difficulties. Please try again later.'
+        });
+        
+        posthog?.capture('checkout:failed', {
+          plan: planName,
+          reason: 'button_failure_experiment',
+          variant: 'broken',
+          user_plan: subscription?.plan_name || 'none',
+          timestamp: new Date().toISOString()
+        });
+      }, 3000);
+      
+      return;
+    }
+    
     // Prevent selecting current plan
     if (isCurrentPlan(planName)) {
       toast.info("You're already on this plan!");
@@ -158,7 +233,7 @@ const Pricing = () => {
     
     // Track upgrade/downgrade
     const currentPlan = subscription?.plan_name;
-    const planOrder = { basic: 0, standard: 1, premium: 2 };
+    const planOrder = { basic: 0, standard: 1, premium: 2, ultimate: 3 };
     const currentOrder = planOrder[currentPlan as keyof typeof planOrder] || 0;
     const targetOrder = planOrder[planName as keyof typeof planOrder] || 0;
     
@@ -304,16 +379,17 @@ const Pricing = () => {
               </ul>
 
               <Button
-                className="w-full"
+                ref={plan.name === 'ultimate' ? ultimateButtonRef : undefined}
+                className={`w-full ${plan.name === 'ultimate' ? 'ultimate-subscribe-button' : ''}`}
                 variant={isCurrent ? 'outline' : plan.popular ? 'default' : 'outline'}
                 size="lg"
                 onClick={() => handlePlanSelect(plan.name)}
                 disabled={loading || isCurrent}
               >
-                {loading ? 'Processing...' : getButtonText(plan)}
+                {loading && plan.name === 'ultimate' ? 'Processing...' : loading ? 'Processing...' : getButtonText(plan)}
                 {!isCurrent && subscription && (
                   <>
-                    {plan.name === 'premium' && subscription.plan_name !== 'premium' && (
+                    {(plan.name === 'premium' || plan.name === 'ultimate') && subscription.plan_name !== plan.name && (
                       <ArrowRight className="w-4 h-4 ml-2" />
                     )}
                     {plan.name === 'basic' && subscription.plan_name !== 'basic' && (
