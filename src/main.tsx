@@ -83,6 +83,9 @@ if (typeof window !== 'undefined') {
       },
     }
   )
+  
+  // Explicitly expose posthog on window for toolbar
+  (window as any).posthog = posthog;
 }
 
 // Pass the initialized posthog instance via client prop
