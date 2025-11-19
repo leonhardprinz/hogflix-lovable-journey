@@ -98,7 +98,7 @@ async function simulateNewUserJourney(count = 10) {
 
     try {
       // Step 1: Landing page with UTM parameters
-      const landingUrl = `${APP_URL}/?utm_source=${encodeURIComponent(acquisition.source)}&utm_medium=${encodeURIComponent(acquisition.medium)}&utm_campaign=hogflix-dynamic`
+      const landingUrl = `${APP_URL}/?synthetic=1&utm_source=${encodeURIComponent(acquisition.source)}&utm_medium=${encodeURIComponent(acquisition.medium)}&utm_campaign=hogflix-dynamic`
       await page.goto(landingUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
       await page.waitForTimeout(1000 + Math.random() * 2000)
 
@@ -106,44 +106,15 @@ async function simulateNewUserJourney(count = 10) {
         console.log(`  [DEBUG] Landing page loaded: ${page.url()}`)
       }
 
-      // Capture page view (server-side)
-      posthog.capture({
-        distinctId: email,
-        event: '$pageview',
-        properties: {
-          $current_url: landingUrl,
-          $browser: device.browser,
-          $device_type: device.type,
-          $os: device.os,
-          $screen_width: device.width,
-          $screen_height: device.height,
-          utm_source: acquisition.source,
-          utm_medium: acquisition.medium,
-          utm_campaign: 'hogflix-dynamic',
-          is_synthetic: true
-        }
-      })
+      // Browser PostHog SDK will auto-capture pageview with session ID
 
       // Step 2: Navigate to pricing page (75% chance)
       if (Math.random() < 0.75) {
         console.log(`  → Visiting pricing page`)
-        await page.goto(`${APP_URL}/pricing?utm_source=${acquisition.source}&utm_medium=${acquisition.medium}`, { waitUntil: 'domcontentloaded', timeout: 15000 })
+        await page.goto(`${APP_URL}/pricing?synthetic=1&utm_source=${acquisition.source}&utm_medium=${acquisition.medium}`, { waitUntil: 'domcontentloaded', timeout: 15000 })
         await page.waitForTimeout(2000 + Math.random() * 3000)
 
-        // Capture pricing view (server-side)
-        posthog.capture({
-          distinctId: email,
-          event: 'pricing:page_viewed',
-          properties: {
-            plan_interest: plan.id,
-            device_type: device.type,
-            $browser: device.browser,
-            $device_type: device.type,
-            $os: device.os,
-            $current_url: `${APP_URL}/pricing`,
-            is_synthetic: true
-          }
-        })
+        // Browser PostHog SDK will auto-capture pageview and interactions
 
         // Try to click a plan button (if exists)
         try {
@@ -153,21 +124,7 @@ async function simulateNewUserJourney(count = 10) {
             await randomButton.click()
             await page.waitForTimeout(1000)
             
-            // Capture plan selection (server-side)
-            posthog.capture({
-              distinctId: email,
-              event: 'pricing:plan_selected',
-              properties: {
-                plan: plan.id,
-                plan_display: plan.id,
-                user_current_plan: 'none',
-                is_upgrade: false,
-                $browser: device.browser,
-                $device_type: device.type,
-                $os: device.os,
-                is_synthetic: true
-              }
-            })
+            // Browser PostHog SDK will auto-capture button clicks
           }
         } catch (e) {
           if (DEBUG) console.log(`  [DEBUG] Button not found:`, e.message)
@@ -176,7 +133,7 @@ async function simulateNewUserJourney(count = 10) {
 
       // Step 3: Navigate to signup
       console.log(`  → Going to signup`)
-      await page.goto(`${APP_URL}/signup?plan=${plan.id}`, { waitUntil: 'domcontentloaded', timeout: 15000 })
+      await page.goto(`${APP_URL}/signup?synthetic=1&plan=${plan.id}`, { waitUntil: 'domcontentloaded', timeout: 15000 })
       await page.waitForTimeout(1500)
 
       // Step 4: Fill signup form
@@ -202,20 +159,7 @@ async function simulateNewUserJourney(count = 10) {
         }
       }
 
-      // Capture form filled event (server-side)
-      posthog.capture({
-        distinctId: email,
-        event: 'signup:form_filled',
-        properties: {
-          plan: plan.id,
-          device_type: device.type,
-          source: acquisition.source,
-          $browser: device.browser,
-          $device_type: device.type,
-          $os: device.os,
-          is_synthetic: true
-        }
-      })
+      // Browser PostHog SDK will auto-capture form interactions
 
       // Step 5: Submit form
       console.log(`  → Submitting signup`)
@@ -269,59 +213,14 @@ async function simulateNewUserJourney(count = 10) {
       if (signupSuccess) {
         console.log(`  ✓ Signup successful`)
         
-        // Capture signup success (server-side)
-        posthog.capture({
-          distinctId: email,
-          event: 'signup:completed',
-          properties: {
-            email: email,
-            plan: plan.id,
-            device_type: device.type,
-            source: acquisition.source,
-            $browser: device.browser,
-            $device_type: device.type,
-            $os: device.os,
-            $screen_width: device.width,
-            $screen_height: device.height,
-            $initial_utm_source: acquisition.source,
-            $initial_utm_medium: acquisition.medium,
-            $initial_utm_campaign: 'hogflix-dynamic',
-            is_synthetic: true
-          }
-        })
-        
-        // Set person properties (server-side)
-        posthog.identify({
-          distinctId: email,
-          properties: {
-            email: email,
-            plan: plan.id,
-            device_type: device.type,
-            browser: device.browser,
-            os: device.os,
-            $initial_utm_source: acquisition.source,
-            $initial_utm_medium: acquisition.medium,
-            $initial_utm_campaign: 'hogflix-dynamic',
-            is_synthetic: true
-          }
-        })
+        // Browser PostHog SDK will auto-capture signup and identify user
 
         // Step 6: If on checkout page, simulate Stripe flow (paid plans)
         if (currentUrl.includes('/checkout') && plan.id !== 'basic') {
           console.log(`  → Starting checkout flow`)
           await page.waitForTimeout(2000)
 
-          // Capture checkout started (server-side)
-          posthog.capture({
-            distinctId: email,
-            event: 'checkout:started',
-            properties: {
-              plan: plan.id,
-              $browser: device.browser,
-              $device_type: device.type,
-              is_synthetic: true
-            }
-          })
+          // Browser PostHog SDK will auto-capture checkout pageview
 
           // Try to interact with checkout (if demo Stripe or payment buttons exist)
           try {
@@ -332,18 +231,7 @@ async function simulateNewUserJourney(count = 10) {
               await paymentButtons[0].click()
               await page.waitForTimeout(2000)
 
-              // Capture checkout completed (server-side)
-              posthog.capture({
-                distinctId: email,
-                event: 'checkout:completed',
-                properties: {
-                  plan: plan.id,
-                  payment_method: 'test_card',
-                  $browser: device.browser,
-                  $device_type: device.type,
-                  is_synthetic: true
-                }
-              })
+              // Browser PostHog SDK will auto-capture button clicks and checkout completion
             }
           } catch (e) {
             console.log(`  ! Checkout interaction failed:`, e.message)
@@ -351,7 +239,7 @@ async function simulateNewUserJourney(count = 10) {
         }
 
         // Step 7: Browse a bit after signup
-        await page.goto(`${APP_URL}/browse`, { waitUntil: 'domcontentloaded', timeout: 15000 })
+        await page.goto(`${APP_URL}/browse?synthetic=1`, { waitUntil: 'domcontentloaded', timeout: 15000 })
         await page.waitForTimeout(1000 + Math.random() * 2000)
 
         journeys.push({
