@@ -82,7 +82,7 @@ if (typeof window !== 'undefined') {
         return event;
       },
     }
-  )
+  );
   
   // Explicitly expose posthog on window for toolbar
   (window as any).posthog = posthog;
