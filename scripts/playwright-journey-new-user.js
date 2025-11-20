@@ -99,7 +99,8 @@ async function simulateNewUserJourney(count = 10) {
     try {
       // Step 1: Landing page with UTM parameters
       const landingUrl = `${APP_URL}/?synthetic=1&utm_source=${encodeURIComponent(acquisition.source)}&utm_medium=${encodeURIComponent(acquisition.medium)}&utm_campaign=hogflix-dynamic`
-      await page.goto(landingUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
+      await page.goto(landingUrl, { waitUntil: 'networkidle', timeout: 15000 })
+      await page.waitForTimeout(2000) // Wait for PostHog to initialize
       await page.waitForTimeout(1000 + Math.random() * 2000)
 
       if (DEBUG) {
@@ -111,7 +112,8 @@ async function simulateNewUserJourney(count = 10) {
       // Step 2: Navigate to pricing page (75% chance)
       if (Math.random() < 0.75) {
         console.log(`  → Visiting pricing page`)
-        await page.goto(`${APP_URL}/pricing?synthetic=1&utm_source=${acquisition.source}&utm_medium=${acquisition.medium}`, { waitUntil: 'domcontentloaded', timeout: 15000 })
+        await page.goto(`${APP_URL}/pricing?synthetic=1&utm_source=${acquisition.source}&utm_medium=${acquisition.medium}`, { waitUntil: 'networkidle', timeout: 15000 })
+        await page.waitForTimeout(2000) // Wait for PostHog to initialize
         await page.waitForTimeout(2000 + Math.random() * 3000)
 
         // Browser PostHog SDK will auto-capture pageview and interactions
@@ -133,7 +135,8 @@ async function simulateNewUserJourney(count = 10) {
 
       // Step 3: Navigate to signup
       console.log(`  → Going to signup`)
-      await page.goto(`${APP_URL}/signup?synthetic=1&plan=${plan.id}`, { waitUntil: 'domcontentloaded', timeout: 15000 })
+      await page.goto(`${APP_URL}/signup?synthetic=1&plan=${plan.id}`, { waitUntil: 'networkidle', timeout: 15000 })
+      await page.waitForTimeout(2000) // Wait for PostHog to initialize
       await page.waitForTimeout(1500)
 
       // Step 4: Fill signup form
@@ -206,6 +209,8 @@ async function simulateNewUserJourney(count = 10) {
           console.log(`  📸 Screenshot saved: ${screenshotPath}`)
         }
         
+        // Wait for PostHog to flush session recording data
+        await page.waitForTimeout(5000)
         await context.close()
         continue // Skip to next user
       }
@@ -239,7 +244,8 @@ async function simulateNewUserJourney(count = 10) {
         }
 
         // Step 7: Browse a bit after signup
-        await page.goto(`${APP_URL}/browse?synthetic=1`, { waitUntil: 'domcontentloaded', timeout: 15000 })
+        await page.goto(`${APP_URL}/browse?synthetic=1`, { waitUntil: 'networkidle', timeout: 15000 })
+        await page.waitForTimeout(2000) // Wait for PostHog to initialize
         await page.waitForTimeout(1000 + Math.random() * 2000)
 
         journeys.push({
@@ -265,6 +271,8 @@ async function simulateNewUserJourney(count = 10) {
       }
       journeys.push({ email, success: false, error: error.message })
     } finally {
+      // Wait for PostHog to flush session recording data
+      await page.waitForTimeout(5000)
       await context.close()
     }
 
