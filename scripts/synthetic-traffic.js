@@ -11,6 +11,7 @@ import {
   generateEventTimestamp,
   captureWithTimestamp 
 } from './synthetic/temporal-distribution.js'
+import { enrichEventProperties, getRealisticPath } from './synthetic/path-extractor.js'
 
 // ------------------ CONFIG ------------------
 const PH_HOST = process.env.PH_HOST || 'https://eu.i.posthog.com'
@@ -701,14 +702,14 @@ async function simulateSupportTicket(p) {
 
 async function simulatePricingPageVisit(p, capture) {
   // Capture pricing page view
-  await capture('pricing:page_viewed', {
+  const pricingUrl = getRealisticPath('pricing', { siteUrl: process.env.APP_URL || 'https://hogflix-demo.lovable.app' })
+  await capture('pricing:page_viewed', enrichEventProperties(pricingUrl, {
     current_plan: p.plan,
     state: p.state,
     $browser: p.browser,
     $device_type: p.device_type,
-    $os: p.os,
-    is_synthetic: true
-  })
+    $os: p.os
+  }))
   
   // 30% actually select a plan
   if (rand() < 0.30) {
@@ -832,18 +833,18 @@ async function simulateFlixBuddy(p, flixbuddyCallCount, capture) {
       })
     } else {
       // Fallback for calls outside session context
+      const flixbuddyUrl = getRealisticPath('flixbuddy', { siteUrl: process.env.APP_URL || 'https://hogflix-demo.lovable.app' })
       await posthog.capture({
         distinctId: p.distinct_id,
         event: 'flixbuddy:interaction',
-        properties: {
+        properties: enrichEventProperties(flixbuddyUrl, {
           plan: p.plan,
-          is_synthetic: true,
           question: question,
           conversation_id: conv.id,
           $browser: p.browser,
           $device_type: p.device_type,
           $os: p.os
-        }
+        })
       })
     }
 
@@ -894,9 +895,9 @@ async function simulateSession(p, flixbuddyCallCount) {
   }
 
   // PostHog entry event with device/browser properties and timestamp
-  await capture('page:viewed', {
+  const entryUrl = getRealisticPath(entryPoint, { siteUrl: process.env.APP_URL || 'https://hogflix-demo.lovable.app' })
+  await capture('page:viewed', enrichEventProperties(entryUrl, {
     plan: p.plan,
-    is_synthetic: true,
     source: p.source,
     page: entryPoint,
     state: p.state,
@@ -907,7 +908,7 @@ async function simulateSession(p, flixbuddyCallCount) {
     $os: p.os,
     $screen_width: p.screen_width,
     $screen_height: p.screen_height
-  })
+  }))
 
   // FlixBuddy interaction
   if (entryPoint === 'flixbuddy') {
