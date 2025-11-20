@@ -3,7 +3,7 @@ import { chromium } from 'playwright'
 import { PostHog } from 'posthog-node'
 import fs from 'node:fs'
 import path from 'node:path'
-import { enrichEventProperties, getRealisticPath } from './synthetic/path-extractor.js'
+import { enrichEventProperties, getRealisticPath, generateVideoMilestoneEvents } from './synthetic/path-extractor.js'
 
 const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
@@ -227,51 +227,35 @@ async function simulateReturningUserJourney(personas, count = 25) {
 
         await page.waitForTimeout(500)
 
-        // Start video
-        posthog.capture({
-          distinctId: p.distinct_id,
-          event: 'video:started',
-          properties: enrichEventProperties(videoUrl, {
-            video_id: DEMO_VIDEO_ID,
-            plan: p.plan,
-            $browser: p.browser || 'Chrome',
-            $device_type: p.device_type || 'Desktop'
-          })
-        })
-
-        // Watch progress (based on engagement)
-        const watchProgress = p.engagement_score > 7 ? 75 + Math.random() * 25
-          : p.engagement_score > 5 ? 50 + Math.random() * 30
-          : 25 + Math.random() * 30
-
-        if (watchProgress >= 50) {
+        // Generate realistic video milestone events
+        const baseProperties = {
+          plan: p.plan,
+          $browser: p.browser || 'Chrome',
+          $device_type: p.device_type || 'Desktop',
+          $os: p.os || 'Windows'
+        }
+        
+        const { events } = generateVideoMilestoneEvents(p, DEMO_VIDEO_ID, videoUrl, baseProperties)
+        
+        // Capture all milestone events with realistic timing
+        for (let i = 0; i < events.length; i++) {
+          const evt = events[i]
+          
+          // Wait for realistic timing between events
+          if (i > 0) {
+            const prevDelay = events[i - 1].delay
+            const waitTime = evt.delay - prevDelay
+            await page.waitForTimeout(waitTime * 1000) // Convert seconds to ms
+          }
+          
           posthog.capture({
             distinctId: p.distinct_id,
-            event: 'video:progress',
-            properties: enrichEventProperties(videoUrl, {
-              video_id: DEMO_VIDEO_ID,
-              milestone: 50,
-              progress_percentage: Math.floor(watchProgress),
-              plan: p.plan,
-              $browser: p.browser || 'Chrome',
-              $device_type: p.device_type || 'Desktop'
-            })
+            event: evt.event,
+            properties: evt.properties
           })
           
-          // Video completed if watched >95%
-          if (watchProgress >= 95) {
-            posthog.capture({
-              distinctId: p.distinct_id,
-              event: 'video:completed',
-              properties: enrichEventProperties(videoUrl, {
-                video_id: DEMO_VIDEO_ID,
-                completion_pct: Math.round(watchProgress),
-                plan: p.plan,
-                $browser: p.browser || 'Chrome',
-                $device_type: p.device_type || 'Desktop',
-                $os: p.os || 'Windows'
-              })
-            })
+          if (DEBUG) {
+            console.log(`  [DEBUG] Captured ${evt.event} at ${evt.delay}s`)
           }
         }
 
