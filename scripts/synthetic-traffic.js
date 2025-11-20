@@ -602,16 +602,32 @@ async function simulateWatchProgress(p, videoId, sessionDepth, timestamp) {
 
   try {
     const duration = 3600
+    const videoUrl = getRealisticPath('video', { videoId, siteUrl: process.env.APP_URL || 'https://hogflix-demo.lovable.app' })
     
-    // Completion varies by state
-    let completionMean = 0.60
-    if (p.state === LIFECYCLE_STATES.NEW) completionMean = 0.45
-    if (p.state === LIFECYCLE_STATES.ACTIVE) completionMean = 0.65
-    if (p.binge_state.is_binging) completionMean = 0.85
+    // Generate realistic milestone events
+    const { generateVideoMilestoneEvents } = await import('./synthetic/path-extractor.js')
+    const baseProperties = {
+      plan: p.plan,
+      $browser: p.browser,
+      $device_type: p.device_type,
+      $os: p.os
+    }
     
-    const progressPct = Math.max(10, Math.min(100, completionMean * 100 + (rand() - 0.5) * 40))
+    const { events, finalProgress } = generateVideoMilestoneEvents(p, videoId, videoUrl, baseProperties)
+    
+    // Capture all milestone events (already includes delays in metadata)
+    for (const evt of events) {
+      await posthog.capture({
+        distinctId: p.distinct_id,
+        event: evt.event,
+        properties: evt.properties
+      })
+    }
+    
+    const progressPct = finalProgress
     const progressSec = Math.floor((progressPct / 100) * duration)
 
+    // Update database with final progress
     await supabase.from('watch_progress').upsert({
       user_id: p.user_id,
       profile_id: p.profile_id,
@@ -623,22 +639,6 @@ async function simulateWatchProgress(p, videoId, sessionDepth, timestamp) {
       last_watched_at: timestamp ? timestamp.toISOString() : new Date().toISOString(),
       created_at: timestamp ? timestamp.toISOString() : new Date().toISOString()
     }, { onConflict: 'user_id,profile_id,video_id' })
-
-    // Track video progress event with pathname
-    const videoUrl = getRealisticPath('video', { videoId, siteUrl: process.env.APP_URL || 'https://hogflix-demo.lovable.app' })
-    await posthog.capture({
-      distinctId: p.distinct_id,
-      event: 'video:progress',
-      properties: enrichEventProperties(videoUrl, {
-        video_id: videoId,
-        progress_seconds: progressSec,
-        progress_percentage: progressPct,
-        completed: progressPct >= 90,
-        $browser: p.browser,
-        $device_type: p.device_type,
-        $os: p.os
-      })
-    })
 
     p.videos_watched++
     p.avg_watch_completion = ((p.avg_watch_completion * (p.videos_watched - 1)) + progressPct) / p.videos_watched
