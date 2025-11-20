@@ -3,6 +3,7 @@ import { chromium } from 'playwright'
 import { PostHog } from 'posthog-node'
 import fs from 'node:fs'
 import path from 'node:path'
+import { enrichEventProperties, getRealisticPath } from './synthetic/path-extractor.js'
 
 const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
@@ -137,16 +138,14 @@ async function simulateReturningUserJourney(personas, count = 25) {
       posthog.capture({
         distinctId: p.distinct_id,
         event: '$pageview',
-        properties: {
-          $current_url: entryUrl,
+        properties: enrichEventProperties(entryUrl, {
           $browser: p.browser || 'Chrome',
           $device_type: p.device_type || 'Desktop',
           $os: p.os || 'Windows',
           $screen_width: p.screen_width || 1920,
           $screen_height: p.screen_height || 1080,
-          is_synthetic: true,
           returning_user: true
-        }
+        })
       })
 
       // Identify user with person properties (server-side)
@@ -182,46 +181,45 @@ async function simulateReturningUserJourney(personas, count = 25) {
         console.log(`  → Journey: Video watching`)
         
         // Capture section viewed (server-side)
+        const browseUrl = getRealisticPath('browse', { siteUrl: APP_URL })
         posthog.capture({
           distinctId: p.distinct_id,
           event: 'section:viewed',
-          properties: {
+          properties: enrichEventProperties(browseUrl, {
             section: 'Popular',
             position: 1,
             variant: getSectionPriority(p), // PHASE 1: Use feature flag variant
             profile_id: p.profile_id,
             $browser: p.browser || 'Chrome',
-            $device_type: p.device_type || 'Desktop',
-            is_synthetic: true
-          }
+            $device_type: p.device_type || 'Desktop'
+          })
         })
         
         // Capture section click (server-side)
         posthog.capture({
           distinctId: p.distinct_id,
           event: 'section:clicked',
-          properties: {
+          properties: enrichEventProperties(browseUrl, {
             section: 'Popular',
             plan: p.plan,
             state: p.state,
             section_priority_variant: getSectionPriority(p), // PHASE 1: Track flag variant
             $browser: p.browser || 'Chrome',
-            $device_type: p.device_type || 'Desktop',
-            is_synthetic: true
-          }
+            $device_type: p.device_type || 'Desktop'
+          })
         })
 
         // Open video detail (server-side)
+        const videoUrl = getRealisticPath('video', { videoId: DEMO_VIDEO_ID, siteUrl: APP_URL })
         posthog.capture({
           distinctId: p.distinct_id,
           event: 'video:title_opened',
-          properties: {
+          properties: enrichEventProperties(videoUrl, {
             title_id: DEMO_VIDEO_ID,
             plan: p.plan,
             $browser: p.browser || 'Chrome',
-            $device_type: p.device_type || 'Desktop',
-            is_synthetic: true
-          }
+            $device_type: p.device_type || 'Desktop'
+          })
         })
 
         await page.waitForTimeout(500)
@@ -230,13 +228,12 @@ async function simulateReturningUserJourney(personas, count = 25) {
         posthog.capture({
           distinctId: p.distinct_id,
           event: 'video:started',
-          properties: {
+          properties: enrichEventProperties(videoUrl, {
             video_id: DEMO_VIDEO_ID,
             plan: p.plan,
             $browser: p.browser || 'Chrome',
-            $device_type: p.device_type || 'Desktop',
-            is_synthetic: true
-          }
+            $device_type: p.device_type || 'Desktop'
+          })
         })
 
         // Watch progress (based on engagement)
@@ -248,15 +245,14 @@ async function simulateReturningUserJourney(personas, count = 25) {
           posthog.capture({
             distinctId: p.distinct_id,
             event: 'video:progress',
-            properties: {
+            properties: enrichEventProperties(videoUrl, {
               video_id: DEMO_VIDEO_ID,
               milestone: 50,
               progress_percentage: Math.floor(watchProgress),
               plan: p.plan,
               $browser: p.browser || 'Chrome',
-              $device_type: p.device_type || 'Desktop',
-              is_synthetic: true
-            }
+              $device_type: p.device_type || 'Desktop'
+            })
           })
           
           // Video completed if watched >95%
@@ -264,15 +260,14 @@ async function simulateReturningUserJourney(personas, count = 25) {
             posthog.capture({
               distinctId: p.distinct_id,
               event: 'video:completed',
-              properties: {
+              properties: enrichEventProperties(videoUrl, {
                 video_id: DEMO_VIDEO_ID,
                 completion_pct: Math.round(watchProgress),
                 plan: p.plan,
                 $browser: p.browser || 'Chrome',
                 $device_type: p.device_type || 'Desktop',
-                $os: p.os || 'Windows',
-                is_synthetic: true
-              }
+                $os: p.os || 'Windows'
+              })
             })
           }
         }
@@ -286,14 +281,13 @@ async function simulateReturningUserJourney(personas, count = 25) {
           posthog.capture({
             distinctId: p.distinct_id,
             event: 'video:rated',
-            properties: {
+            properties: enrichEventProperties(videoUrl, {
               video_id: DEMO_VIDEO_ID,
               rating: rating,
               plan: p.plan,
               $browser: p.browser || 'Chrome',
-              $device_type: p.device_type || 'Desktop',
-              is_synthetic: true
-            }
+              $device_type: p.device_type || 'Desktop'
+            })
           })
         }
 
@@ -304,18 +298,17 @@ async function simulateReturningUserJourney(personas, count = 25) {
         await page.goto(`${APP_URL}/pricing`, { waitUntil: 'domcontentloaded', timeout: 15000 })
         await page.waitForTimeout(2000 + Math.random() * 3000)
 
+        const pricingUrl = getRealisticPath('pricing', { siteUrl: APP_URL })
         posthog.capture({
           distinctId: p.distinct_id,
           event: 'pricing:page_viewed',
-          properties: {
+          properties: enrichEventProperties(pricingUrl, {
             current_plan: p.plan,
             state: p.state,
             upgrade_intent: true,
             $browser: p.browser || 'Chrome',
-            $device_type: p.device_type || 'Desktop',
-            $current_url: `${APP_URL}/pricing`,
-            is_synthetic: true
-          }
+            $device_type: p.device_type || 'Desktop'
+          })
         })
 
         // Some click on plan cards (50%)
@@ -331,15 +324,14 @@ async function simulateReturningUserJourney(personas, count = 25) {
               posthog.capture({
                 distinctId: p.distinct_id,
                 event: 'pricing:plan_selected',
-                properties: {
+                properties: enrichEventProperties(pricingUrl, {
                   plan: targetPlan,
                   current_plan: p.plan,
                   is_upgrade: true,
                   $browser: p.browser || 'Chrome',
                   $device_type: p.device_type || 'Desktop',
-                  $os: p.os || 'Windows',
-                  is_synthetic: true
-                }
+                  $os: p.os || 'Windows'
+                })
               })
               
               console.log(`  ✓ Captured pricing:plan_selected: ${targetPlan} (was: ${p.plan})`)
@@ -347,12 +339,11 @@ async function simulateReturningUserJourney(personas, count = 25) {
               posthog.capture({
                 distinctId: p.distinct_id,
                 event: 'upgrade:button_clicked',
-                properties: {
+                properties: enrichEventProperties(pricingUrl, {
                   current_plan: p.plan,
                   $browser: p.browser || 'Chrome',
-                  $device_type: p.device_type || 'Desktop',
-                  is_synthetic: true
-                }
+                  $device_type: p.device_type || 'Desktop'
+                })
               })
             }
           } catch (e) {
@@ -372,17 +363,17 @@ async function simulateReturningUserJourney(personas, count = 25) {
             await page.goto(`${APP_URL}/flixbuddy`, { waitUntil: 'domcontentloaded', timeout: 15000 })
             await page.waitForTimeout(1500)
 
+            const flixbuddyUrl = getRealisticPath('flixbuddy', { siteUrl: APP_URL })
             posthog.capture({
               distinctId: p.distinct_id,
               event: 'flixbuddy:opened',
-              properties: {
+              properties: enrichEventProperties(flixbuddyUrl, {
                 plan: p.plan,
                 state: p.state,
                 feature_flag_variant: getFeatureFlag(p, 'FloatingHedgehog_Widget_Visibility_UXUI_Test'),
                 $browser: p.browser || 'Chrome',
-                $device_type: p.device_type || 'Desktop',
-                is_synthetic: true
-              }
+                $device_type: p.device_type || 'Desktop'
+              })
             })
 
             // Simulate typing and sending a message
@@ -391,12 +382,11 @@ async function simulateReturningUserJourney(personas, count = 25) {
             posthog.capture({
               distinctId: p.distinct_id,
               event: 'flixbuddy:message_sent',
-              properties: {
+              properties: enrichEventProperties(flixbuddyUrl, {
                 plan: p.plan,
                 $browser: p.browser || 'Chrome',
-                $device_type: p.device_type || 'Desktop',
-                is_synthetic: true
-              }
+                $device_type: p.device_type || 'Desktop'
+              })
             })
 
           } catch (e) {
