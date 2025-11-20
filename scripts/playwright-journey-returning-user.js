@@ -180,37 +180,40 @@ async function simulateReturningUserJourney(personas, count = 25) {
         // 70% - Watch videos (main engagement)
         console.log(`  → Journey: Video watching`)
         
-        // Capture section viewed (server-side)
-        const browseUrl = getRealisticPath('browse', { siteUrl: APP_URL })
+        // Capture section viewed (still on browse page)
         posthog.capture({
           distinctId: p.distinct_id,
           event: 'section:viewed',
-          properties: enrichEventProperties(browseUrl, {
+          properties: enrichEventProperties(currentPath, {
             section: 'Popular',
             position: 1,
-            variant: getSectionPriority(p), // PHASE 1: Use feature flag variant
+            variant: getSectionPriority(p),
             profile_id: p.profile_id,
             $browser: p.browser || 'Chrome',
             $device_type: p.device_type || 'Desktop'
           })
         })
         
-        // Capture section click (server-side)
+        await page.waitForTimeout(1000)
+        
+        // Navigate to video page - update current path
+        const videoUrl = getRealisticPath('video', { videoId: DEMO_VIDEO_ID, siteUrl: APP_URL })
+        currentPath = videoUrl
+        await page.goto(videoUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(err => {
+          console.log(`  Could not navigate to ${videoUrl}, continuing...`)
+        })
+        
+        // Capture pageview for video page
         posthog.capture({
           distinctId: p.distinct_id,
-          event: 'section:clicked',
-          properties: enrichEventProperties(browseUrl, {
-            section: 'Popular',
-            plan: p.plan,
-            state: p.state,
-            section_priority_variant: getSectionPriority(p), // PHASE 1: Track flag variant
+          event: '$pageview',
+          properties: enrichEventProperties(videoUrl, {
             $browser: p.browser || 'Chrome',
             $device_type: p.device_type || 'Desktop'
           })
         })
-
-        // Open video detail (server-side)
-        const videoUrl = getRealisticPath('video', { videoId: DEMO_VIDEO_ID, siteUrl: APP_URL })
+        
+        // Capture video title opened
         posthog.capture({
           distinctId: p.distinct_id,
           event: 'video:title_opened',
@@ -224,7 +227,7 @@ async function simulateReturningUserJourney(personas, count = 25) {
 
         await page.waitForTimeout(500)
 
-        // Start video (server-side)
+        // Start video
         posthog.capture({
           distinctId: p.distinct_id,
           event: 'video:started',
@@ -295,10 +298,21 @@ async function simulateReturningUserJourney(personas, count = 25) {
         // 25% - Pricing page visit (upgrade intent)
         console.log(`  → Journey: Pricing exploration`)
         
-        await page.goto(`${APP_URL}/pricing`, { waitUntil: 'domcontentloaded', timeout: 15000 })
+        const pricingUrl = getRealisticPath('pricing', { siteUrl: APP_URL })
+        currentPath = pricingUrl
+        await page.goto(pricingUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
         await page.waitForTimeout(2000 + Math.random() * 3000)
 
-        const pricingUrl = getRealisticPath('pricing', { siteUrl: APP_URL })
+        // Capture pageview for pricing page
+        posthog.capture({
+          distinctId: p.distinct_id,
+          event: '$pageview',
+          properties: enrichEventProperties(pricingUrl, {
+            $browser: p.browser || 'Chrome',
+            $device_type: p.device_type || 'Desktop'
+          })
+        })
+        
         posthog.capture({
           distinctId: p.distinct_id,
           event: 'pricing:page_viewed',
@@ -360,10 +374,21 @@ async function simulateReturningUserJourney(personas, count = 25) {
           console.log(`  → Journey: FlixBuddy chat (feature flag enabled)`)
           
           try {
-            await page.goto(`${APP_URL}/flixbuddy`, { waitUntil: 'domcontentloaded', timeout: 15000 })
+            const flixbuddyUrl = getRealisticPath('flixbuddy', { siteUrl: APP_URL })
+            currentPath = flixbuddyUrl
+            await page.goto(flixbuddyUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
             await page.waitForTimeout(1500)
 
-            const flixbuddyUrl = getRealisticPath('flixbuddy', { siteUrl: APP_URL })
+            // Capture pageview for FlixBuddy page
+            posthog.capture({
+              distinctId: p.distinct_id,
+              event: '$pageview',
+              properties: enrichEventProperties(flixbuddyUrl, {
+                $browser: p.browser || 'Chrome',
+                $device_type: p.device_type || 'Desktop'
+              })
+            })
+            
             posthog.capture({
               distinctId: p.distinct_id,
               event: 'flixbuddy:opened',

@@ -624,6 +624,22 @@ async function simulateWatchProgress(p, videoId, sessionDepth, timestamp) {
       created_at: timestamp ? timestamp.toISOString() : new Date().toISOString()
     }, { onConflict: 'user_id,profile_id,video_id' })
 
+    // Track video progress event with pathname
+    const videoUrl = getRealisticPath('video', { videoId, siteUrl: process.env.APP_URL || 'https://hogflix-demo.lovable.app' })
+    await posthog.capture({
+      distinctId: p.distinct_id,
+      event: 'video:progress',
+      properties: enrichEventProperties(videoUrl, {
+        video_id: videoId,
+        progress_seconds: progressSec,
+        progress_percentage: progressPct,
+        completed: progressPct >= 90,
+        $browser: p.browser,
+        $device_type: p.device_type,
+        $os: p.os
+      })
+    })
+
     p.videos_watched++
     p.avg_watch_completion = ((p.avg_watch_completion * (p.videos_watched - 1)) + progressPct) / p.videos_watched
 
@@ -652,6 +668,20 @@ async function simulateVideoRating(p, videoId) {
       rating: rating
     }, { onConflict: 'video_id,profile_id' })
 
+    // Track video rating event with pathname
+    const videoUrl = getRealisticPath('video', { videoId, siteUrl: process.env.APP_URL || 'https://hogflix-demo.lovable.app' })
+    await posthog.capture({
+      distinctId: p.distinct_id,
+      event: 'video:rated',
+      properties: enrichEventProperties(videoUrl, {
+        video_id: videoId,
+        rating,
+        $browser: p.browser,
+        $device_type: p.device_type,
+        $os: p.os
+      })
+    })
+
     p.ratings_given++
 
   } catch (error) {
@@ -669,6 +699,20 @@ async function simulateWatchlistAddition(p, videoId) {
       profile_id: p.profile_id,
       video_id: videoId
     })
+    
+    // Track watchlist addition event with pathname
+    const videoUrl = getRealisticPath('video', { videoId, siteUrl: process.env.APP_URL || 'https://hogflix-demo.lovable.app' })
+    await posthog.capture({
+      distinctId: p.distinct_id,
+      event: 'watchlist:added',
+      properties: enrichEventProperties(videoUrl, {
+        video_id: videoId,
+        $browser: p.browser,
+        $device_type: p.device_type,
+        $os: p.os
+      })
+    })
+    
     p.watchlist_size++
   } catch (error) {
     // Ignore duplicate errors
@@ -736,43 +780,40 @@ async function simulateDemoVideoEngagement(p, capture) {
   if (rand() > 0.08) return // 8% watch demo videos
   
   const demoVideoId = 'demo-video-1'
+  const demoUrl = getRealisticPath('demo', { siteUrl: process.env.APP_URL || 'https://hogflix-demo.lovable.app' })
   
   // Demo opened
-  await capture('demo_video:opened', {
+  await capture('demo_video:opened', enrichEventProperties(demoUrl, {
     video_id: demoVideoId,
     category: 'PostHog Demo',
     profile_id: p.profile_id,
     $browser: p.browser,
     $device_type: p.device_type,
-    $os: p.os,
-    is_synthetic: true
-  })
+    $os: p.os
+  }))
   
   // Demo played (90% play after opening)
   if (rand() < 0.90) {
-    await capture('demo_video:played', {
+    await capture('demo_video:played', enrichEventProperties(demoUrl, {
       video_id: demoVideoId,
-      $browser: p.browser,
-      is_synthetic: true
-    })
+      $browser: p.browser
+    }))
     
     // Demo progress at 50% (70% reach halfway)
     if (rand() < 0.70) {
-      await capture('demo_video:progress', {
+      await capture('demo_video:progress', enrichEventProperties(demoUrl, {
         video_id: demoVideoId,
         decile: 50,
-        $browser: p.browser,
-        is_synthetic: true
-      })
+        $browser: p.browser
+      }))
       
       // Demo completed (60% complete)
       if (rand() < 0.60) {
-        await capture('demo_video:completed', {
+        await capture('demo_video:completed', enrichEventProperties(demoUrl, {
           video_id: demoVideoId,
           decile: 100,
-          $browser: p.browser,
-          is_synthetic: true
-        })
+          $browser: p.browser
+        }))
       }
     }
   }
