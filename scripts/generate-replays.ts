@@ -3,8 +3,9 @@ import { faker } from '@faker-js/faker';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // --- CONFIG ---
-// You can change this to '/browse' if you want to TRY starting deep inside
-const BASE_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app'; 
+// Ensure no trailing slash on base to avoid double //
+const RAW_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app';
+const BASE_URL = RAW_URL.replace(/\/$/, ''); 
 const START_PATH = '/'; 
 
 const GEN_AI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -18,11 +19,10 @@ async function askAI(page: Page, goal: string): Promise<string | null> {
 
   // 1. Scrape visible interactive elements
   const elements = await page.evaluate(() => {
-    // Get buttons, inputs, links, and images that look clickable
     const els = Array.from(document.querySelectorAll('button, a, input, img[role="button"], .movie-card'));
     return els
-      .filter(el => el.getBoundingClientRect().width > 0) // Only visible
-      .slice(0, 30) // Limit to top 30 elements to save tokens
+      .filter(el => el.getBoundingClientRect().width > 0)
+      .slice(0, 30)
       .map((el, i) => {
         const text = el.textContent?.substring(0, 50).replace(/\n/g, ' ').trim() || '';
         const placeholder = el.getAttribute('placeholder') || '';
@@ -34,9 +34,9 @@ async function askAI(page: Page, goal: string): Promise<string | null> {
 
   if (elements.length === 0) return null;
 
-  // 2. Try Models (Fallback Strategy)
-  // We try 'gemini-1.5-flash' first, then fall back to standard selectors if it crashes
+  // 2. Try Models
   try {
+    // We use the standard model string. If this fails (404), the catch block handles it.
     const model = GEN_AI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
     
     const prompt = `
@@ -65,17 +65,19 @@ async function askAI(page: Page, goal: string): Promise<string | null> {
 async function handleAuthWall(page: Page) {
   console.log('🔒 Auth Wall detected. Creating new account...');
   
-  // 1. Find Email Input (Dumb mode is faster here)
+  // 1. Find Email Input
   let emailInput = page.locator('input[type="email"], input[name="email"]');
   
-  // If no input visible, we might be on landing page needing to click "Get Started"
+  // If no input visible, click "Get Started" / "Sign Up" buttons
   if (await emailInput.count() === 0) {
-    const startBtn = await askAI(page, "Click the button to start registration or sign up");
-    if (startBtn) {
-      await page.click(startBtn);
+    // Use specific :has-text pseudo-classes which are valid inside locators
+    const startBtns = page.locator('button:has-text("Sign up"), button:has-text("Get Started"), a:has-text("Sign up")');
+    if (await startBtns.count() > 0) {
+        await startBtns.first().click();
     } else {
-      // Dumb fallback
-      await page.locator('text=Sign up, text=Get Started').first().click();
+        // Try AI if standard buttons fail
+        const aiBtn = await askAI(page, "Click the button to start registration");
+        if (aiBtn) await page.click(aiBtn);
     }
     await delay(1000);
   }
@@ -91,28 +93,20 @@ async function handleAuthWall(page: Page) {
       await passInput.fill('password123');
     }
 
-    // Submit
-    const submitSelector = await askAI(page, "Click the Submit or Sign Up button");
-    if (submitSelector) {
-      await page.click(submitSelector);
-    } else {
-      await page.keyboard.press('Enter');
-    }
+    await page.keyboard.press('Enter');
     
     console.log(`   ✅ Registered as ${email}`);
-    await page.waitForLoadState('networkidle'); // Wait for redirect
+    await page.waitForLoadState('networkidle'); 
     await delay(3000);
   }
 }
 
 async function watchContent(page: Page) {
   console.log('🍿 Browsing content...');
-  
-  // Scroll a bit
   await page.mouse.wheel(0, 500);
   await delay(1000);
 
-  // Ask AI to find a movie
+  // Try AI first
   const movieSelector = await askAI(page, "Click on a movie poster or play button");
   
   if (movieSelector) {
@@ -121,20 +115,20 @@ async function watchContent(page: Page) {
     await page.click(movieSelector);
     
     console.log('   ▶️ Movie clicked. Watching...');
-    // Wiggle mouse to simulate activity during watch
+    // Wiggle mouse
     for(let i=0; i<4; i++) {
       await page.mouse.move(Math.random()*500, Math.random()*500);
       await delay(3000);
     }
   } else {
-    // Fallback if AI is rate limited
+    // Manual Fallback
     console.log('   Using fallback selector for movies...');
-    const cards = page.locator('.movie-card, img[alt], [role="img"]');
+    const cards = page.locator('.movie-card, img[alt*="Movie"], [role="img"]');
     if (await cards.count() > 0) {
        await cards.nth(0).click();
        await delay(5000);
     } else {
-       console.log('   ❌ No movies found. Are we still on the login page?');
+       console.log('   ❌ No movies found.');
     }
   }
 }
@@ -152,19 +146,21 @@ async function watchContent(page: Page) {
     await page.goto(fullUrl);
     await delay(2000);
 
-    // --- THE SMART ROUTER ---
-    // Check where we actually landed.
+    // --- THE FIX IS HERE ---
+    // We use separate locators to check "Is this an auth page?"
+    // This avoids the mixing of CSS and Custom Engines error
+    const hasPassword = await page.locator('input[type="password"]').count() > 0;
+    const hasEmail = await page.locator('input[type="email"]').count() > 0;
+    const hasSignInBtn = await page.locator('button:has-text("Sign in"), a:has-text("Sign in")').count() > 0;
     
-    // 1. Are we on an Auth Page? (Look for specific text or inputs)
-    const isAuthPage = await page.locator('input[type="password"], text=Sign in, text=Sign up').count() > 0;
-    const isDashboard = await page.locator('text=Trending, text=New Releases, .movie-grid').count() > 0;
+    // Logic: If we see inputs OR "Sign In" buttons, but NO movie grid...
+    const isDashboard = await page.locator('.movie-grid, text=Trending').count() > 0;
 
-    if (isAuthPage && !isDashboard) {
-      // We are forced to login/signup
+    if ((hasPassword || hasEmail || hasSignInBtn) && !isDashboard) {
       await handleAuthWall(page);
     }
 
-    // 2. Now we should be logged in, let's Watch
+    // Now we watch
     await watchContent(page);
 
     console.log('⏳ Flushing PostHog events...');
