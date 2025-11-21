@@ -1,168 +1,158 @@
 import { chromium, Page } from '@playwright/test';
 import { faker } from '@faker-js/faker';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// CONFIGURATION
-const TARGET_URL = 'https://hogflix-demo.lovable.app/';
-// Create ONE real user in your app manually and put credentials here
-// This allows us to simulate "Returning User" retention metrics
-const DEMO_USER = {
-  email: 'demo_viewer@hogflix.com', 
-  password: 'password123' 
-};
+// --- CONFIG ---
+const TARGET_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app/';
+const GEN_AI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// UTILS
-async function simulateRageClick(page: Page) {
-  console.log('😡 Simulating Rage Click...');
-  // Find something that isn't a button (like a label or header) and click it furiously
-  const annoyance = page.locator('h1, label, .text-muted').first();
-  if (await annoyance.count() > 0) {
-    await annoyance.click({ clickCount: 8, delay: 50 }); // 8 clicks in 400ms
+// --- AI BRAIN ---
+async function askAI(page: Page, goal: string): Promise<string | null> {
+  if (!process.env.GEMINI_API_KEY) {
+    console.log('⚠️ No GEMINI_API_KEY found. Falling back to dumb mode.');
+    return null;
   }
-}
 
-async function humanScroll(page: Page) {
-  await page.mouse.wheel(0, Math.random() * 500 + 200);
-  await delay(Math.random() * 1000 + 500);
-}
+  console.log(`🧠 AI Thinking: "${goal}"...`);
 
-// SCENARIOS
-async function scenarioNewUserSignup(page: Page) {
-  console.log('🆕 Scenario: New User Sign Up');
-  
-  // 1. Navigate to Signup (assuming redirect or button click)
-  // If your app redirects to login automatically:
-  if (page.url().includes('auth') || page.url().includes('login')) {
-    const signupLink = page.locator('text=Sign up').first();
-    if (await signupLink.isVisible()) {
-      await signupLink.click();
+  // 1. Scrape interactive elements (buttons, links)
+  // We get text and classes to help AI decide
+  const elements = await page.evaluate(() => {
+    const els = Array.from(document.querySelectorAll('button, a, input[type="submit"]'));
+    return els
+      .filter(el => el.checkVisibility && el.checkVisibility()) // Only visible stuff
+      .map((el, i) => {
+        const text = el.textContent?.substring(0, 50).trim() || '';
+        const role = el.getAttribute('role') || el.tagName.toLowerCase();
+        // Assign a temp ID so we can target it back
+        const tempId = `ai-target-${i}`;
+        el.setAttribute('data-ai-id', tempId);
+        return `ID: ${tempId} | Text: "${text}" | Type: ${role}`;
+      });
+  });
+
+  if (elements.length === 0) return null;
+
+  // 2. Ask Gemini
+  const model = GEN_AI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const prompt = `
+    I am a QA bot on a website. I need to: "${goal}".
+    Here is a list of visible interactive elements:
+    
+    ${elements.join('\n')}
+    
+    Return ONLY the ID (e.g., ai-target-5) of the single best element to click. 
+    If nothing matches, return "NONE".
+  `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = result.response.text().trim();
+    console.log(`   -> AI chose: ${response}`);
+    
+    if (response.includes('ai-target')) {
+      return `[data-ai-id="${response.trim()}"]`;
     }
+  } catch (e) {
+    console.error('   -> AI Brain Freeze:', e);
   }
+  return null;
+}
 
-  // 2. Fill Form
-  await delay(1000);
+// --- ACTIONS ---
+
+async function smartNavigateToAuth(page: Page) {
+  // Ask AI to find the signup entry point
+  const selector = await askAI(page, "Go to the Sign Up or Register page");
+  
+  if (selector) {
+    await page.click(selector);
+  } else {
+    // Fallback if AI fails or Key is missing
+    console.log('   -> AI failed, using fallback selector');
+    const btn = page.locator('text=Sign up, text=Get Started, text=Join').first();
+    if (await btn.count() > 0) await btn.click();
+  }
+}
+
+async function scenarioSignup(page: Page) {
+  console.log('🆕 Scenario: AI Signing Up');
+  await smartNavigateToAuth(page);
+  await page.waitForLoadState('networkidle');
+
+  // Fill form (Standard inputs are usually stable, so we keep this simple)
+  // But we can ask AI for the "Submit" button just in case
   const email = faker.internet.email();
-  const password = 'password123';
-  
-  // Fill inputs (adjust selectors to match your Shadcn/Supabase forms)
   await page.locator('input[type="email"]').fill(email);
-  await delay(500);
+  await page.locator('input[type="password"]').fill('password123');
   
-  // 3. RAGE MOMENT: User tries to click submit before password
-  await simulateRageClick(page);
-  
-  await page.locator('input[type="password"]').fill(password);
-  await delay(800);
+  // RAGE CLICK: Ask AI what looks annoying
+  const annoyanceSelector = await askAI(page, "Find a non-clickable text label like a header or description");
+  if (annoyanceSelector) {
+    console.log('😡 Rage clicking element selected by AI');
+    await page.click(annoyanceSelector, { clickCount: 5, delay: 100 });
+  }
 
-  // 4. Submit
-  const submitBtn = page.locator('button[type="submit"]').first();
-  await submitBtn.click();
-  
-  console.log(`   -> Signed up as ${email}`);
-  
-  // Wait for redirect to home
-  await page.waitForURL('**/', { timeout: 10000 }).catch(() => console.log('   -> Navigation timeout (might be okay)'));
-}
-
-async function scenarioReturningUserLogin(page: Page) {
-  console.log('🔙 Scenario: Returning User Login');
-  
-  // If already on home, logout first? Or assume clean session means we are at auth wall.
-  if (page.url().includes('auth')) {
-    await page.locator('input[type="email"]').fill(DEMO_USER.email);
-    await delay(300);
-    await page.locator('input[type="password"]').fill(DEMO_USER.password);
-    await delay(500);
-    await page.locator('button[type="submit"]').click();
-    console.log(`   -> Logged in as ${DEMO_USER.email}`);
-    
-    // Wait for home
-    await page.waitForURL('**/', { timeout: 10000 }).catch(() => {});
+  // Submit
+  const submitSelector = await askAI(page, "Submit the form / Create Account");
+  if (submitSelector) {
+    await page.click(submitSelector);
+  } else {
+    await page.keyboard.press('Enter');
   }
 }
 
-async function scenarioWatchContent(page: Page) {
-  console.log('🍿 Scenario: Browsing & Watching');
+async function scenarioWatch(page: Page) {
+  console.log('🍿 Scenario: AI Watching Content');
   
-  // 1. Browse Home
-  await humanScroll(page);
-  await humanScroll(page);
+  // Ask AI to pick a movie
+  const movieSelector = await askAI(page, "Pick a movie card or play button to watch");
   
-  // 2. Pick a Movie (Randomly)
-  // Looks for Play buttons or Movie Cards
-  const playButtons = page.locator('button:has-text("Play"), .movie-card');
-  const count = await playButtons.count();
-  
-  if (count > 0) {
-    const index = Math.floor(Math.random() * count);
-    console.log(`   -> Clicking movie #${index}`);
+  if (movieSelector) {
+    await page.hover(movieSelector);
+    await new Promise(r => setTimeout(r, 1000));
+    await page.click(movieSelector);
     
-    // Hover first (human behavior)
-    await playButtons.nth(index).hover();
-    await delay(800);
-    await playButtons.nth(index).click();
+    // Simulate Watch Time
+    const watchTime = Math.random() > 0.5 ? 20000 : 5000; // 20s or 5s
+    console.log(`   -> Watching for ${watchTime/1000}s`);
     
-    // 3. Watch Logic (Drop-off simulator)
-    // Weighted random: 
-    // 20% = Immediate Bounce (5s)
-    // 50% = Casual Watch (30s)
-    // 30% = Engaged Watch (2m)
-    const dice = Math.random();
-    let watchTime = 5000;
-    
-    if (dice > 0.2) watchTime = 30000;
-    if (dice > 0.7) watchTime = 120000; // 2 minutes
-    
-    console.log(`   -> Watching for ${(watchTime/1000).toFixed(0)}s...`);
-    
-    // While watching, move mouse occasionally so session stays "active"
-    const steps = Math.floor(watchTime / 5000);
-    for (let i = 0; i < steps; i++) {
-      await page.mouse.move(Math.random() * 500, Math.random() * 500);
-      await delay(5000);
+    // Random mouse jitter
+    for(let i=0; i<5; i++) {
+        await page.mouse.move(Math.random()*500, Math.random()*500);
+        await new Promise(r => setTimeout(r, watchTime/5));
     }
   } else {
-    console.log('   -> No movies found to click!');
+    console.log('   -> AI could not find a movie.');
   }
 }
 
-// MAIN EXECUTION
-async function run() {
+// --- MAIN ---
+(async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    viewport: { width: 1280, height: 800 }
   });
   const page = await context.newPage();
 
   try {
-    console.log(`🔗 Navigating to ${TARGET_URL}`);
+    console.log(`🔗 Visiting ${TARGET_URL}`);
     await page.goto(TARGET_URL);
-    await delay(2000);
+    await new Promise(r => setTimeout(r, 2000));
 
-    // DECIDE USER TYPE
-    const isReturning = Math.random() < 0.3; // 30% chance of returning user
-
-    if (isReturning) {
-      await scenarioReturningUserLogin(page);
+    if (Math.random() > 0.3) {
+      await scenarioSignup(page);
     } else {
-      await scenarioNewUserSignup(page);
+      // Just explore
+      await scenarioWatch(page);
     }
 
-    // EVERYONE WATCHES CONTENT
-    await scenarioWatchContent(page);
-
-    // BUFFER FLUSH
-    console.log('⏳ Waiting for PostHog events to flush...');
-    await delay(10000);
+    console.log('⏳ Flushing PostHog events...');
+    await new Promise(r => setTimeout(r, 10000));
 
   } catch (e) {
     console.error('❌ Error:', e);
   } finally {
     await browser.close();
-    console.log('✨ Session Finished');
   }
-}
-
-run();
+})();
