@@ -68,6 +68,7 @@
     "@eslint/js": "^9.32.0",
     "@playwright/test": "^1.40.0",
     "@faker-js/faker": "^8.0.0",
+    "@google/generative-ai": "^0.1.0",
     "tsx": "^4.0.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
