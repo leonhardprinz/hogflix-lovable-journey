@@ -4,7 +4,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // --- CONFIG ---
 const RAW_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app';
-// Safe base URL (removes trailing slash if present)
 const BASE_URL = RAW_URL.replace(/\/$/, ''); 
 const START_PATH = '/'; 
 
@@ -13,49 +12,37 @@ const GEN_AI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- AI BRAIN ---
+// --- AI BRAIN (With Strict Fallback) ---
 async function askAI(page: Page, goal: string): Promise<string | null> {
   if (!process.env.GEMINI_API_KEY) return null;
+  
+  // Quick check: Is AI quota likely exhausted? (Optional optimization)
+  // For now, we just let it try and fail fast.
 
-  // 1. Scrape visible interactive elements
   const elements = await page.evaluate(() => {
     const els = Array.from(document.querySelectorAll('button, a, input, img[role="button"], .movie-card'));
     return els
       .filter(el => el.getBoundingClientRect().width > 0)
-      .slice(0, 30)
+      .slice(0, 20) // Reduced to 20 to save tokens if it ever works
       .map((el, i) => {
-        // Clean up text to avoid newlines breaking JSON/Prompts
         const text = el.textContent?.substring(0, 50).replace(/\n/g, ' ').trim() || '';
-        const placeholder = el.getAttribute('placeholder') || '';
         const tempId = `ai-target-${i}`;
         el.setAttribute('data-ai-id', tempId);
-        return `ID: ${tempId} | Tag: <${el.tagName.toLowerCase()}> | Text: "${text}" | Placeholder: "${placeholder}"`;
+        return `ID: ${tempId} | Tag: <${el.tagName.toLowerCase()}> | Text: "${text}"`;
       });
   });
 
   if (elements.length === 0) return null;
 
-  // 2. Try Models
   try {
     const model = GEN_AI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+    const prompt = `Goal: "${goal}". Elements:\n${elements.join('\n')}\nReturn ONLY the ID (e.g. ai-target-5).`;
     
-    const prompt = `
-      Goal: "${goal}".
-      Elements:
-      ${elements.join('\n')}
-      
-      Return ONLY the ID (e.g. ai-target-5) of the best element. If nothing fits, return NONE.
-    `;
-
     const result = await model.generateContent(prompt);
     const response = result.response.text().trim();
-    
-    if (response.includes('ai-target')) {
-      console.log(`   🧠 AI chose: ${response}`);
-      return `[data-ai-id="${response.replace(/\s/g, '')}"]`;
-    }
+    if (response.includes('ai-target')) return `[data-ai-id="${response.replace(/\s/g, '')}"]`;
   } catch (e) {
-    console.log('   ⚠️ AI unavailable. Using Dumb Mode.');
+    // Silent failure is fine here, we rely on manual selectors
   }
   return null;
 }
@@ -63,29 +50,34 @@ async function askAI(page: Page, goal: string): Promise<string | null> {
 // --- SCENARIOS ---
 
 async function handleAuthWall(page: Page) {
-  console.log('🔒 Auth Wall detected. Creating new account...');
+  console.log('🔒 Auth/Landing detected. Attempting entry...');
   
-  // 1. Find Email Input
+  // 1. Try to find an Email Input first
   let emailInput = page.locator('input[type="email"], input[name="email"]');
   
-  // If no input, we need to click "Get Started"
+  // 2. If NO inputs, we are likely on the Landing Page. Click "Get Started" / "Sign Up"
   if (await emailInput.count() === 0) {
-    // Safe locator using .or() to mix strategies
-    const startBtns = page.locator('button:has-text("Sign up")')
-                          .or(page.locator('button:has-text("Get Started")'))
-                          .or(page.locator('a:has-text("Sign up")'));
-                          
-    if (await startBtns.count() > 0) {
-        await startBtns.first().click();
+    console.log('   -> No inputs found. Clicking CTA button...');
+    
+    // BROADNED SELECTORS for your specific "Sign up free" button
+    const ctaBtn = page.locator('button:has-text("Sign up")')
+                       .or(page.locator('button:has-text("Get Started")'))
+                       .or(page.locator('a:has-text("Sign up")'))
+                       .or(page.locator('a:has-text("Get Started")'))
+                       .or(page.locator('button:has-text("Free")')); // Catch "Sign up free"
+
+    if (await ctaBtn.count() > 0) {
+        await ctaBtn.first().click();
+        // Wait for the click to actually open the form/page
+        await delay(1000);
     } else {
-        // AI Fallback
+        // AI Last Resort (Unlikely to work today, but good for future)
         const aiBtn = await askAI(page, "Click the button to start registration");
         if (aiBtn) await page.click(aiBtn);
     }
-    await delay(1000);
   }
 
-  // 2. Fill Registration
+  // 3. Now check for input AGAIN (after clicking CTA)
   if (await emailInput.count() > 0) {
     const email = faker.internet.email();
     await emailInput.fill(email);
@@ -97,10 +89,11 @@ async function handleAuthWall(page: Page) {
     }
     
     await page.keyboard.press('Enter');
-    
-    console.log(`   ✅ Registered as ${email}`);
+    console.log(`   ✅ Registered/Logged in as ${email}`);
     await page.waitForLoadState('networkidle');
     await delay(3000);
+  } else {
+    console.log('   ⚠️ Could not find login form even after clicking CTA.');
   }
 }
 
@@ -109,30 +102,27 @@ async function watchContent(page: Page) {
   await page.mouse.wheel(0, 500);
   await delay(1000);
 
-  // Try AI first
-  const movieSelector = await askAI(page, "Click on a movie poster or play button");
+  // MANUAL SELECTORS (Since AI is dead)
+  const cards = page.locator('.movie-card, img[alt*="Movie"], [role="img"], button[aria-label*="Play"]');
   
-  if (movieSelector) {
-    await page.hover(movieSelector);
+  if (await cards.count() > 0) {
+    const index = Math.floor(Math.random() * await cards.count()); // Pick Random
+    await cards.nth(index).hover();
     await delay(500);
-    await page.click(movieSelector);
+    await cards.nth(index).click();
     
     console.log('   ▶️ Movie clicked. Watching...');
-    // Wiggle mouse
     for(let i=0; i<4; i++) {
       await page.mouse.move(Math.random()*500, Math.random()*500);
       await delay(3000);
     }
   } else {
-    // Manual Fallback
-    console.log('   Using fallback selector for movies...');
-    // Use CSS-only selectors here to be safe
-    const cards = page.locator('.movie-card, img[alt*="Movie"], [role="img"]');
-    if (await cards.count() > 0) {
-       await cards.nth(0).click();
-       await delay(5000);
+    // Try AI as last resort
+    const movieSelector = await askAI(page, "Click on a movie poster or play button");
+    if (movieSelector) {
+       await page.click(movieSelector);
     } else {
-       console.log('   ❌ No movies found.');
+       console.log('   ❌ No movies found. (Maybe auth failed?)');
     }
   }
 }
@@ -150,32 +140,27 @@ async function watchContent(page: Page) {
     await page.goto(fullUrl);
     await delay(2000);
 
-    // --- SMART ROUTER (FIXED) ---
+    // --- ROUTING LOGIC (SURVIVAL MODE) ---
     
-    // Check for Auth Elements (Use .or() to safely combine checks)
-    const hasPassword = await page.locator('input[type="password"]').count() > 0;
-    const hasEmail = await page.locator('input[type="email"]').count() > 0;
-    
-    // Combine locators safely
-    const signInBtn = page.locator('button:has-text("Sign in")').or(page.locator('a:has-text("Sign in")'));
-    const hasSignIn = await signInBtn.count() > 0;
-    
-    // Check for Dashboard Elements
-    // We check specific classes OR specific text separately
+    // Check for Dashboard: Only place we are "Safe"
     const movieGrid = page.locator('.movie-grid');
     const trendingText = page.locator('text=Trending');
-    // This .or() prevents the syntax error you saw
     const isDashboard = await movieGrid.or(trendingText).count() > 0;
 
-    console.log(`   🔍 Diagnostics: Auth=[${hasPassword || hasEmail || hasSignIn}] Dashboard=[${isDashboard}]`);
+    // Log diagnostics
+    console.log(`   🔍 Status: Dashboard=[${isDashboard}]`);
 
-    if ((hasPassword || hasEmail || hasSignIn) && !isDashboard) {
-      await handleAuthWall(page);
+    if (isDashboard) {
+      // If we are on dashboard, just watch
+      await watchContent(page);
     } else {
-      console.log('   -> Already on dashboard (or no auth wall found).');
+      // IF NOT DASHBOARD -> ASSUME WE NEED AUTH
+      // This covers both "Login Page" AND "Landing Page"
+      await handleAuthWall(page);
+      
+      // Try to watch content after auth attempt
+      await watchContent(page);
     }
-
-    await watchContent(page);
 
     console.log('⏳ Flushing PostHog events...');
     await delay(10000);
