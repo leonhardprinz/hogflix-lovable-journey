@@ -245,6 +245,13 @@ export async function runPhase4Analysis() {
     }
 
     console.log(`  ✨ Added ${newBehaviors.length} new behaviors to ${pageConfig.name}`)
+    
+    // Add throttling delay between pages to avoid rate limits
+    const pageIndex = PAGES_TO_ANALYZE.indexOf(pageConfig)
+    if (pageIndex < PAGES_TO_ANALYZE.length - 1) {
+      console.log('  ⏳ Waiting 5 seconds before next page...')
+      await page.waitForTimeout(5000)
+    }
   }
 
   await browser.close()

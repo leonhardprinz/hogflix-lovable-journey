@@ -13,6 +13,27 @@ interface JourneyRequest {
   sessionGoal?: string;
 }
 
+async function callGeminiWithRetry(url: string, body: any, maxRetries = 3): Promise<Response> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    
+    if (response.status === 429) {
+      const waitTime = Math.pow(2, attempt) * 1000;
+      console.log(`[RETRY] Rate limited, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      continue;
+    }
+    
+    return response;
+  }
+  
+  throw new Error('Max retries exceeded for Gemini API');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -31,21 +52,17 @@ serve(async (req) => {
     // Build prompt for Gemini to decide next navigation
     const prompt = buildJourneyPrompt(persona, currentPage, availableLinks, visitedPages, sessionGoal);
 
-    // Call Gemini API
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    // Call Gemini API with retry logic
+    const response = await callGeminiWithRetry(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro:generateContent?key=${GEMINI_API_KEY}`,
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            temperature: 0.8, // Higher for more varied exploration
-            maxOutputTokens: 2048,
-          }
-        })
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          temperature: 0.8,
+          maxOutputTokens: 2048,
+        }
       }
     );
 
