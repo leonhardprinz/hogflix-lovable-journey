@@ -1,28 +1,42 @@
-name: Synthetic Replays
+name: Synthetic Session Replays
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # Runs every 30 minutes
-  workflow_dispatch:       # Adds a "Run Now" button
+    - cron: '*/30 * * * *' # Runs every 30 minutes to ensure constant data
+  workflow_dispatch:       # Adds a "Run workflow" button for manual demos
 
 jobs:
-  run-simulation:
+  generate-traffic:
     runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-          
-      # We use 'install' instead of 'ci' to handle your manual package.json edits
-      - run: npm install
-      
-      - name: Install Browsers
+          # Caches dependencies to make runs faster
+          cache: 'npm' 
+
+      - name: Install Dependencies
+        # We use 'npm install' to ensure it works even if you edited package.json in the UI
+        run: npm install
+
+      - name: Install Playwright Browsers
+        # Installs the Chromium browser binary required for the headless session
         run: npx playwright install chromium --with-deps
-        
-      - name: Run Script
+
+      - name: Run Smart Actor Script
         run: npx tsx scripts/generate-replays.ts
         env:
-          # PASTE YOUR LOVABLE URL HERE
-          TARGET_URL: 'https://your-lovable-project-url.lovable.app'
+          # Explicitly set the URL to your demo environment
+          TARGET_URL: 'https://hogflix-demo.lovable.app/'
+          # If you later decide to put the demo user credentials in GitHub Secrets, 
+          # you can uncomment the lines below:
+          # DEMO_EMAIL: ${{ secrets.DEMO_EMAIL }}
+          # DEMO_PASS: ${{ secrets.DEMO_PASSWORD }}
