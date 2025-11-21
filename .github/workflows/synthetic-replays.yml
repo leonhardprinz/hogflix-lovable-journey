@@ -1,42 +1,28 @@
+# .github/workflows/synthetic-replays.yml
 name: Synthetic Session Replays
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # Runs every 30 minutes to ensure constant data
-  workflow_dispatch:       # Adds a "Run workflow" button for manual demos
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
 
 jobs:
   generate-traffic:
     runs-on: ubuntu-latest
-    
-    permissions:
-      contents: read
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # Caches dependencies to make runs faster
-          cache: 'npm' 
+          cache: 'npm'
 
-      - name: Install Dependencies
-        # We use 'npm install' to ensure it works even if you edited package.json in the UI
-        run: npm install
+      - run: npm install
+      - run: npx playwright install chromium --with-deps
 
-      - name: Install Playwright Browsers
-        # Installs the Chromium browser binary required for the headless session
-        run: npx playwright install chromium --with-deps
-
-      - name: Run Smart Actor Script
+      - name: Run AI Replay Script
         run: npx tsx scripts/generate-replays.ts
         env:
-          # Explicitly set the URL to your demo environment
           TARGET_URL: 'https://hogflix-demo.lovable.app/'
-          # If you later decide to put the demo user credentials in GitHub Secrets, 
-          # you can uncomment the lines below:
-          # DEMO_EMAIL: ${{ secrets.DEMO_EMAIL }}
-          # DEMO_PASS: ${{ secrets.DEMO_PASSWORD }}
+          # This pulls the key from the secret you created in Step 1
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
