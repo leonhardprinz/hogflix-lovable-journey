@@ -1,81 +1,49 @@
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 
-// Config - Change this URL to your live app URL if needed, or set via ENV
-const TARGET_URL = process.env.TARGET_URL || 'https://your-actual-app-url.lovable.app'; 
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function runSession() {
-  console.log('🚀 Starting Synthetic Session Replay Generator...');
-  
+async function run() {
+  // 1. Setup Browser
   const browser = await chromium.launch();
+  // "New Context" = New "Incognito" window (fresh cookies/storage)
   const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
-    userAgent: 'HogFlix-Synthetic-Traffic/1.0 (Playwright)',
-    locale: 'en-US',
-    timezoneId: 'America/New_York',
+    viewport: { width: 1280, height: 720 },
+    userAgent: 'HogFlix-Synthetic-Bot/1.0',
   });
-
   const page = await context.newPage();
 
-  // 1. Create a Random User ID
-  // This ensures PostHog sees a "New User" every time
-  const distinctId = `synthetic_${Math.random().toString(36).substring(7)}`;
-  console.log(`👤 Generated User ID: ${distinctId}`);
+  // 2. Generate Fake User
+  const distinctId = `user_${Math.floor(Math.random() * 100000)}`;
+  
+  // 3. Visit your site (Replace with your actual Lovable URL)
+  // If you leave it generic, it might fail if process.env is missing.
+  // SAFEST OPTION: Hardcode your URL here for the demo.
+  const url = process.env.TARGET_URL || 'https://your-project-id.lovable.app'; 
+  
+  console.log(`🎬 Starting session for ${distinctId} on ${url}`);
+  
+  await page.goto(url);
 
-  try {
-    // 2. Go to the page
-    await page.goto(TARGET_URL, { waitUntil: 'networkidle' });
-    
-    // 3. Inject PostHog Identify immediately
-    // This links the session to the ID we just made
-    await page.evaluate((id) => {
-      // @ts-ignore
-      if (window.posthog) {
-        // @ts-ignore
-        window.posthog.identify(id); 
-        console.log('✅ PostHog Identified');
-      }
-    }, distinctId);
+  // 4. Identify User to PostHog
+  await page.evaluate((id) => {
+    // @ts-ignore
+    if (window.posthog) window.posthog.identify(id);
+  }, distinctId);
 
-    // 4. Simulate Interaction (The "Dance")
-    // Random mouse movements to look human
-    console.log('🖱️ Simulating interactions...');
-    
-    // Move mouse randomly
-    for (let i = 0; i < 5; i++) {
-        const x = Math.floor(Math.random() * 1000);
-        const y = Math.floor(Math.random() * 800);
-        await page.mouse.move(x, y, { steps: 10 });
-        await delay(500);
-    }
+  // 5. Do "Human" things
+  // Move mouse
+  await page.mouse.move(100, 100);
+  await page.mouse.move(200, 200, { steps: 10 }); 
+  
+  // Scroll down
+  await page.mouse.wheel(0, 1000);
+  // Wait to simulate reading
+  await new Promise(r => setTimeout(r, 3000));
 
-    // Scroll down
-    await page.mouse.wheel(0, 500);
-    await delay(2000);
+  // 6. CRITICAL: Wait for PostHog to upload data
+  console.log('⏳ Waiting for buffer flush...');
+  await new Promise(r => setTimeout(r, 10000));
 
-    // Try to click a "Movie Card" or any image
-    // We use a generic selector so it works on most apps
-    const clickTargets = page.locator('img, button, a').first();
-    if (await clickTargets.count() > 0) {
-        await clickTargets.hover();
-        await delay(500);
-        // await clickTargets.click(); // Uncomment if you want it to actually click
-        console.log('  - Hovered over an element');
-    }
-
-    // 5. THE MOST IMPORTANT PART: Flush Wait
-    // We must wait for PostHog to upload the recording data
-    console.log('⏳ Waiting 10s for PostHog buffer flush...');
-    await delay(10000);
-
-  } catch (error) {
-    console.error('❌ Error during session:', error);
-    process.exit(1);
-  } finally {
-    await browser.close();
-    console.log('✨ Session Complete');
-  }
+  await browser.close();
+  console.log('✅ Done');
 }
 
-runSession();
+run();
