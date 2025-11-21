@@ -1,0 +1,32 @@
+name: Synthetic Session Replays
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # Runs every 30 minutes
+  workflow_dispatch:       # Allows you to click "Run Now" manually
+
+jobs:
+  generate-traffic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # This installs the actual Chrome browser binary
+      - name: Install Playwright Browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Replay Script
+        run: npx tsx scripts/generate-replays.ts
+        env:
+          # REPLACE THIS WITH YOUR APP URL
+          TARGET_URL: 'https://your-hogflix-url.lovable.app'
