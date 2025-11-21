@@ -12,25 +12,57 @@ interface AnalyzeRequest {
   existingBehaviors?: any[];
 }
 
-async function callGeminiWithRetry(url: string, body: any, maxRetries = 3): Promise<Response> {
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
+async function callGeminiWithRetry(
+  apiKey: string,
+  modelPriority: string[],
+  body: any,
+  maxRetries = 2
+): Promise<{ response: Response; modelUsed: string }> {
+  
+  for (const model of modelPriority) {
+    console.log(`[AI] Attempting with model: ${model}`);
     
-    if (response.status === 429) {
-      const waitTime = Math.pow(2, attempt) * 1000;
-      console.log(`[RETRY] Rate limited, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      continue;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          }
+        );
+        
+        if (response.ok) {
+          console.log(`[AI] ✓ Success with ${model}`);
+          return { response, modelUsed: model };
+        }
+        
+        if (response.status === 429) {
+          console.log(`[AI] ⚠️ Rate limited on ${model} (attempt ${attempt + 1}/${maxRetries})`);
+          if (attempt === 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          break;
+        }
+        
+        if (response.status === 404) {
+          console.log(`[AI] ⚠️ Model ${model} not found, trying next`);
+          break;
+        }
+        
+        const errorText = await response.text();
+        console.error(`[AI] Error with ${model}:`, response.status, errorText);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        
+      } catch (error) {
+        console.error(`[AI] Network error with ${model}:`, error);
+        if (attempt === maxRetries - 1) break;
+      }
     }
-    
-    return response;
   }
   
-  throw new Error('Max retries exceeded for Gemini API');
+  throw new Error('All models exhausted - rate limits exceeded on all available models');
 }
 
 serve(async (req) => {
@@ -55,9 +87,16 @@ serve(async (req) => {
     // Build prompt for Gemini
     const prompt = buildAnalysisPrompt(pageName, pageUrl, interactiveElements, existingBehaviors);
 
-    // Call Gemini API with retry logic
-    const response = await callGeminiWithRetry(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro:generateContent?key=${GEMINI_API_KEY}`,
+    const MODEL_PRIORITY = [
+      'gemini-2.5-flash-lite',
+      'gemini-2.0-flash-lite',
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+    ];
+
+    const { response, modelUsed } = await callGeminiWithRetry(
+      GEMINI_API_KEY,
+      MODEL_PRIORITY,
       {
         contents: [{
           parts: [{ text: prompt }]
@@ -68,6 +107,8 @@ serve(async (req) => {
         }
       }
     );
+
+    console.log(`[PHASE 4] Used model: ${modelUsed}`);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -93,6 +134,7 @@ serve(async (req) => {
         pageName,
         pageUrl,
         analysis,
+        modelUsed,
         analyzedAt: new Date().toISOString(),
       }),
       {
