@@ -3,7 +3,7 @@ name: Synthetic traffic (server + browser)
 on:
   schedule:
     - cron: '15 7 * * *'      # daily at 07:15 UTC
-    - cron: '*/30 * * * *'    # every 30 minutes
+    - cron: '0 */3 * * *'     # every 3 hours
   workflow_dispatch:
     inputs:
       run_session_replay:
