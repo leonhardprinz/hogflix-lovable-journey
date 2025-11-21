@@ -101,29 +101,45 @@ export function generateVideoMilestoneEvents(persona, videoId, videoUrl, basePro
   const events = []
   const random = Math.random()
   
-  // Determine viewing pattern based on engagement score and randomness
+  // Determine viewing pattern - 6 distinct journey types
   let pattern
-  if (random < 0.45) {
-    pattern = 1 // Full completion (45%)
-  } else if (random < 0.70) {
-    pattern = 2 // Mid drop-off (25%)
-  } else if (random < 0.87) {
-    pattern = 3 // Early drop-off (17%)
+  if (random < 0.23) {
+    pattern = 1 // Immediate bounce (23%)
+  } else if (random < 0.40) {
+    pattern = 2 // Early drop-off (17%)
+  } else if (random < 0.58) {
+    pattern = 3 // Mid-video abandonment (18%)
+  } else if (random < 0.65) {
+    pattern = 4 // Late drop-off (7%)
+  } else if (random < 0.93) {
+    pattern = 5 // Full completion (38%)
   } else {
-    pattern = 4 // Immediate bounce (13%)
+    pattern = 6 // Interrupted viewing (7%)
+  }
+  
+  // Weekend boost - 5% higher completion on weekends
+  const isWeekend = new Date().getDay() === 0 || new Date().getDay() === 6
+  if (isWeekend && random >= 0.58 && random < 0.63) {
+    pattern = 5
   }
   
   // Adjust pattern based on engagement score
-  if (persona.engagement_score >= 8 && pattern === 4) pattern = 1 // High engagement rarely bounces
-  if (persona.engagement_score >= 7 && pattern >= 3) pattern = 2 // Good engagement gets to 50%
-  if (persona.engagement_score <= 3 && pattern === 1) pattern = 3 // Low engagement rarely completes
+  if (persona.engagement_score >= 9 && pattern <= 2) {
+    pattern = 5 // Highly engaged users complete videos
+  } else if (persona.engagement_score >= 7 && pattern === 1) {
+    pattern = 2 // Good engagement reduces immediate bounce
+  } else if (persona.engagement_score <= 3 && pattern >= 5) {
+    pattern = 3 // Low engagement prevents completion
+  } else if (persona.engagement_score <= 2 && pattern >= 3) {
+    pattern = 1 // Very low engagement leads to bounce
+  }
   
   // Add timing variation (some users pause, others skip)
   const timingVariation = 0.7 + Math.random() * 0.6 // 0.7x to 1.3x speed
   
   let cumulativeDelay = 0
   
-  // video:started
+  // 1. video:started (ALL patterns)
   events.push({
     event: 'video:started',
     properties: enrichEventProperties(videoUrl, {
@@ -133,63 +149,97 @@ export function generateVideoMilestoneEvents(persona, videoId, videoUrl, basePro
     delay: 0
   })
   
-  // Milestone 25%
-  if (pattern >= 3) {
-    cumulativeDelay += Math.floor((30 + Math.random() * 90) * timingVariation) // 30-120s
+  // 2. Milestone 25% (patterns 2-6, NOT pattern 1)
+  if (pattern >= 2) {
+    cumulativeDelay += Math.floor((30 + Math.random() * 60) * timingVariation) // 30-90s
     events.push({
       event: 'video:progress_milestone',
       properties: enrichEventProperties(videoUrl, {
         ...baseProperties,
         video_id: videoId,
-        milestone: 25,
-        progress_percentage: 25
+        milestone: 25, // Numeric value
       }),
       delay: cumulativeDelay
     })
   }
   
-  // Milestone 50%
-  if (pattern >= 2) {
-    cumulativeDelay += Math.floor((45 + Math.random() * 105) * timingVariation) // 45-150s
+  // 3. Milestone 50% (patterns 3-6)
+  if (pattern >= 3) {
+    cumulativeDelay += Math.floor((40 + Math.random() * 60) * timingVariation) // 40-100s
     events.push({
       event: 'video:progress_milestone',
       properties: enrichEventProperties(videoUrl, {
         ...baseProperties,
         video_id: videoId,
         milestone: 50,
-        progress_percentage: 50
       }),
       delay: cumulativeDelay
     })
   }
   
-  // Milestone 75%
-  if (pattern >= 1) {
-    cumulativeDelay += Math.floor((40 + Math.random() * 90) * timingVariation) // 40-130s
+  // 4. Milestone 75% (patterns 4-6)
+  if (pattern >= 4) {
+    cumulativeDelay += Math.floor((40 + Math.random() * 60) * timingVariation) // 40-100s
     events.push({
       event: 'video:progress_milestone',
       properties: enrichEventProperties(videoUrl, {
         ...baseProperties,
         video_id: videoId,
         milestone: 75,
-        progress_percentage: 75
-      }),
-      delay: cumulativeDelay
-    })
-    
-    // video:completed
-    cumulativeDelay += Math.floor((30 + Math.random() * 70) * timingVariation) // 30-100s
-    const completionPct = 95 + Math.random() * 5 // 95-100%
-    events.push({
-      event: 'video:completed',
-      properties: enrichEventProperties(videoUrl, {
-        ...baseProperties,
-        video_id: videoId,
-        completion_pct: Math.round(completionPct)
       }),
       delay: cumulativeDelay
     })
   }
   
-  return { events, pattern, finalProgress: pattern === 1 ? 100 : pattern === 2 ? 50 : pattern === 3 ? 25 : 5 }
+  // 5. video:completed (patterns 5-6 ONLY)
+  if (pattern >= 5) {
+    cumulativeDelay += Math.floor((30 + Math.random() * 50) * timingVariation) // 30-80s
+    const completionPct = 95 + Math.floor(Math.random() * 6) // 95-100%
+    events.push({
+      event: 'video:completed',
+      properties: enrichEventProperties(videoUrl, {
+        ...baseProperties,
+        video_id: videoId,
+        completion_pct: completionPct
+      }),
+      delay: cumulativeDelay
+    })
+  }
+  
+  // 6. Interrupted viewing behavior (pattern 6 only)
+  if (pattern === 6) {
+    const interruptionType = Math.random() < 0.5 ? 'rageclick' : 'long_pause'
+    
+    if (interruptionType === 'rageclick') {
+      // Add 1-2 rage click events during viewing
+      const rageClickCount = Math.random() < 0.7 ? 1 : 2
+      for (let i = 0; i < rageClickCount; i++) {
+        const rageDelay = Math.floor(cumulativeDelay * (0.3 + Math.random() * 0.5)) // Random point during viewing
+        events.splice(2 + i, 0, { // Insert after video:started
+          event: '$rageclick',
+          properties: enrichEventProperties(videoUrl, {
+            ...baseProperties,
+            video_id: videoId,
+            element_text: 'Play button',
+          }),
+          delay: rageDelay
+        })
+      }
+    } else {
+      // Replace one of the milestone delays with a long pause (200-400s)
+      const pauseIndex = 1 + Math.floor(Math.random() * 3) // Pause at 25%, 50%, or 75%
+      if (events[pauseIndex]) {
+        events[pauseIndex].delay += Math.floor(200 + Math.random() * 200)
+      }
+    }
+  }
+  
+  // Return with detailed pattern info
+  const progressMap = { 1: 5, 2: 25, 3: 50, 4: 75, 5: 100, 6: 100 }
+  return { 
+    events, 
+    pattern, 
+    finalProgress: progressMap[pattern],
+    interrupted: pattern === 6
+  }
 }
