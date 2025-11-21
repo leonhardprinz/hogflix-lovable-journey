@@ -3,8 +3,8 @@ import { faker } from '@faker-js/faker';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // --- CONFIG ---
-// Ensure no trailing slash on base to avoid double //
 const RAW_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app';
+// Safe base URL (removes trailing slash if present)
 const BASE_URL = RAW_URL.replace(/\/$/, ''); 
 const START_PATH = '/'; 
 
@@ -13,7 +13,7 @@ const GEN_AI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- ROBUST AI BRAIN ---
+// --- AI BRAIN ---
 async function askAI(page: Page, goal: string): Promise<string | null> {
   if (!process.env.GEMINI_API_KEY) return null;
 
@@ -24,6 +24,7 @@ async function askAI(page: Page, goal: string): Promise<string | null> {
       .filter(el => el.getBoundingClientRect().width > 0)
       .slice(0, 30)
       .map((el, i) => {
+        // Clean up text to avoid newlines breaking JSON/Prompts
         const text = el.textContent?.substring(0, 50).replace(/\n/g, ' ').trim() || '';
         const placeholder = el.getAttribute('placeholder') || '';
         const tempId = `ai-target-${i}`;
@@ -36,7 +37,6 @@ async function askAI(page: Page, goal: string): Promise<string | null> {
 
   // 2. Try Models
   try {
-    // We use the standard model string. If this fails (404), the catch block handles it.
     const model = GEN_AI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
     
     const prompt = `
@@ -55,12 +55,12 @@ async function askAI(page: Page, goal: string): Promise<string | null> {
       return `[data-ai-id="${response.replace(/\s/g, '')}"]`;
     }
   } catch (e) {
-    console.log('   ⚠️ AI unavailable (Quota/Model Error). Using Dumb Mode.');
+    console.log('   ⚠️ AI unavailable. Using Dumb Mode.');
   }
   return null;
 }
 
-// --- ROUTING & LOGIC ---
+// --- SCENARIOS ---
 
 async function handleAuthWall(page: Page) {
   console.log('🔒 Auth Wall detected. Creating new account...');
@@ -68,14 +68,17 @@ async function handleAuthWall(page: Page) {
   // 1. Find Email Input
   let emailInput = page.locator('input[type="email"], input[name="email"]');
   
-  // If no input visible, click "Get Started" / "Sign Up" buttons
+  // If no input, we need to click "Get Started"
   if (await emailInput.count() === 0) {
-    // Use specific :has-text pseudo-classes which are valid inside locators
-    const startBtns = page.locator('button:has-text("Sign up"), button:has-text("Get Started"), a:has-text("Sign up")');
+    // Safe locator using .or() to mix strategies
+    const startBtns = page.locator('button:has-text("Sign up")')
+                          .or(page.locator('button:has-text("Get Started")'))
+                          .or(page.locator('a:has-text("Sign up")'));
+                          
     if (await startBtns.count() > 0) {
         await startBtns.first().click();
     } else {
-        // Try AI if standard buttons fail
+        // AI Fallback
         const aiBtn = await askAI(page, "Click the button to start registration");
         if (aiBtn) await page.click(aiBtn);
     }
@@ -92,11 +95,11 @@ async function handleAuthWall(page: Page) {
     if (await passInput.count() > 0) {
       await passInput.fill('password123');
     }
-
+    
     await page.keyboard.press('Enter');
     
     console.log(`   ✅ Registered as ${email}`);
-    await page.waitForLoadState('networkidle'); 
+    await page.waitForLoadState('networkidle');
     await delay(3000);
   }
 }
@@ -123,6 +126,7 @@ async function watchContent(page: Page) {
   } else {
     // Manual Fallback
     console.log('   Using fallback selector for movies...');
+    // Use CSS-only selectors here to be safe
     const cards = page.locator('.movie-card, img[alt*="Movie"], [role="img"]');
     if (await cards.count() > 0) {
        await cards.nth(0).click();
@@ -133,7 +137,7 @@ async function watchContent(page: Page) {
   }
 }
 
-// --- MAIN CONTROLLER ---
+// --- MAIN ---
 
 (async () => {
   const browser = await chromium.launch();
@@ -146,21 +150,31 @@ async function watchContent(page: Page) {
     await page.goto(fullUrl);
     await delay(2000);
 
-    // --- THE FIX IS HERE ---
-    // We use separate locators to check "Is this an auth page?"
-    // This avoids the mixing of CSS and Custom Engines error
+    // --- SMART ROUTER (FIXED) ---
+    
+    // Check for Auth Elements (Use .or() to safely combine checks)
     const hasPassword = await page.locator('input[type="password"]').count() > 0;
     const hasEmail = await page.locator('input[type="email"]').count() > 0;
-    const hasSignInBtn = await page.locator('button:has-text("Sign in"), a:has-text("Sign in")').count() > 0;
     
-    // Logic: If we see inputs OR "Sign In" buttons, but NO movie grid...
-    const isDashboard = await page.locator('.movie-grid, text=Trending').count() > 0;
+    // Combine locators safely
+    const signInBtn = page.locator('button:has-text("Sign in")').or(page.locator('a:has-text("Sign in")'));
+    const hasSignIn = await signInBtn.count() > 0;
+    
+    // Check for Dashboard Elements
+    // We check specific classes OR specific text separately
+    const movieGrid = page.locator('.movie-grid');
+    const trendingText = page.locator('text=Trending');
+    // This .or() prevents the syntax error you saw
+    const isDashboard = await movieGrid.or(trendingText).count() > 0;
 
-    if ((hasPassword || hasEmail || hasSignInBtn) && !isDashboard) {
+    console.log(`   🔍 Diagnostics: Auth=[${hasPassword || hasEmail || hasSignIn}] Dashboard=[${isDashboard}]`);
+
+    if ((hasPassword || hasEmail || hasSignIn) && !isDashboard) {
       await handleAuthWall(page);
+    } else {
+      console.log('   -> Already on dashboard (or no auth wall found).');
     }
 
-    // Now we watch
     await watchContent(page);
 
     console.log('⏳ Flushing PostHog events...');
