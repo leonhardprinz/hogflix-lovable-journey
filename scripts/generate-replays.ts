@@ -15,26 +15,49 @@ const DEMO_USER = {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function handleCookieConsent(page: Page) {
-    // Aggressively find and click cookie buttons
     const consentBtn = page.locator('button:has-text("Accept")')
                            .or(page.locator('button:has-text("Allow")'))
-                           .or(page.locator('button:has-text("Agree")'))
-                           .or(page.locator('button:has-text("Okay")'));
+                           .or(page.locator('button:has-text("Agree")'));
     
     if (await consentBtn.count() > 0 && await consentBtn.first().isVisible()) {
-        console.log('   🍪 Cookie Banner detected. Smashing "Accept"...');
+        console.log('   🍪 Clicking Cookie Consent...');
         await consentBtn.first().click();
         await delay(1000);
     }
 }
 
+// 🆕 NEW FUNCTION: Handles the "Who is watching?" screen
+async function handleProfileScreen(page: Page) {
+    if (page.url().includes('/profiles')) {
+        console.log('   👥 Profile Screen detected. Selecting a profile...');
+        
+        // Look for common profile elements: Images, Avatars, or just any button
+        const profile = page.locator('.avatar')
+                            .or(page.locator('img[alt*="profile"]'))
+                            .or(page.locator('img[alt*="Profile"]'))
+                            .or(page.locator('button')); // Fallback
+
+        if (await profile.count() > 0) {
+            // Click the first available profile
+            await profile.first().click();
+            console.log('   🖱️ Clicked Profile.');
+            
+            // Wait for navigation to the REAL dashboard
+            await page.waitForURL(url => !url.toString().includes('/profiles'), { timeout: 10000 });
+            console.log(`   ✅ Entered Dashboard: ${page.url()}`);
+            await delay(2000);
+        } else {
+            console.log('   ❌ On profile screen but no profiles found!');
+        }
+    }
+}
+
 async function performLogin(page: Page) {
-  console.log(`🔐 Login Start. Current URL: ${page.url()}`);
+  console.log(`🔐 Login Start. URL: ${page.url()}`);
   
-  // 1. Check if we are already on an Auth page
   let passInput = page.locator('input[type="password"]');
   
-  // 2. If no password field, navigate to Sign In
+  // If not on auth page, click Sign In
   if (await passInput.count() === 0) {
       console.log('   -> Not on auth page. Clicking "Sign in"...');
       const signInBtn = page.locator('button:has-text("Sign in")')
@@ -45,77 +68,79 @@ async function performLogin(page: Page) {
       if (await signInBtn.count() > 0) {
           await signInBtn.first().click();
           await delay(2000); 
-      } else {
-          console.log('   ℹ️ Could not find "Sign In".');
       }
   }
 
-  // 3. Fill Credentials
+  // Fill Credentials
   const emailInput = page.locator('input[type="email"], input[name="email"]');
-  passInput = page.locator('input[type="password"]'); // Refresh
+  passInput = page.locator('input[type="password"]');
 
   if (await emailInput.count() > 0 && await passInput.count() > 0) {
     console.log(`   ✍️ Filling credentials...`);
-    
     await emailInput.fill(DEMO_USER.email);
     await delay(300);
     await passInput.fill(DEMO_USER.password);
     await delay(500);
 
-    // 4. Submit
+    // Submit
     const submitBtn = page.locator('button[type="submit"]');
     if (await submitBtn.count() > 0) {
-        console.log('   🖱️ Clicking Submit Button...');
         await submitBtn.click();
     } else {
-        console.log('   ⌨️ Pressing Enter...');
         await page.keyboard.press('Enter');
     }
     
-    // WAIT FOR URL CHANGE (Max 10s)
     console.log('   🚀 Waiting for redirect...');
+    // Wait specifically for EITHER dashboard OR profiles
     try {
-        await page.waitForURL(url => !url.toString().includes('auth') && !url.toString().includes('login'), { timeout: 10000 });
-        console.log('   ✅ Redirect detected!');
+        await page.waitForURL(url => !url.toString().includes('auth') && !url.toString().includes('login'), { timeout: 15000 });
+        console.log(`   📍 Landed at: ${page.url()}`);
     } catch(e) {
-        console.log('   ⚠️ Redirect timeout. We might still be on the login page.');
+        console.log('   ⚠️ Redirect timeout.');
     }
-    
-    console.log(`   📍 Post-Login URL: ${page.url()}`);
-    console.log(`   📑 Post-Login Title: ${await page.title()}`);
   }
 }
 
 async function browseContent(page: Page) {
   console.log('👀 Browsing content...');
   
+  // 🆕 Extra check: Did we land on profiles?
+  await handleProfileScreen(page);
+
+  // Now look for movies
   const movies = page.locator('.movie-card')
                      .or(page.locator('img[alt*="Movie"]'))
-                     .or(page.locator('[role="img"]'));
+                     .or(page.locator('[role="img"]'))
+                     .or(page.locator('a[href*="/watch"]')); // Catch links to movies
   
   const count = await movies.count();
   if (count > 0) {
       console.log(`   🎬 Found ${count} movies. Watching one...`);
       const index = Math.floor(Math.random() * count);
+      
+      // Hover first to trigger UI effects
       await movies.nth(index).hover();
       await delay(800);
       await movies.nth(index).click();
       
       console.log('   🍿 Watching movie...');
-      // Force a manual event to verify PostHog is listening
-      await page.evaluate(() => {
-          if ((window as any).posthog) (window as any).posthog.capture('synthetic_watch_event');
-      });
       
-      for(let i=0; i<3; i++) {
+      // 🆕 Force PostHog Capture manually to ensure data is sent
+      await page.evaluate(() => {
+          // @ts-ignore
+          if (window.posthog) window.posthog.capture('synthetic_video_start');
+      });
+
+      // Simulate a long watch session (20s)
+      for(let i=0; i<4; i++) {
         await page.mouse.move(Math.random()*500, Math.random()*500);
-        await delay(3000);
+        await delay(5000);
       }
   } else {
       console.log('   ❌ No movies found.');
-      // Fallback interaction to ensure some recording exists
-      await page.mouse.wheel(0, 500);
-      await delay(2000);
+      // Dump page content to debug what we are actually looking at
+      const title = await page.title();
+      console.log(`   📄 Page Title: ${title}`);
   }
 }
 
@@ -125,40 +150,39 @@ async function browseContent(page: Page) {
   const browser = await chromium.launch();
   const context = await browser.newContext({ 
     viewport: { width: 1280, height: 800 },
+    // Use standard User Agent
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   });
   const page = await context.newPage();
 
-  // NETWORK SPY: Only log requests to PostHog
+  // Network Spy
   page.on('request', req => {
-      if (req.url().includes('posthog.com')) {
-          if (req.url().includes('/s/')) console.log('   🎥 Sending REPLAY Data');
-          else if (req.url().includes('/e/')) console.log('   📡 Sending EVENT Data');
+      if (req.url().includes('posthog.com') && req.url().includes('/s/')) {
+          console.log('   🎥 Sending REPLAY Data');
       }
   });
 
   try {
     console.log(`🔗 Visiting ${BASE_URL + START_PATH}`);
     await page.goto(BASE_URL + START_PATH);
-    await delay(2000);
+    await delay(3000);
     
-    // 1. Handle Cookie Banner (CRITICAL)
     await handleCookieConsent(page);
 
-    // 2. Check State
-    const isDashboard = await page.locator('.movie-grid').or(page.locator('text=Trending')).count() > 0;
-    
-    if (isDashboard) {
+    // Initial check
+    if (page.url().includes('/profiles')) {
+        await handleProfileScreen(page);
+    } else if (await page.locator('.movie-grid').count() > 0) {
         console.log('   ✅ Already on Dashboard.');
     } else {
         await performLogin(page);
     }
 
-    // 3. Browse
+    // Browse
     await browseContent(page);
 
-    console.log('⏳ Flushing Replay Buffer (Waiting 15s)...');
-    await delay(15000);
+    console.log('⏳ Flushing Replay Buffer (Waiting 20s)...');
+    await delay(20000); // 20s flush for safety
 
   } catch (e) {
     console.error('❌ Error:', e);
