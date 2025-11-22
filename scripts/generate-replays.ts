@@ -13,9 +13,6 @@ const USER = {
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * 🛠️ THE FIX: Force PostHog to wake up and record
- */
 async function forcePostHogStart(page: Page) {
     await page.evaluate(() => {
         // @ts-ignore
@@ -23,13 +20,13 @@ async function forcePostHogStart(page: Page) {
             // @ts-ignore
             window.posthog.debug(true);
             // @ts-ignore
-            // CRITICAL: Explicitly tell PostHog we are NOT a bot
-            window.posthog.capture('$pageview', { $browser_type: 'desktop' }); 
+            // LIE TO POSTHOG: Tell it we are a standard Desktop Chrome
+            window.posthog.capture('$pageview', { $browser_type: 'desktop', $device_type: 'Desktop' }); 
             // @ts-ignore
             window.posthog.opt_in_capturing();
             // @ts-ignore
             window.posthog.startSessionRecording();
-            console.log('   💉 PostHog: Forced startSessionRecording() & Opt-In');
+            console.log('   💉 PostHog: Forced startSessionRecording()');
         }
     });
 }
@@ -40,7 +37,6 @@ async function detectState(page: Page) {
     if (url.includes('/profiles')) return 'PROFILES';
     if (url.includes('/watch')) return 'WATCHING';
     
-    // UI Checks
     if (await page.locator('input[type="password"]').count() > 0) return 'AUTH';
     if (await page.locator('text=Who’s Watching?').count() > 0) return 'PROFILES';
     
@@ -134,22 +130,24 @@ async function doWatch(page: Page) {
 
 (async () => {
   const browser = await chromium.launch({
-      // Add args to look more "human"
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-infobars',
         '--window-position=0,0',
-        '--ignore-certifcate-errors',
+        '--ignore-certificate-errors',
         '--ignore-certificate-errors-spki-list',
-        '--disable-blink-features=AutomationControlled' // 🟢 CRITICAL: Hides "Chrome is being controlled by automation"
+        '--disable-blink-features=AutomationControlled'
       ]
   });
   
+  // 🟢 STEALTH CONTEXT
+  // We mimic a standard Mac Desktop running Chrome 120
   const context = await browser.newContext({ 
-    viewport: { width: 1280, height: 800 },
-    // Use a very standard User Agent
+    viewport: { width: 1440, height: 900 }, // Standard Desktop
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    locale: 'en-US',
+    timezoneId: 'America/New_York',
     bypassCSP: true, 
     ignoreHTTPSErrors: true,
     hasTouch: false,
@@ -157,26 +155,24 @@ async function doWatch(page: Page) {
     deviceScaleFactor: 2,
   });
 
-  // 🕵️ STEALTH INJECTION
-  // This runs in the browser BEFORE the page loads to delete the "I am a robot" flag
+  // 🟢 DEEP STEALTH SCRIPT
   await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', {
-      get: () => undefined,
-    });
+    // 1. Delete webdriver flag
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    
+    // 2. Mock Plugins (Headless chrome has 0)
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+    
+    // 3. Mock Languages
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
   });
   
   const page = await context.newPage();
 
+  // Filter logs to only show REPLAY uploads
   page.on('request', req => {
       if (req.url().includes('/s/') && req.method() === 'POST') {
           console.log(`   🎥 Sending REPLAY Data (${req.postData()?.length || 0} bytes)`);
-      }
-  });
-
-  page.on('console', msg => {
-      const text = msg.text();
-      if (text.includes('PostHog') || text.includes('posthog')) {
-          console.log(`   [Page Log]: ${text}`);
       }
   });
 
@@ -185,7 +181,6 @@ async function doWatch(page: Page) {
     await page.goto(BASE_URL + START_PATH);
     await delay(3000);
     
-    // 1. Force Start
     await forcePostHogStart(page);
 
     const maxSteps = 8;
@@ -201,23 +196,3 @@ async function doWatch(page: Page) {
             case 'UNKNOWN':
                 console.log('   ❓ Unknown state. Scrolling...');
                 const loginBtn = page.locator('button:has-text("Sign in")').first();
-                if (await loginBtn.isVisible()) await loginBtn.click();
-                else await page.mouse.wheel(0, 500);
-                break;
-        }
-        
-        // Re-inject force start every few steps
-        if (step % 2 === 0) await forcePostHogStart(page);
-        
-        await delay(3000);
-    }
-
-    console.log('⏳ Flushing Replay Buffer (Waiting 15s)...');
-    await delay(15000);
-
-  } catch (e) {
-    console.error('❌ Error:', e);
-  } finally {
-    await browser.close();
-  }
-})();
