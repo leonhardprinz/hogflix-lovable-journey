@@ -21,14 +21,15 @@ async function forcePostHogStart(page: Page) {
         // @ts-ignore
         if (window.posthog) {
             // @ts-ignore
-            window.posthog.debug(true); // Turn on internal logs
+            window.posthog.debug(true);
             // @ts-ignore
-            window.posthog.opt_in_capturing(); // Force opt-in (bypasses cookie banner logic)
+            // CRITICAL: Explicitly tell PostHog we are NOT a bot
+            window.posthog.capture('$pageview', { $browser_type: 'desktop' }); 
             // @ts-ignore
-            window.posthog.startSessionRecording(); // FORCE START
-            console.log('   💉 PostHog: Forced startSessionRecording()');
-        } else {
-            console.log('   ⚠️ PostHog: Global object not found yet.');
+            window.posthog.opt_in_capturing();
+            // @ts-ignore
+            window.posthog.startSessionRecording();
+            console.log('   💉 PostHog: Forced startSessionRecording() & Opt-In');
         }
     });
 }
@@ -132,27 +133,46 @@ async function doWatch(page: Page) {
 // --- MAIN LOOP ---
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+      // Add args to look more "human"
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-infobars',
+        '--window-position=0,0',
+        '--ignore-certifcate-errors',
+        '--ignore-certificate-errors-spki-list',
+        '--disable-blink-features=AutomationControlled' // 🟢 CRITICAL: Hides "Chrome is being controlled by automation"
+      ]
+  });
   
-  // 🆕 NEW CONTEXT SETTINGS
   const context = await browser.newContext({ 
     viewport: { width: 1280, height: 800 },
+    // Use a very standard User Agent
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    bypassCSP: true, // 🟢 CRITICAL: Allow trackers to run
-    ignoreHTTPSErrors: true
+    bypassCSP: true, 
+    ignoreHTTPSErrors: true,
+    hasTouch: false,
+    isMobile: false,
+    deviceScaleFactor: 2,
+  });
+
+  // 🕵️ STEALTH INJECTION
+  // This runs in the browser BEFORE the page loads to delete the "I am a robot" flag
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined,
+    });
   });
   
   const page = await context.newPage();
 
-  // 🆕 NETWORK SPY (Filtered)
   page.on('request', req => {
-      // Look for the specific Session Replay endpoint
       if (req.url().includes('/s/') && req.method() === 'POST') {
           console.log(`   🎥 Sending REPLAY Data (${req.postData()?.length || 0} bytes)`);
       }
   });
 
-  // 🆕 CONSOLE SPY (See if PostHog complains)
   page.on('console', msg => {
       const text = msg.text();
       if (text.includes('PostHog') || text.includes('posthog')) {
@@ -186,7 +206,7 @@ async function doWatch(page: Page) {
                 break;
         }
         
-        // Re-inject force start every few steps just to be safe
+        // Re-inject force start every few steps
         if (step % 2 === 0) await forcePostHogStart(page);
         
         await delay(3000);
