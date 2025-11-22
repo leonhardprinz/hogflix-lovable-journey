@@ -28,16 +28,9 @@ async function askGeminiDecider(page: Page, context: string, elements: {text: st
     if (!GEMINI_API_KEY) return null;
     
     try {
-        const prompt = `
-        You are a user testing a Netflix-style app.
-        Context: ${context}
-        
-        Available clickable options:
-        ${elements.map(e => `${e.index}. ${e.text}`).join('\n')}
-        
-        Reply ONLY with the number (index) of the element you want to click. 
-        Pick something interesting. If nothing looks good, reply "RANDOM".
-        `;
+        // Limit token usage
+        const limitedElements = elements.slice(0, 8);
+        const prompt = `Context: ${context}. Options:\n${limitedElements.map(e => `${e.index}. ${e.text}`).join('\n')}\nReply ONLY with the index number.`;
         
         const result = await model.generateContent(prompt);
         const response = result.response.text().trim();
@@ -46,7 +39,6 @@ async function askGeminiDecider(page: Page, context: string, elements: {text: st
         if (!isNaN(index)) return index;
         return null;
     } catch (e) {
-        console.log('   🧠 AI Brain freeze (using fallback):', e.message);
         return null;
     }
 }
@@ -54,7 +46,6 @@ async function askGeminiDecider(page: Page, context: string, elements: {text: st
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// 🐭 ORGANIC MOUSE MOVEMENT
 async function humanMove(page: Page, selectorOrEl: string | ElementHandle) {
     let element;
     if (typeof selectorOrEl === 'string') {
@@ -63,20 +54,13 @@ async function humanMove(page: Page, selectorOrEl: string | ElementHandle) {
     } else {
         element = selectorOrEl;
     }
-
     // @ts-ignore
     const box = await element.boundingBox();
     if (!box) return;
 
-    // Overshoot logic: Aim slightly past the button then correct back
-    // This creates a very human "arc"
-    const start = page.mouse; // Playwright doesn't expose current pos well, assuming last known
-    
-    const targetX = box.x + (box.width / 2) + (Math.random() * 10 - 5);
-    const targetY = box.y + (box.height / 2) + (Math.random() * 10 - 5);
-    
-    // Move in variable steps
-    await page.mouse.move(targetX, targetY, { steps: 25 + Math.floor(Math.random() * 20) });
+    const targetX = box.x + (box.width / 2) + (Math.random() * 20 - 10);
+    const targetY = box.y + (box.height / 2) + (Math.random() * 20 - 10);
+    await page.mouse.move(targetX, targetY, { steps: 35 });
 }
 
 async function forcePostHogStart(page: Page) {
@@ -99,11 +83,9 @@ async function doLogin(page: Page) {
     console.log(`   🔐 Login as ${CURRENT_USER.email}`);
     await humanMove(page, 'input[type="email"]');
     await page.fill('input[type="email"], input[name="email"]', CURRENT_USER.email);
-    await delay(400 + Math.random() * 200);
-    
+    await delay(300);
     await humanMove(page, 'input[type="password"]');
     await page.fill('input[type="password"]', CURRENT_USER.password);
-    await delay(300);
     
     const btn = page.locator('button[type="submit"]').first();
     if (await btn.isVisible()) {
@@ -112,7 +94,7 @@ async function doLogin(page: Page) {
     } else {
         await page.keyboard.press('Enter');
     }
-    await delay(5000);
+    await delay(4000);
 }
 
 async function doProfileSelection(page: Page) {
@@ -127,74 +109,60 @@ async function doProfileSelection(page: Page) {
         await humanMove(page, await avatar.elementHandle());
         await avatar.click();
     } else {
-        // Fallback center click
         const vp = page.viewportSize();
         if (vp) await page.mouse.click(vp.width/2, vp.height/2);
     }
-    await delay(5000);
+    await delay(4000);
 }
 
 async function doBrowse(page: Page) {
     console.log('   🍿 DASHBOARD: Browsing...');
 
-    // 1. RANDOM FRUSTRATION (Rage Click)
-    if (Math.random() < 0.2) { 
-        console.log('      😡 Rage Click Triggered');
-        const text = page.locator('h1, h2').first();
-        if (await text.isVisible()) {
-            await humanMove(page, await text.elementHandle());
-            await page.click('h1, h2', { clickCount: 4, delay: 100 });
-        }
-    }
-
-    // 2. GATHER OPTIONS FOR AI
-    // Get all movie titles or nav links
-    let candidates = await page.locator('.movie-card h3, .movie-card p, nav a').all();
-    
-    // If no text elements found inside cards, just get the cards themselves
-    if (candidates.length === 0) candidates = await page.locator('.movie-card').all();
+    // 1. Gather Clickables
+    // Use a more specific selector for the "Play" part of the card if possible
+    let candidates = await page.locator('.movie-card').all();
     if (candidates.length === 0) candidates = await page.locator('img[alt*="Movie"]').all();
     
-    // Prepare data for AI
-    const optionsData = [];
-    for (let i = 0; i < Math.min(candidates.length, 10); i++) { // Limit to top 10 to save tokens
-        const text = await candidates[i].textContent() || "Unknown Movie Poster";
-        optionsData.push({ text: text.trim(), index: i });
-    }
-
+    // 2. AI Decision
     let selectedIndex = -1;
-
-    // 3. ASK AI (with fallback)
-    if (optionsData.length > 0) {
-        const aiDecision = await askGeminiDecider(page, "I want to watch something or navigate. Pick one.", optionsData);
-        if (aiDecision !== null && aiDecision < candidates.length) {
-            console.log(`      🧠 AI Chose: "${optionsData.find(o => o.index === aiDecision)?.text}"`);
-            selectedIndex = aiDecision;
+    if (candidates.length > 0) {
+        const optionsData = [];
+        for (let i = 0; i < Math.min(candidates.length, 5); i++) {
+            const text = await candidates[i].textContent() || "Movie";
+            optionsData.push({ text: text.trim().substring(0,30), index: i });
         }
+        selectedIndex = await askGeminiDecider(page, "Pick a movie", optionsData) || -1;
     }
 
-    // Fallback to random if AI failed or returned null
+    // Fallback
     if (selectedIndex === -1 && candidates.length > 0) {
-        console.log('      🎲 Using Random Choice');
         selectedIndex = Math.floor(Math.random() * candidates.length);
     }
 
-    // 4. EXECUTE CLICK
+    // 3. EXECUTE & VERIFY
     if (selectedIndex !== -1) {
         const target = candidates[selectedIndex];
         await target.scrollIntoViewIfNeeded();
         await humanMove(page, target);
-        await delay(600);
+        await delay(500);
         await target.click();
         
-        await delay(3000);
+        console.log('      -> Clicked movie. Waiting for navigation...');
         
-        // Check for "Modal Play Button" (Netflix style popup)
-        const modalPlay = page.locator('button:has-text("Play"), button[aria-label="Play"]').first();
-        if (await modalPlay.isVisible()) {
-            console.log('      -> Modal detected. Clicking Play.');
-            await humanMove(page, modalPlay);
-            await modalPlay.click();
+        // 🆕 THE FIX: Wait for URL to actually change
+        try {
+            // Wait up to 5 seconds to see if we enter watch mode
+            await page.waitForURL(/.*watch.*/, { timeout: 5000 });
+            console.log('      ✅ Navigation successful!');
+        } catch(e) {
+            console.log('      ⚠️ Navigation failed (or Modal opened). Checking for Play button...');
+            // Check for Modal Play button
+            const modalPlay = page.locator('button:has-text("Play"), button[aria-label="Play"]').first();
+            if (await modalPlay.isVisible()) {
+                await humanMove(page, modalPlay);
+                await modalPlay.click();
+                await page.waitForURL(/.*watch.*/, { timeout: 5000 }).catch(() => {});
+            }
         }
     } else {
         console.log('      -> No interactables found. Scrolling.');
@@ -203,52 +171,35 @@ async function doBrowse(page: Page) {
 }
 
 async function doWatch(page: Page) {
-    // DYNAMIC WATCH LOGIC
-    const percentages = [0.30, 0.55, 0.75, 0.95];
+    const percentages = [0.30, 0.50, 0.80];
     const targetPercent = percentages[Math.floor(Math.random() * percentages.length)];
-    const totalDuration = 45000; // Assume 45s video for demo
-    const watchMs = totalDuration * targetPercent;
+    const watchMs = 40000 * targetPercent; // 40s base
     
     console.log(`   📺 WATCHING: Target ${(targetPercent*100)}% (${watchMs/1000}s)`);
 
-    // 1. WAIT FOR PLAYBACK (The Fix for "Leaving too soon")
     const video = page.locator('video').first();
     try { 
         await video.waitFor({ timeout: 8000 }); 
-        // Wait until video actually has data
+        // Wait for actual playback
         await page.waitForFunction(() => {
             const v = document.querySelector('video');
-            return v && v.readyState >= 2 && v.currentTime > 0;
+            return v && v.readyState >= 2 && !v.paused;
         }, { timeout: 8000 });
     } catch(e) {
-        console.log('      ⚠️ Video didn\'t start playing. Clicking center...');
+        console.log('      ⚠️ Video stalled. Clicking center...');
         const box = await video.boundingBox();
         if (box) await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
     }
 
-    // 2. WATCH LOOP with Micro-Interactions
     const startTime = Date.now();
     while (Date.now() - startTime < watchMs) {
-        await delay(2000 + Math.random() * 3000);
-        
-        // Wiggle mouse to keep UI alive / verify session active
-        const jitterX = Math.random() * 200;
-        const jitterY = Math.random() * 200;
-        await page.mouse.move(300 + jitterX, 300 + jitterY, { steps: 15 });
-        
-        // 10% Chance to Pause/Resume
-        if (Math.random() < 0.10) {
-            console.log('      -> Pausing/Resuming...');
-            const box = await video.boundingBox();
-            if (box) {
-                await page.mouse.click(box.x + box.width/2, box.y + box.height/2); // Pause
-                await delay(2000);
-                await page.mouse.click(box.x + box.width/2, box.y + box.height/2); // Play
-            }
-        }
+        await delay(2000);
+        // 🆕 Keep-Alive Jitter
+        const x = Math.random() * 200;
+        await page.mouse.move(300 + x, 300 + x, { steps: 10 });
     }
     
-    console.log('      -> Done watching. Back to Browse.');
+    console.log('      -> Done watching. Back.');
     await page.goBack();
     await delay(3000);
 }
@@ -285,12 +236,10 @@ async function detectState(page: Page) {
   
   const page = await context.newPage();
   
-  // Spy on PostHog Packets to know when flush happens
-  let lastPostHogReq = Date.now();
+  // Spy on PostHog Packets
   page.on('request', req => {
       if (req.url().includes('/s/') && req.method() === 'POST') {
-         console.log(`   📡 Sending REPLAY Chunk (${req.postData()?.length} bytes)`);
-         lastPostHogReq = Date.now();
+         // console.log(`   📡 Sending REPLAY Chunk (${req.postData()?.length} bytes)`);
       }
   });
 
@@ -304,7 +253,7 @@ async function detectState(page: Page) {
 
     await forcePostHogStart(page);
 
-    const maxSteps = 10;
+    const maxSteps = 12;
     for (let step = 0; step < maxSteps; step++) {
         const state = await detectState(page);
         console.log(`🔄 Step ${step+1}: [${state}]`);
@@ -322,21 +271,22 @@ async function detectState(page: Page) {
         }
         
         if (step % 2 === 0) await forcePostHogStart(page);
-        await delay(3000);
+        await delay(2000);
     }
 
-    // --- THE CUT-OFF FIX ---
     console.log('⏳ Session Complete. Waiting for final PostHog flush...');
     
-    // 1. Wait for at least 20 seconds absolute time
-    await delay(20000);
-    
-    // 2. Wait for network silence (no uploads for 5 seconds)
+    // 🆕 Final Flush Wait Strategy
+    // Wait for a successful upload, OR 20 seconds max
     try {
-        await page.waitForResponse(resp => resp.url().includes('/s/') && resp.status() === 200, { timeout: 10000 });
-        console.log('   ✅ Final Replay Chunk Confirmed!');
+        const flushPromise = page.waitForResponse(resp => 
+            resp.url().includes('/s/') && resp.status() === 200, 
+            { timeout: 20000 }
+        );
+        await Promise.race([flushPromise, delay(20000)]);
+        console.log('   ✅ Final data flushed!');
     } catch(e) {
-        console.log('   ⚠️ Timeout waiting for final chunk (might have already sent).');
+        console.log('   ⚠️ Flush timeout (continuing).');
     }
 
   } catch (e) {
