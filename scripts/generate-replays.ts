@@ -17,6 +17,8 @@ async function handleAuthWall(page: Page) {
   // 1. If no inputs, click CTA
   if (await emailInput.count() === 0) {
     console.log('   -> No inputs found. Clicking CTA button...');
+    
+    // SAFE SELECTOR CHAINING
     const ctaBtn = page.locator('button:has-text("Sign up")')
                        .or(page.locator('button:has-text("Get Started")'))
                        .or(page.locator('button:has-text("Free")'))
@@ -43,7 +45,7 @@ async function handleAuthWall(page: Page) {
       await passInput.fill('password123');
     }
     
-    // 3. ROBUST SUBMIT: Try clicking button first, then Enter
+    // 3. ROBUST SUBMIT
     const submitBtn = page.locator('button[type="submit"]')
                           .or(page.locator('button:has-text("Sign up")'))
                           .or(page.locator('button:has-text("Get Started")'));
@@ -57,10 +59,7 @@ async function handleAuthWall(page: Page) {
     }
 
     console.log(`   ✅ Form submitted. Waiting for redirect...`);
-    
-    // CRITICAL: Wait longer and log URL
-    await delay(8000);
-    console.log(`   📍 Current URL after login: ${page.url()}`);
+    await delay(5000);
   }
 }
 
@@ -83,7 +82,7 @@ async function watchContent(page: Page) {
     // Simulate watching
     await delay(5000); 
   } else {
-    console.log('   ❌ No movies found. We might still be on the landing page.');
+    console.log('   ❌ No movies found.');
   }
 }
 
@@ -93,25 +92,28 @@ async function watchContent(page: Page) {
   const browser = await chromium.launch();
   const context = await browser.newContext({ 
     viewport: { width: 1280, height: 800 },
-    // Important: Some sites block Headless Chrome unless User-Agent is set
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   });
   const page = await context.newPage();
 
   // --- 🕵️ SPY TOOLS ---
-  
-  // 1. Log Browser Console (To see if PostHog throws errors)
   page.on('console', msg => {
     const text = msg.text();
+    // Filter out the noise, keep the relevant stuff
     if (text.includes('posthog') || msg.type() === 'error') {
-        console.log(`   [Browser Console] ${msg.type()}: ${text}`);
+       // Ignore the specific CSP errors to keep logs clean
+       if (!text.includes('Content Security Policy')) {
+           console.log(`   [Console] ${msg.type()}: ${text.substring(0, 100)}`);
+       }
     }
   });
 
-  // 2. Log Network Requests to PostHog (To confirm data is flying)
   page.on('request', request => {
     if (request.url().includes('posthog.com') || request.url().includes('/s/')) {
-        console.log(`   📡 PostHog Request: ${request.url().substring(0, 50)}...`);
+        // Log specifically recording events
+        if (request.url().includes('recorder.js') || request.url().includes('/s/')) {
+             console.log(`   📡 PostHog Recording Active: ${request.url().substring(0, 40)}...`);
+        }
     }
   });
 
@@ -119,26 +121,33 @@ async function watchContent(page: Page) {
     const fullUrl = BASE_URL + START_PATH;
     console.log(`🔗 Visiting ${fullUrl}`);
     await page.goto(fullUrl);
-    
-    // Wait for JS to load
     await delay(3000);
 
-    // Diagnostics
-    const isDashboard = await page.locator('.movie-grid, text=Trending').count() > 0;
+    // --- THE FIX IS HERE ---
+    // We strictly use .or() to prevent the syntax crash
+    const movieGrid = page.locator('.movie-grid');
+    const trendingText = page.locator('text=Trending');
+    
+    const isDashboard = await movieGrid.or(trendingText).count() > 0;
+
     console.log(`   🔍 Status: Dashboard=[${isDashboard}]`);
 
     if (isDashboard) {
       await watchContent(page);
     } else {
       await handleAuthWall(page);
+      
       // Check again after login attempt
-      if (await page.locator('.movie-grid, text=Trending').count() > 0) {
+      // Use the same safe variables
+      if (await movieGrid.or(trendingText).count() > 0) {
           await watchContent(page);
       }
     }
 
+    // FINAL FLUSH
+    // We wait 15 seconds to ensure the replay buffer uploads
     console.log('⏳ Flushing PostHog events (Waiting 15s)...');
-    await delay(15000); // Increased to 15s for slower CI networks
+    await delay(15000);
 
   } catch (e) {
     console.error('❌ Error:', e);
