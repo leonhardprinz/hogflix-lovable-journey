@@ -13,7 +13,6 @@ interface Video {
   description: string | null;
   thumbnail_url: string;
   duration: number;
-  categories?: { name: string };
 }
 
 const ContentPreviewCarousel = () => {
@@ -26,16 +25,17 @@ const ContentPreviewCarousel = () => {
       try {
         const { data, error } = await supabase
           .from('videos')
-          .select(`
-            id, title, description, thumbnail_url, duration,
-            categories!videos_category_id_fkey!inner (
-              name
-            )
-          `)
+          .select('id, title, description, thumbnail_url, duration')
+          .eq('is_public', true)
           .order('created_at', { ascending: false })
           .limit(8);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase error:', error);
+          throw error;
+        }
+        
+        console.log('Fetched videos:', data?.length || 0);
         setVideos(data || []);
       } catch (error) {
         console.error('Error fetching videos:', error);
