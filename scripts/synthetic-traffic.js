@@ -1,7 +1,6 @@
 import { chromium } from 'playwright-extra';
 import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Page, ElementHandle } from '@playwright/test';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 chromium.use(stealthPlugin());
 
@@ -9,39 +8,19 @@ chromium.use(stealthPlugin());
 const RAW_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app';
 const BASE_URL = RAW_URL.replace(/\/$/, ''); 
 const START_PATH = '/'; 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// 👥 USER POOL
+// 👥 EXPANDED USER POOL
 const USERS = [
-    { email: 'summers.nor-7f@icloud.com',  password: 'zug2vec5ZBE.dkq*ubk' },
+    { email: 'summers.nor-7f@icloud.com', password: 'zug2vec5ZBE.dkq*ubk' },
     { email: 'slatted_combats.9i@icloud.com', password: 'qmt8fhv2vju1DMC*bzn' },
-    { email: 'treadle-tidbit-1b@icloud.com', password: 'avf6zqh6tfn!rap.MED' }
+    { email: 'treadle-tidbit-1b@icloud.com', password: 'avf6zqh6tfn!rap.MED' },
+    { email: 'toppers.tester_3c@icloud.com', password: 'sVcj_Z4HF4@sH24*xg36' },
+    { email: 'slate-polders3m@icloud.com', password: 'wbt_-bwbkUe@y9J_J.sK' },
+    { email: 'cabals-foyer-5w@icloud.com', password: '3f_ApN4jt4QQr@mYKg3Y' },
+    { email: 'arroyo.gunner_6z@icloud.com', password: 'eavAX!qGPmHyP*J9TwKY' }
 ];
 
 const CURRENT_USER = USERS[Math.floor(Math.random() * USERS.length)];
-
-// --- AI BRAIN ---
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-async function askGeminiDecider(page: Page, context: string, elements: {text: string, index: number}[]) {
-    if (!GEMINI_API_KEY) return null;
-    
-    try {
-        // Limit token usage
-        const limitedElements = elements.slice(0, 8);
-        const prompt = `Context: ${context}. Options:\n${limitedElements.map(e => `${e.index}. ${e.text}`).join('\n')}\nReply ONLY with the index number.`;
-        
-        const result = await model.generateContent(prompt);
-        const response = result.response.text().trim();
-        const index = parseInt(response);
-        
-        if (!isNaN(index)) return index;
-        return null;
-    } catch (e) {
-        return null;
-    }
-}
 
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -68,7 +47,7 @@ async function forcePostHogStart(page: Page) {
         // @ts-ignore
         if (window.posthog) {
             // @ts-ignore
-            window.posthog.register({ $device_type: 'Desktop', $browser: 'Chrome' });
+            window.posthog.register({ $device_type: 'Desktop', $browser: 'Chrome', synthetic: true });
             // @ts-ignore
             window.posthog.opt_in_capturing();
             // @ts-ignore
@@ -77,143 +56,140 @@ async function forcePostHogStart(page: Page) {
     });
 }
 
-// --- ACTIONS ---
+// --- JOURNEY LOGIC ---
 
-async function doLogin(page: Page) {
-    console.log(`   🔐 Login as ${CURRENT_USER.email}`);
-    await humanMove(page, 'input[type="email"]');
-    await page.fill('input[type="email"], input[name="email"]', CURRENT_USER.email);
-    await delay(300);
-    await humanMove(page, 'input[type="password"]');
-    await page.fill('input[type="password"]', CURRENT_USER.password);
-    
-    const btn = page.locator('button[type="submit"]').first();
-    if (await btn.isVisible()) {
-        await humanMove(page, await btn.elementHandle());
-        await btn.click();
-    } else {
-        await page.keyboard.press('Enter');
+async function journeyPricingTest(page: Page) {
+    console.log('   🏷️ Journey: PRICING EXPERIMENTS');
+    await page.goto(`${BASE_URL}/pricing`);
+    await delay(3000);
+
+    // 1. Analyze CTA Variant (Hover plans)
+    const plans = page.locator('.pricing-card');
+    const count = await plans.count();
+    for(let i=0; i<count; i++) {
+        await humanMove(page, plans.nth(i));
+        await delay(1000);
     }
-    await delay(4000);
+
+    // 2. Test "Ultimate" Button (Rage Click Test)
+    const ultimateBtn = page.locator('button:has-text("Ultimate"), button:has-text("Start Ultimate")').first();
+    if (await ultimateBtn.isVisible()) {
+        console.log('      -> Testing Ultimate Button...');
+        await humanMove(page, ultimateBtn);
+        
+        // 50% chance to trigger "Broken" behavior if experiment is active
+        // We simulate a rage click regardless to test the detector
+        console.log('      😡 Rage Clicking Ultimate...');
+        await page.click('button:has-text("Ultimate"), button:has-text("Start Ultimate")', { clickCount: 5, delay: 100 });
+        
+        // Wait to see if error toast appears
+        await delay(4000);
+    }
 }
 
-async function doProfileSelection(page: Page) {
-    console.log('   👥 Selecting Profile...');
-    const userText = page.locator(`text=${CURRENT_USER.email.split('@')[0]}`).first();
-    const avatar = page.locator('.avatar, img[alt*="profile"]').first();
-    
-    if (await userText.isVisible()) {
-        await humanMove(page, await userText.elementHandle());
-        await userText.click();
-    } else if (await avatar.isVisible()) {
-        await humanMove(page, await avatar.elementHandle());
-        await avatar.click();
-    } else {
-        const vp = page.viewportSize();
-        if (vp) await page.mouse.click(vp.width/2, vp.height/2);
-    }
+async function journeyBrowseTest(page: Page) {
+    console.log('   🧭 Journey: BROWSE PRIORITY EXPERIMENT');
+    await page.goto(`${BASE_URL}/browse`);
     await delay(4000);
-}
 
-async function doBrowse(page: Page) {
-    console.log('   🍿 DASHBOARD: Browsing...');
+    // Detect which section is prioritized
+    const popularVisible = await page.locator('text=Popular on HogFlix').isVisible();
+    const trendingVisible = await page.locator('text=Trending Now').isVisible();
 
-    // 1. Gather Clickables
-    // Use a more specific selector for the "Play" part of the card if possible
-    let candidates = await page.locator('.movie-card').all();
-    if (candidates.length === 0) candidates = await page.locator('img[alt*="Movie"]').all();
-    
-    // 2. AI Decision
-    let selectedIndex = -1;
-    if (candidates.length > 0) {
-        const optionsData = [];
-        for (let i = 0; i < Math.min(candidates.length, 5); i++) {
-            const text = await candidates[i].textContent() || "Movie";
-            optionsData.push({ text: text.trim().substring(0,30), index: i });
+    if (popularVisible && !trendingVisible) {
+        console.log('      -> Variant: POPULAR FIRST');
+        const card = page.locator('text=Popular on HogFlix >> .. >> .movie-card').first();
+        if (await card.isVisible()) {
+            await humanMove(page, card);
+            await card.click();
         }
-        selectedIndex = await askGeminiDecider(page, "Pick a movie", optionsData) || -1;
+    } else if (trendingVisible && !popularVisible) {
+        console.log('      -> Variant: TRENDING FIRST');
+        const card = page.locator('text=Trending Now >> .. >> .movie-card').first();
+        if (await card.isVisible()) {
+            await humanMove(page, card);
+            await card.click();
+        }
+    } else {
+        console.log('      -> Control/Mixed Variant. Clicking first available.');
+        const card = page.locator('.movie-card').first();
+        if (await card.isVisible()) await card.click();
+    }
+    
+    // Wait for navigation to /watch or modal
+    await delay(5000);
+}
+
+async function journeyWatch(page: Page) {
+    console.log('   📺 Journey: DEEP WATCH');
+    // 1. Find a movie from Dashboard
+    if (!page.url().includes('watch')) {
+        const candidates = page.locator('.movie-card');
+        if (await candidates.count() > 0) {
+            const target = candidates.nth(Math.floor(Math.random() * await candidates.count()));
+            await humanMove(page, target);
+            await target.click();
+            await delay(3000);
+        }
     }
 
-    // Fallback
-    if (selectedIndex === -1 && candidates.length > 0) {
-        selectedIndex = Math.floor(Math.random() * candidates.length);
+    // 2. Handle Modal if present
+    const playBtn = page.locator('button:has-text("Play")').first();
+    if (await playBtn.isVisible()) {
+        await humanMove(page, playBtn);
+        await playBtn.click();
     }
 
-    // 3. EXECUTE & VERIFY
-    if (selectedIndex !== -1) {
-        const target = candidates[selectedIndex];
-        await target.scrollIntoViewIfNeeded();
-        await humanMove(page, target);
-        await delay(500);
-        await target.click();
+    // 3. Wait for Video
+    try {
+        await page.waitForURL(/.*watch.*/, { timeout: 8000 });
+    } catch(e) {}
+
+    // 4. Watch Logic (Long Duration)
+    const watchTime = 120000 + Math.random() * 100000; // 2-4 minutes
+    console.log(`      -> Watching for ${(watchTime/1000).toFixed(0)}s...`);
+    
+    const start = Date.now();
+    while (Date.now() - start < watchTime) {
+        await delay(5000);
+        // Keep session alive
+        await page.mouse.move(Math.random()*500, Math.random()*500, { steps: 20 });
         
-        console.log('      -> Clicked movie. Waiting for navigation...');
-        
-        // 🆕 THE FIX: Wait for URL to actually change
-        try {
-            // Wait up to 5 seconds to see if we enter watch mode
-            await page.waitForURL(/.*watch.*/, { timeout: 5000 });
-            console.log('      ✅ Navigation successful!');
-        } catch(e) {
-            console.log('      ⚠️ Navigation failed (or Modal opened). Checking for Play button...');
-            // Check for Modal Play button
-            const modalPlay = page.locator('button:has-text("Play"), button[aria-label="Play"]').first();
-            if (await modalPlay.isVisible()) {
-                await humanMove(page, modalPlay);
-                await modalPlay.click();
-                await page.waitForURL(/.*watch.*/, { timeout: 5000 }).catch(() => {});
+        // 20% chance to interact with AI Summary if available
+        if (Math.random() < 0.2) {
+            const aiBtn = page.locator('button:has-text("Generate Summary"), button:has-text("AI Insight")').first();
+            if (await aiBtn.isVisible()) {
+                console.log('      ✨ Generating AI Summary...');
+                await humanMove(page, aiBtn);
+                await aiBtn.click();
+                await delay(5000); // Read it
             }
         }
-    } else {
-        console.log('      -> No interactables found. Scrolling.');
-        await page.mouse.wheel(0, 500);
     }
 }
 
-async function doWatch(page: Page) {
-    const percentages = [0.30, 0.50, 0.80];
-    const targetPercent = percentages[Math.floor(Math.random() * percentages.length)];
-    const watchMs = 40000 * targetPercent; // 40s base
-    
-    console.log(`   📺 WATCHING: Target ${(targetPercent*100)}% (${watchMs/1000}s)`);
-
-    const video = page.locator('video').first();
-    try { 
-        await video.waitFor({ timeout: 8000 }); 
-        // Wait for actual playback
-        await page.waitForFunction(() => {
-            const v = document.querySelector('video');
-            return v && v.readyState >= 2 && !v.paused;
-        }, { timeout: 8000 });
-    } catch(e) {
-        console.log('      ⚠️ Video stalled. Clicking center...');
-        const box = await video.boundingBox();
-        if (box) await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
-    }
-
-    const startTime = Date.now();
-    while (Date.now() - startTime < watchMs) {
-        await delay(2000);
-        // 🆕 Keep-Alive Jitter
-        const x = Math.random() * 200;
-        await page.mouse.move(300 + x, 300 + x, { steps: 10 });
-    }
-    
-    console.log('      -> Done watching. Back.');
-    await page.goBack();
+async function journeyWidgetTest(page: Page) {
+    console.log('   🦔 Journey: HEDGEHOG WIDGET');
+    await page.goto(BASE_URL);
     await delay(3000);
-}
-
-async function detectState(page: Page) {
-    const url = page.url();
-    if (url.includes('login')) return 'AUTH';
-    if (url.includes('profiles')) return 'PROFILES';
-    if (url.includes('watch')) return 'WATCHING';
     
-    if (await page.locator('input[type="password"]').count() > 0) return 'AUTH';
-    if (await page.locator('.movie-card, nav').count() > 0) return 'DASHBOARD';
-    
-    return 'UNKNOWN';
+    const widget = page.locator('.floating-hedgehog, [aria-label="Chat"]').first();
+    if (await widget.isVisible()) {
+        console.log('      -> Widget Visible. Clicking...');
+        await humanMove(page, widget);
+        await widget.click();
+        await delay(5000); // Wait for chat to open
+        
+        // Type something if input exists
+        const input = page.locator('input[placeholder*="Ask"]').first();
+        if (await input.isVisible()) {
+            await input.fill("What should I watch?");
+            await page.keyboard.press('Enter');
+            await delay(5000);
+        }
+    } else {
+        console.log('      -> Widget Hidden (Variant B or Wrong Page).');
+    }
 }
 
 // --- MAIN ---
@@ -236,7 +212,7 @@ async function detectState(page: Page) {
   
   const page = await context.newPage();
   
-  // Spy on PostHog Packets
+  // Network Spy
   page.on('request', req => {
       if (req.url().includes('/s/') && req.method() === 'POST') {
          // console.log(`   📡 Sending REPLAY Chunk (${req.postData()?.length} bytes)`);
@@ -244,50 +220,63 @@ async function detectState(page: Page) {
   });
 
   try {
-    console.log(`🔗 Visiting ${BASE_URL + START_PATH}`);
-    await page.goto(BASE_URL + START_PATH);
-    await delay(3000);
+    const SESSION_TARGET_DURATION = 300000; // 5 Minutes Target
+    const sessionStart = Date.now();
+
+    console.log(`🔗 Visiting ${BASE_URL}`);
+    await page.goto(BASE_URL);
+    await delay(2000);
     
+    // Cookie & Auth
     const cookies = page.locator('button:has-text("Accept"), button:has-text("Allow")');
     if (await cookies.count() > 0) await cookies.first().click();
-
     await forcePostHogStart(page);
 
-    const maxSteps = 12;
-    for (let step = 0; step < maxSteps; step++) {
-        const state = await detectState(page);
-        console.log(`🔄 Step ${step+1}: [${state}]`);
-        
-        switch (state) {
-            case 'AUTH': await doLogin(page); break;
-            case 'PROFILES': await doProfileSelection(page); break;
-            case 'DASHBOARD': await doBrowse(page); break;
-            case 'WATCHING': await doWatch(page); break;
-            case 'UNKNOWN':
-                const login = page.locator('button:has-text("Sign in")').first();
-                if (await login.isVisible()) await login.click();
-                else await page.mouse.wheel(0, 500);
-                break;
-        }
-        
-        if (step % 2 === 0) await forcePostHogStart(page);
-        await delay(2000);
+    // Login
+    console.log(`   🔐 Login as ${CURRENT_USER.email}`);
+    await page.goto(`${BASE_URL}/login`);
+    await page.fill('input[type="email"]', CURRENT_USER.email);
+    await page.fill('input[type="password"]', CURRENT_USER.password);
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/.*browse|.*profiles/, { timeout: 10000 }).catch(()=>console.log('Login redirect timeout'));
+    
+    // Handle Profile
+    if (page.url().includes('profiles')) {
+        const profile = page.locator('.avatar, img[alt*="profile"]').first();
+        if (await profile.isVisible()) await profile.click();
+        await delay(3000);
     }
 
-    console.log('⏳ Session Complete. Waiting for final PostHog flush...');
-    
-    // 🆕 Final Flush Wait Strategy
-    // Wait for a successful upload, OR 20 seconds max
-    try {
-        const flushPromise = page.waitForResponse(resp => 
-            resp.url().includes('/s/') && resp.status() === 200, 
-            { timeout: 20000 }
-        );
-        await Promise.race([flushPromise, delay(20000)]);
-        console.log('   ✅ Final data flushed!');
-    } catch(e) {
-        console.log('   ⚠️ Flush timeout (continuing).');
+    // --- PICK A JOURNEY ---
+    const roll = Math.random();
+    if (roll < 0.25) await journeyPricingTest(page);
+    else if (roll < 0.50) await journeyBrowseTest(page);
+    else if (roll < 0.70) await journeyWidgetTest(page);
+    else await journeyWatch(page); // Default to watching
+
+    // --- LOITERING PHASE (To guarantee 5 min session) ---
+    console.log('   🕰️ Entering Loitering Phase to extend session...');
+    while (Date.now() - sessionStart < SESSION_TARGET_DURATION) {
+        const remaining = SESSION_TARGET_DURATION - (Date.now() - sessionStart);
+        console.log(`      ...loitering (${(remaining/1000).toFixed(0)}s left)`);
+        
+        // Random actions
+        await page.mouse.wheel(0, Math.random() * 500);
+        await delay(5000);
+        await page.mouse.move(Math.random()*800, Math.random()*600, { steps: 50 });
+        
+        // Maybe click a nav link
+        if (Math.random() < 0.1) {
+            const nav = page.locator('nav a').nth(Math.floor(Math.random() * 3));
+            if (await nav.isVisible()) {
+                await humanMove(page, nav);
+                await nav.click();
+            }
+        }
     }
+
+    console.log('⏳ Session Complete. Final Flush...');
+    await page.waitForTimeout(15000); // Hard wait for last chunks
 
   } catch (e) {
     console.error('❌ Error:', e);
