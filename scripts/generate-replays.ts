@@ -1,88 +1,109 @@
 import { chromium, Page } from '@playwright/test';
-import { faker } from '@faker-js/faker';
 
 // --- CONFIG ---
 const RAW_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app';
 const BASE_URL = RAW_URL.replace(/\/$/, ''); 
 const START_PATH = '/'; 
 
+// 🚨 UPDATED CREDENTIALS 🚨
+const DEMO_USER = {
+    email: 'summers.nor-7f@icloud.com', 
+    password: 'zug2vec5ZBE.dkq*ubk'
+};
+
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function handleAuthWall(page: Page) {
-  console.log('🔒 Auth/Landing detected. Attempting entry...');
-  
-  let emailInput = page.locator('input[type="email"], input[name="email"]');
-  
-  // 1. If no inputs, click CTA
-  if (await emailInput.count() === 0) {
-    console.log('   -> No inputs found. Clicking CTA button...');
-    
-    // SAFE SELECTOR CHAINING
-    const ctaBtn = page.locator('button:has-text("Sign up")')
-                       .or(page.locator('button:has-text("Get Started")'))
-                       .or(page.locator('button:has-text("Free")'))
-                       .or(page.locator('a:has-text("Sign up")'));
-
-    if (await ctaBtn.count() > 0) {
-        await ctaBtn.first().click();
-        await delay(2000); // Wait for form animation
-    } else {
-        console.log('   ❌ Could not find a "Sign Up" button!');
-        return;
+async function ensurePostHogLoaded(page: Page) {
+    console.log('⏳ Waiting for PostHog to initialize...');
+    try {
+        await page.waitForFunction(() => (window as any).posthog !== undefined, { timeout: 5000 });
+        console.log('   ✅ PostHog loaded!');
+    } catch (e) {
+        console.log('   ⚠️ PostHog did not load in 5s. (This is common in headless, continuing...)');
     }
+}
+
+async function performLogin(page: Page) {
+  console.log('🔐 Attempting Login...');
+  
+  // 1. Check if we are already on an Auth page (look for password field)
+  let passInput = page.locator('input[type="password"]');
+  
+  // 2. If no password field, find the "Sign In" button to get there
+  if (await passInput.count() === 0) {
+      console.log('   -> Not on auth page yet. Clicking "Sign in"...');
+      const signInBtn = page.locator('button:has-text("Sign in")')
+                            .or(page.locator('a:has-text("Sign in")'))
+                            .or(page.locator('button:has-text("Log in")'))
+                            .or(page.locator('a:has-text("Log in")'));
+
+      if (await signInBtn.count() > 0) {
+          await signInBtn.first().click();
+          await delay(2000); // Wait for form to appear
+      } else {
+          console.log('   ℹ️ Could not find "Sign In" button. Assuming we are logged in or on a landing page variant.');
+      }
   }
 
-  // 2. Fill Form
-  if (await emailInput.count() > 0) {
-    const email = faker.internet.email();
-    console.log(`   ✍️ Filling email: ${email}`);
-    await emailInput.fill(email);
+  // 3. Fill Credentials (Check inputs again after click)
+  const emailInput = page.locator('input[type="email"], input[name="email"]');
+  passInput = page.locator('input[type="password"]'); // Refresh locator
+
+  if (await emailInput.count() > 0 && await passInput.count() > 0) {
+    console.log(`   ✍️ Filling credentials for ${DEMO_USER.email}`);
+    
+    await emailInput.fill(DEMO_USER.email);
+    await delay(300);
+    await passInput.fill(DEMO_USER.password);
     await delay(500);
 
-    const passInput = page.locator('input[type="password"]');
-    if (await passInput.count() > 0) {
-      await passInput.fill('password123');
-    }
-    
-    // 3. ROBUST SUBMIT
-    const submitBtn = page.locator('button[type="submit"]')
-                          .or(page.locator('button:has-text("Sign up")'))
-                          .or(page.locator('button:has-text("Get Started")'));
-
-    if (await submitBtn.count() > 0 && await submitBtn.first().isVisible()) {
-        console.log('   🖱️ Clicking Submit Button...');
-        await submitBtn.first().click();
+    // 4. Submit
+    // Try to find the specific submit button first, fallback to Enter
+    const submitBtn = page.locator('button[type="submit"]');
+    if (await submitBtn.count() > 0) {
+        await submitBtn.click();
     } else {
-        console.log('   ⌨️ Pressing Enter...');
         await page.keyboard.press('Enter');
     }
-
-    console.log(`   ✅ Form submitted. Waiting for redirect...`);
+    
+    console.log('   🚀 Credentials submitted. Waiting for redirect...');
     await delay(5000);
+  } else {
+    console.log('   ⚠️ No login inputs visible. Skipping auth.');
   }
 }
 
-async function watchContent(page: Page) {
-  console.log('🍿 Browsing content...');
+async function browseContent(page: Page) {
+  console.log('👀 Browsing content...');
   
-  // Debug: Dump what the bot sees
-  const movieCount = await page.locator('.movie-card, img[alt*="Movie"]').count();
-  console.log(`   👀 Found ${movieCount} potential movie elements.`);
-
-  const cards = page.locator('.movie-card, img[alt*="Movie"], [role="img"]');
+  // Try to find movies (Dashboard)
+  const movies = page.locator('.movie-card, img[alt*="Movie"], [role="img"]');
   
-  if (await cards.count() > 0) {
-    const index = Math.floor(Math.random() * await cards.count());
-    await cards.nth(index).hover();
-    await delay(500);
-    await cards.nth(index).click();
-    console.log('   ▶️ Movie clicked. Watching...');
-    
-    // Simulate watching
-    await delay(5000); 
+  if (await movies.count() > 0) {
+      console.log(`   🎬 Found ${await movies.count()} movies. Watching one...`);
+      const index = Math.floor(Math.random() * await movies.count());
+      await movies.nth(index).hover();
+      await delay(800);
+      await movies.nth(index).click();
+      
+      // Simulate watching time (Move mouse so session isn't idle)
+      console.log('   🍿 Watching movie...');
+      for(let i=0; i<3; i++) {
+        await page.mouse.move(Math.random()*500, Math.random()*500);
+        await delay(3000);
+      }
   } else {
-    console.log('   ❌ No movies found.');
+      // LANDING PAGE FALLBACK
+      // If login failed, we are still on landing page. Let's browse it so we get a replay anyway.
+      console.log('   🏖️ On Landing Page (No movies found). Scrolling around...');
+      await page.mouse.wheel(0, 500);
+      await delay(2000);
+      await page.mouse.wheel(0, 500);
+      await delay(2000);
+      
+      const cta = page.locator('button, a').first();
+      if (await cta.isVisible()) await cta.hover();
   }
 }
 
@@ -92,61 +113,39 @@ async function watchContent(page: Page) {
   const browser = await chromium.launch();
   const context = await browser.newContext({ 
     viewport: { width: 1280, height: 800 },
+    // Critical for some auth providers
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   });
   const page = await context.newPage();
 
-  // --- 🕵️ SPY TOOLS ---
-  page.on('console', msg => {
-    const text = msg.text();
-    // Filter out the noise, keep the relevant stuff
-    if (text.includes('posthog') || msg.type() === 'error') {
-       // Ignore the specific CSP errors to keep logs clean
-       if (!text.includes('Content Security Policy')) {
-           console.log(`   [Console] ${msg.type()}: ${text.substring(0, 100)}`);
-       }
-    }
-  });
-
-  page.on('request', request => {
-    if (request.url().includes('posthog.com') || request.url().includes('/s/')) {
-        // Log specifically recording events
-        if (request.url().includes('recorder.js') || request.url().includes('/s/')) {
-             console.log(`   📡 PostHog Recording Active: ${request.url().substring(0, 40)}...`);
-        }
-    }
+  // Network Spy
+  page.on('request', req => {
+      if (req.url().includes('/s/') && req.method() === 'POST') {
+          console.log('   📡 Sending Replay Data to PostHog...');
+      }
   });
 
   try {
-    const fullUrl = BASE_URL + START_PATH;
-    console.log(`🔗 Visiting ${fullUrl}`);
-    await page.goto(fullUrl);
-    await delay(3000);
-
-    // --- THE FIX IS HERE ---
-    // We strictly use .or() to prevent the syntax crash
-    const movieGrid = page.locator('.movie-grid');
-    const trendingText = page.locator('text=Trending');
+    console.log(`🔗 Visiting ${BASE_URL + START_PATH}`);
+    await page.goto(BASE_URL + START_PATH);
     
-    const isDashboard = await movieGrid.or(trendingText).count() > 0;
+    // 1. Wait for PostHog
+    await ensurePostHogLoaded(page);
 
-    console.log(`   🔍 Status: Dashboard=[${isDashboard}]`);
-
+    // 2. Check State
+    // If we see "Trending", we are already logged in
+    const isDashboard = await page.locator('.movie-grid, text=Trending').count() > 0;
+    
     if (isDashboard) {
-      await watchContent(page);
+        console.log('   ✅ Already on Dashboard.');
     } else {
-      await handleAuthWall(page);
-      
-      // Check again after login attempt
-      // Use the same safe variables
-      if (await movieGrid.or(trendingText).count() > 0) {
-          await watchContent(page);
-      }
+        await performLogin(page);
     }
 
-    // FINAL FLUSH
-    // We wait 15 seconds to ensure the replay buffer uploads
-    console.log('⏳ Flushing PostHog events (Waiting 15s)...');
+    // 3. Browse
+    await browseContent(page);
+
+    console.log('⏳ Flushing Replay Buffer (Waiting 15s)...');
     await delay(15000);
 
   } catch (e) {
