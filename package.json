@@ -69,6 +69,7 @@
     "@playwright/test": "^1.40.0",
     "@faker-js/faker": "^8.0.0",
     "@google/generative-ai": "^0.1.0",
+    "@google/generative-ai": "^0.21.0",
     "tsx": "^4.0.0",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
