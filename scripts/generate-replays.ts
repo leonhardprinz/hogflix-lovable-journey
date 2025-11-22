@@ -14,26 +14,29 @@ const DEMO_USER = {
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function ensurePostHogLoaded(page: Page) {
-    console.log('⏳ Waiting for PostHog to initialize...');
-    try {
-        await page.waitForFunction(() => (window as any).posthog !== undefined, { timeout: 5000 });
-        console.log('   ✅ PostHog loaded!');
-    } catch (e) {
-        console.log('   ⚠️ PostHog did not load in 5s. (Continuing anyway...)');
+async function handleCookieConsent(page: Page) {
+    // Aggressively find and click cookie buttons
+    const consentBtn = page.locator('button:has-text("Accept")')
+                           .or(page.locator('button:has-text("Allow")'))
+                           .or(page.locator('button:has-text("Agree")'))
+                           .or(page.locator('button:has-text("Okay")'));
+    
+    if (await consentBtn.count() > 0 && await consentBtn.first().isVisible()) {
+        console.log('   🍪 Cookie Banner detected. Smashing "Accept"...');
+        await consentBtn.first().click();
+        await delay(1000);
     }
 }
 
 async function performLogin(page: Page) {
-  console.log('🔐 Attempting Login...');
+  console.log(`🔐 Login Start. Current URL: ${page.url()}`);
   
   // 1. Check if we are already on an Auth page
   let passInput = page.locator('input[type="password"]');
   
-  // 2. If no password field, find the "Sign In" button to get there
+  // 2. If no password field, navigate to Sign In
   if (await passInput.count() === 0) {
-      console.log('   -> Not on auth page yet. Clicking "Sign in"...');
-      // SAFE SELECTOR CHAINING (No comma mixing)
+      console.log('   -> Not on auth page. Clicking "Sign in"...');
       const signInBtn = page.locator('button:has-text("Sign in")')
                             .or(page.locator('a:has-text("Sign in")'))
                             .or(page.locator('button:has-text("Log in")'))
@@ -43,16 +46,16 @@ async function performLogin(page: Page) {
           await signInBtn.first().click();
           await delay(2000); 
       } else {
-          console.log('   ℹ️ Could not find "Sign In". Assuming logged in or landing page.');
+          console.log('   ℹ️ Could not find "Sign In".');
       }
   }
 
   // 3. Fill Credentials
   const emailInput = page.locator('input[type="email"], input[name="email"]');
-  passInput = page.locator('input[type="password"]'); // Refresh locator
+  passInput = page.locator('input[type="password"]'); // Refresh
 
   if (await emailInput.count() > 0 && await passInput.count() > 0) {
-    console.log(`   ✍️ Filling credentials for ${DEMO_USER.email}`);
+    console.log(`   ✍️ Filling credentials...`);
     
     await emailInput.fill(DEMO_USER.email);
     await delay(300);
@@ -62,48 +65,57 @@ async function performLogin(page: Page) {
     // 4. Submit
     const submitBtn = page.locator('button[type="submit"]');
     if (await submitBtn.count() > 0) {
+        console.log('   🖱️ Clicking Submit Button...');
         await submitBtn.click();
     } else {
+        console.log('   ⌨️ Pressing Enter...');
         await page.keyboard.press('Enter');
     }
     
-    console.log('   🚀 Credentials submitted. Waiting for redirect...');
-    await delay(5000);
-  } else {
-    console.log('   ⚠️ No login inputs visible. Skipping auth.');
+    // WAIT FOR URL CHANGE (Max 10s)
+    console.log('   🚀 Waiting for redirect...');
+    try {
+        await page.waitForURL(url => !url.toString().includes('auth') && !url.toString().includes('login'), { timeout: 10000 });
+        console.log('   ✅ Redirect detected!');
+    } catch(e) {
+        console.log('   ⚠️ Redirect timeout. We might still be on the login page.');
+    }
+    
+    console.log(`   📍 Post-Login URL: ${page.url()}`);
+    console.log(`   📑 Post-Login Title: ${await page.title()}`);
   }
 }
 
 async function browseContent(page: Page) {
   console.log('👀 Browsing content...');
   
-  // Try to find movies (Dashboard)
-  // Use .or() here too just to be safe, though CSS commas are usually valid for simple classes
   const movies = page.locator('.movie-card')
                      .or(page.locator('img[alt*="Movie"]'))
                      .or(page.locator('[role="img"]'));
   
-  if (await movies.count() > 0) {
-      console.log(`   🎬 Found ${await movies.count()} movies. Watching one...`);
-      const index = Math.floor(Math.random() * await movies.count());
+  const count = await movies.count();
+  if (count > 0) {
+      console.log(`   🎬 Found ${count} movies. Watching one...`);
+      const index = Math.floor(Math.random() * count);
       await movies.nth(index).hover();
       await delay(800);
       await movies.nth(index).click();
       
       console.log('   🍿 Watching movie...');
+      // Force a manual event to verify PostHog is listening
+      await page.evaluate(() => {
+          if ((window as any).posthog) (window as any).posthog.capture('synthetic_watch_event');
+      });
+      
       for(let i=0; i<3; i++) {
         await page.mouse.move(Math.random()*500, Math.random()*500);
         await delay(3000);
       }
   } else {
-      console.log('   🏖️ On Landing Page (No movies found). Scrolling around...');
+      console.log('   ❌ No movies found.');
+      // Fallback interaction to ensure some recording exists
       await page.mouse.wheel(0, 500);
       await delay(2000);
-      await page.mouse.wheel(0, 500);
-      await delay(2000);
-      
-      const cta = page.locator('button').or(page.locator('a[href]')).first();
-      if (await cta.isVisible()) await cta.hover();
   }
 }
 
@@ -117,25 +129,24 @@ async function browseContent(page: Page) {
   });
   const page = await context.newPage();
 
-  // Network Spy
+  // NETWORK SPY: Only log requests to PostHog
   page.on('request', req => {
-      if (req.url().includes('/s/') && req.method() === 'POST') {
-          console.log('   📡 Sending Replay Data to PostHog...');
+      if (req.url().includes('posthog.com')) {
+          if (req.url().includes('/s/')) console.log('   🎥 Sending REPLAY Data');
+          else if (req.url().includes('/e/')) console.log('   📡 Sending EVENT Data');
       }
   });
 
   try {
     console.log(`🔗 Visiting ${BASE_URL + START_PATH}`);
     await page.goto(BASE_URL + START_PATH);
+    await delay(2000);
     
-    // 1. Wait for PostHog
-    await ensurePostHogLoaded(page);
+    // 1. Handle Cookie Banner (CRITICAL)
+    await handleCookieConsent(page);
 
-    // 2. Check State (THE FIX IS HERE)
-    // We cannot mix CSS and text= in one string. We use .or()
-    const isDashboard = await page.locator('.movie-grid')
-                                  .or(page.locator('text=Trending'))
-                                  .count() > 0;
+    // 2. Check State
+    const isDashboard = await page.locator('.movie-grid').or(page.locator('text=Trending')).count() > 0;
     
     if (isDashboard) {
         console.log('   ✅ Already on Dashboard.');
