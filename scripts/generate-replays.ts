@@ -14,128 +14,117 @@ const USER = {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * The "Brain" - Scans the page and decides what state we are in.
+ * 🧠 The Brain: improved to detect Dashboard even if movies are loading
  */
 async function detectState(page: Page) {
     const url = page.url();
     
-    // 1. Check for specific URL patterns first
+    // 1. URL Checks (Fastest)
     if (url.includes('/auth') || url.includes('/login')) return 'AUTH';
     if (url.includes('/profiles')) return 'PROFILES';
     if (url.includes('/watch')) return 'WATCHING';
     
-    // 2. Check for UI Elements
-    if (await page.locator('input[type="password"]').count() > 0) return 'AUTH';
-    if (await page.locator('text=Who’s Watching?').count() > 0) return 'PROFILES';
-    if (await page.locator('.movie-card').count() > 0) return 'DASHBOARD';
+    // 2. UI Element Checks
     
-    // Default fallback
+    // AUTH: Look for password field
+    if (await page.locator('input[type="password"]').count() > 0) return 'AUTH';
+    
+    // PROFILES: Look for "Who's Watching" text
+    if (await page.locator('text=Who’s Watching?').count() > 0) return 'PROFILES';
+    
+    // DASHBOARD: (The Fix)
+    // Don't just look for movies. Look for the Nav bar, Hero, or "Home" text.
+    const dashboardSignals = page.locator('.movie-card')
+                                 .or(page.locator('nav'))           // Navigation bar
+                                 .or(page.locator('header'))        // Header
+                                 .or(page.locator('text=Home'))     // Menu items
+                                 .or(page.locator('text=My List'));
+
+    if (await dashboardSignals.count() > 0) return 'DASHBOARD';
+    
     return 'UNKNOWN';
 }
 
 /**
- * Action: Handle Login
+ * 🔐 Action: Login
  */
 async function doLogin(page: Page) {
     console.log('   🔐 State: AUTH. Filling credentials...');
-    
-    // 1. Fill
     await page.fill('input[type="email"], input[name="email"]', USER.email);
     await delay(200);
     await page.fill('input[type="password"]', USER.password);
     
-    // 2. Submit
-    // Try explicit button first, then Enter
     const btn = page.locator('button[type="submit"]').first();
     if (await btn.isVisible()) {
         await btn.click();
     } else {
         await page.keyboard.press('Enter');
     }
-    
     console.log('   🚀 Submitted. Waiting for navigation...');
-    await page.waitForLoadState('networkidle');
-    await delay(3000); // Give app time to process
+    await delay(5000);
 }
 
 /**
- * Action: Handle Profile Selection (Your screenshot specific)
+ * 👥 Action: Profile Selection
  */
 async function doProfileSelection(page: Page) {
     console.log('   👥 State: PROFILES. Picking a user...');
     
-    // Strategy: Find the container that holds the user name or icon
-    // We look for the text of your user (from config) or generic profile items
-    
-    // 1. Try to click the specific user text if it exists
+    // Click the user text or avatar
     const userText = page.locator(`text=${USER.email.split('@')[0]}`).first();
-    const genericAvatar = page.locator('.avatar, [role="button"] img').first();
-    
-    // Broad click target: Click the center of the screen if elements are weird
-    // (Often works for overlay menus)
+    const avatar = page.locator('.avatar, img[alt*="profile"]').first();
     
     if (await userText.isVisible()) {
-        console.log('      -> Clicking by Username Text');
         await userText.click();
-    } else if (await genericAvatar.count() > 0) {
-        console.log('      -> Clicking generic Avatar');
-        await genericAvatar.click();
+    } else if (await avatar.isVisible()) {
+        await avatar.click();
     } else {
-        console.log('      -> fallback: Clicking center of page');
-        const viewport = page.viewportSize();
-        if (viewport) await page.mouse.click(viewport.width / 2, viewport.height / 2);
+        // Blind click in center if selectors fail
+        const vp = page.viewportSize();
+        if (vp) await page.mouse.click(vp.width/2, vp.height/2);
     }
     
-    await delay(3000);
+    console.log('   🖱️ Clicked Profile. Waiting for Dashboard to load...');
+    // CRITICAL: Wait longer for the dashboard to render
+    await delay(5000);
 }
 
 /**
- * Action: Dashboard / Browsing
+ * 🍿 Action: Dashboard
  */
 async function doBrowse(page: Page) {
     console.log('   🍿 State: DASHBOARD. Hunting for content...');
     
-    // Find all potential clickables (Posters, Play buttons)
     const candidates = page.locator('.movie-card, img[alt*="Movie"], [role="img"]');
-    const count = await candidates.count();
     
-    if (count > 0) {
-        const index = Math.floor(Math.random() * count);
-        console.log(`      -> Clicking item ${index}/${count}`);
+    if (await candidates.count() > 0) {
+        // Pick a random movie
+        const index = Math.floor(Math.random() * await candidates.count());
+        console.log(`      -> Clicking movie #${index}`);
         
-        // Hover first (triggers css effects)
         await candidates.nth(index).hover();
         await delay(500);
         await candidates.nth(index).click();
-        
-        await delay(3000); // Wait for transition
+        await delay(3000);
     } else {
-        console.log('      -> No movies found? Scrolling...');
+        console.log('      -> No movies visible yet. Scrolling to trigger load...');
         await page.mouse.wheel(0, 500);
         await delay(2000);
     }
 }
 
 /**
- * Action: Watching Video
+ * 📺 Action: Watch
  */
 async function doWatch(page: Page) {
-    console.log('   📺 State: WATCHING. Enjoying the show...');
+    console.log('   📺 State: WATCHING.');
+    // Watch for 5-10 seconds
+    const watchTime = 5000 + Math.random() * 5000;
+    await delay(watchTime);
     
-    // Stay here for a random time between 5s and 15s
-    const watchTime = Math.floor(Math.random() * 10000) + 5000;
-    
-    // Simulate activity so we don't look idle
-    const steps = 5;
-    for(let i=0; i<steps; i++) {
-        await page.mouse.move(Math.random() * 500, Math.random() * 500);
-        await delay(watchTime / steps);
-    }
-    
-    // Go back / Close
-    console.log('      -> Done watching. Going back.');
+    console.log('      -> Done. Going back.');
     await page.goBack();
-    await delay(2000);
+    await delay(3000);
 }
 
 // --- MAIN LOOP ---
@@ -148,54 +137,44 @@ async function doWatch(page: Page) {
   });
   const page = await context.newPage();
 
+  // Network Spy
+  page.on('request', req => {
+      if (req.url().includes('/s/') && req.method() === 'POST') console.log('   🎥 Sending Replay Data');
+  });
+
   try {
     console.log(`🔗 Visiting ${BASE_URL + START_PATH}`);
     await page.goto(BASE_URL + START_PATH);
-    await delay(2000);
+    await delay(3000);
     
-    // Handle Cookie Banner (Always check first)
+    // Cookie Smash
     const cookies = page.locator('button:has-text("Accept"), button:has-text("Allow")');
     if (await cookies.count() > 0) await cookies.first().click();
 
-    // --- THE AUTONOMOUS LOOP ---
-    // We run this loop X times to simulate a session flow
-    // 1 Loop = 1 Decision (Login -> Profile -> Watch -> Leave)
-    
-    const maxSteps = 6; // Limit steps to prevent infinite loops
+    // Run the loop
+    const maxSteps = 8;
     
     for (let step = 0; step < maxSteps; step++) {
         const state = await detectState(page);
-        console.log(`🔄 Step ${step+1}/${maxSteps}: Detected State [${state}]`);
+        console.log(`🔄 Step ${step+1}/${maxSteps}: Detected [${state}] @ ${page.url()}`);
         
         switch (state) {
-            case 'AUTH':
-                await doLogin(page);
-                break;
-            case 'PROFILES':
-                await doProfileSelection(page);
-                break;
-            case 'DASHBOARD':
-                await doBrowse(page);
-                break;
-            case 'WATCHING':
-                await doWatch(page);
-                break;
+            case 'AUTH': await doLogin(page); break;
+            case 'PROFILES': await doProfileSelection(page); break;
+            case 'DASHBOARD': await doBrowse(page); break;
+            case 'WATCHING': await doWatch(page); break;
             case 'UNKNOWN':
-                // If we are logged in but on landing page, try to find "Log in" or "Launch"
-                console.log('   ❓ Unknown state. Checking for navigation buttons...');
-                const loginBtn = page.locator('button:has-text("Sign in"), a:has-text("Sign in")');
-                if (await loginBtn.count() > 0) {
-                    await loginBtn.first().click();
+                console.log('   ❓ Unknown state. Scrolling and hoping for the best...');
+                // Fallback: If we are stuck on landing page, click Sign In
+                const loginBtn = page.locator('button:has-text("Sign in")').first();
+                if (await loginBtn.isVisible()) {
+                    await loginBtn.click();
                 } else {
-                    // Just scroll
-                    await page.mouse.wheel(0, 300);
+                    await page.mouse.wheel(0, 500);
                 }
-                await delay(2000);
                 break;
         }
-        
-        // Wait between steps for network/transitions
-        await delay(2000);
+        await delay(3000);
     }
 
     console.log('⏳ Flushing Replay Buffer (Waiting 15s)...');
