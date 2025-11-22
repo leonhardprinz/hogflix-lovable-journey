@@ -13,41 +13,28 @@ const USER = {
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * 🧠 The Brain: improved to detect Dashboard even if movies are loading
- */
 async function detectState(page: Page) {
     const url = page.url();
-    
-    // 1. URL Checks (Fastest)
     if (url.includes('/auth') || url.includes('/login')) return 'AUTH';
     if (url.includes('/profiles')) return 'PROFILES';
     if (url.includes('/watch')) return 'WATCHING';
     
-    // 2. UI Element Checks
-    
-    // AUTH: Look for password field
+    // UI Checks
     if (await page.locator('input[type="password"]').count() > 0) return 'AUTH';
-    
-    // PROFILES: Look for "Who's Watching" text
     if (await page.locator('text=Who’s Watching?').count() > 0) return 'PROFILES';
     
-    // DASHBOARD: (The Fix)
-    // Don't just look for movies. Look for the Nav bar, Hero, or "Home" text.
+    // Dashboard Check (Broad)
     const dashboardSignals = page.locator('.movie-card')
-                                 .or(page.locator('nav'))           // Navigation bar
-                                 .or(page.locator('header'))        // Header
-                                 .or(page.locator('text=Home'))     // Menu items
+                                 .or(page.locator('nav'))
+                                 .or(page.locator('header'))
+                                 .or(page.locator('text=Home'))
+                                 .or(page.locator('text=Trending'))
                                  .or(page.locator('text=My List'));
 
     if (await dashboardSignals.count() > 0) return 'DASHBOARD';
-    
     return 'UNKNOWN';
 }
 
-/**
- * 🔐 Action: Login
- */
 async function doLogin(page: Page) {
     console.log('   🔐 State: AUTH. Filling credentials...');
     await page.fill('input[type="email"], input[name="email"]', USER.email);
@@ -55,71 +42,83 @@ async function doLogin(page: Page) {
     await page.fill('input[type="password"]', USER.password);
     
     const btn = page.locator('button[type="submit"]').first();
-    if (await btn.isVisible()) {
-        await btn.click();
-    } else {
-        await page.keyboard.press('Enter');
-    }
-    console.log('   🚀 Submitted. Waiting for navigation...');
+    if (await btn.isVisible()) await btn.click();
+    else await page.keyboard.press('Enter');
+    
+    console.log('   🚀 Submitted.');
     await delay(5000);
 }
 
-/**
- * 👥 Action: Profile Selection
- */
 async function doProfileSelection(page: Page) {
     console.log('   👥 State: PROFILES. Picking a user...');
-    
-    // Click the user text or avatar
     const userText = page.locator(`text=${USER.email.split('@')[0]}`).first();
     const avatar = page.locator('.avatar, img[alt*="profile"]').first();
     
-    if (await userText.isVisible()) {
-        await userText.click();
-    } else if (await avatar.isVisible()) {
-        await avatar.click();
-    } else {
-        // Blind click in center if selectors fail
+    if (await userText.isVisible()) await userText.click();
+    else if (await avatar.isVisible()) await avatar.click();
+    else {
         const vp = page.viewportSize();
         if (vp) await page.mouse.click(vp.width/2, vp.height/2);
     }
-    
-    console.log('   🖱️ Clicked Profile. Waiting for Dashboard to load...');
-    // CRITICAL: Wait longer for the dashboard to render
     await delay(5000);
 }
 
-/**
- * 🍿 Action: Dashboard
- */
+// 🆕 UPDATED: BROAD SPECTRUM BROWSING
 async function doBrowse(page: Page) {
     console.log('   🍿 State: DASHBOARD. Hunting for content...');
     
-    const candidates = page.locator('.movie-card, img[alt*="Movie"], [role="img"]');
+    // 1. Try standard cards first
+    let candidates = page.locator('.movie-card, [role="article"]');
     
-    if (await candidates.count() > 0) {
-        // Pick a random movie
-        const index = Math.floor(Math.random() * await candidates.count());
-        console.log(`      -> Clicking movie #${index}`);
+    // 2. If none, try ANY image inside a link or button (Posters)
+    if (await candidates.count() === 0) {
+        candidates = page.locator('a:has(img), button:has(img)');
+    }
+
+    // 3. If STILL none, try any "Play" button/icon
+    if (await candidates.count() === 0) {
+         candidates = page.locator('button[aria-label*="Play"]')
+                          .or(page.locator('.lucide-play')) // Shadcn Play Icon
+                          .or(page.locator('text=Play'));
+    }
+
+    const count = await candidates.count();
+    if (count > 0) {
+        // Pick one randomly
+        const index = Math.floor(Math.random() * count);
+        console.log(`      -> Found ${count} candidates. Clicking #${index}`);
         
-        await candidates.nth(index).hover();
+        const target = candidates.nth(index);
+        await target.scrollIntoViewIfNeeded();
+        await target.hover();
         await delay(500);
-        await candidates.nth(index).click();
+        await target.click();
+        
+        // Wait to see if it opened a "Modal" (Netflix style) or navigated
         await delay(3000);
+        
+        // CHECK: Did we open a modal with a "Play" button inside?
+        const modalPlay = page.locator('button:has-text("Play")')
+                              .or(page.locator('button[aria-label="Play"]'));
+                              
+        if (await modalPlay.count() > 0 && await modalPlay.first().isVisible()) {
+             console.log('      -> Modal detected. Clicking BIG Play button...');
+             await modalPlay.first().click();
+             await delay(2000);
+        }
     } else {
-        console.log('      -> No movies visible yet. Scrolling to trigger load...');
+        console.log('      -> No clickable movies found. Scrolling...');
         await page.mouse.wheel(0, 500);
         await delay(2000);
     }
 }
 
-/**
- * 📺 Action: Watch
- */
 async function doWatch(page: Page) {
     console.log('   📺 State: WATCHING.');
-    // Watch for 5-10 seconds
-    const watchTime = 5000 + Math.random() * 5000;
+    const watchTime = 8000 + Math.random() * 5000;
+    
+    // Move mouse to keep controls visible/active
+    await page.mouse.move(200, 200);
     await delay(watchTime);
     
     console.log('      -> Done. Going back.');
@@ -147,16 +146,14 @@ async function doWatch(page: Page) {
     await page.goto(BASE_URL + START_PATH);
     await delay(3000);
     
-    // Cookie Smash
     const cookies = page.locator('button:has-text("Accept"), button:has-text("Allow")');
     if (await cookies.count() > 0) await cookies.first().click();
 
-    // Run the loop
     const maxSteps = 8;
     
     for (let step = 0; step < maxSteps; step++) {
         const state = await detectState(page);
-        console.log(`🔄 Step ${step+1}/${maxSteps}: Detected [${state}] @ ${page.url()}`);
+        console.log(`🔄 Step ${step+1}/${maxSteps}: Detected [${state}]`);
         
         switch (state) {
             case 'AUTH': await doLogin(page); break;
@@ -164,14 +161,11 @@ async function doWatch(page: Page) {
             case 'DASHBOARD': await doBrowse(page); break;
             case 'WATCHING': await doWatch(page); break;
             case 'UNKNOWN':
-                console.log('   ❓ Unknown state. Scrolling and hoping for the best...');
-                // Fallback: If we are stuck on landing page, click Sign In
+                console.log('   ❓ Unknown state. Scrolling...');
+                // If on landing, try to sign in. If deep inside, try to go home.
                 const loginBtn = page.locator('button:has-text("Sign in")').first();
-                if (await loginBtn.isVisible()) {
-                    await loginBtn.click();
-                } else {
-                    await page.mouse.wheel(0, 500);
-                }
+                if (await loginBtn.isVisible()) await loginBtn.click();
+                else await page.mouse.wheel(0, 500);
                 break;
         }
         await delay(3000);
