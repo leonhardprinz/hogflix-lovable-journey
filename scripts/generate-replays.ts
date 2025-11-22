@@ -13,6 +13,26 @@ const USER = {
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * 🛠️ THE FIX: Force PostHog to wake up and record
+ */
+async function forcePostHogStart(page: Page) {
+    await page.evaluate(() => {
+        // @ts-ignore
+        if (window.posthog) {
+            // @ts-ignore
+            window.posthog.debug(true); // Turn on internal logs
+            // @ts-ignore
+            window.posthog.opt_in_capturing(); // Force opt-in (bypasses cookie banner logic)
+            // @ts-ignore
+            window.posthog.startSessionRecording(); // FORCE START
+            console.log('   💉 PostHog: Forced startSessionRecording()');
+        } else {
+            console.log('   ⚠️ PostHog: Global object not found yet.');
+        }
+    });
+}
+
 async function detectState(page: Page) {
     const url = page.url();
     if (url.includes('/auth') || url.includes('/login')) return 'AUTH';
@@ -23,12 +43,10 @@ async function detectState(page: Page) {
     if (await page.locator('input[type="password"]').count() > 0) return 'AUTH';
     if (await page.locator('text=Who’s Watching?').count() > 0) return 'PROFILES';
     
-    // Dashboard Check (Broad)
     const dashboardSignals = page.locator('.movie-card')
                                  .or(page.locator('nav'))
                                  .or(page.locator('header'))
                                  .or(page.locator('text=Home'))
-                                 .or(page.locator('text=Trending'))
                                  .or(page.locator('text=My List'));
 
     if (await dashboardSignals.count() > 0) return 'DASHBOARD';
@@ -63,41 +81,29 @@ async function doProfileSelection(page: Page) {
     await delay(5000);
 }
 
-// 🆕 UPDATED: BROAD SPECTRUM BROWSING
 async function doBrowse(page: Page) {
     console.log('   🍿 State: DASHBOARD. Hunting for content...');
     
-    // 1. Try standard cards first
     let candidates = page.locator('.movie-card, [role="article"]');
-    
-    // 2. If none, try ANY image inside a link or button (Posters)
-    if (await candidates.count() === 0) {
-        candidates = page.locator('a:has(img), button:has(img)');
-    }
-
-    // 3. If STILL none, try any "Play" button/icon
+    if (await candidates.count() === 0) candidates = page.locator('a:has(img), button:has(img)');
     if (await candidates.count() === 0) {
          candidates = page.locator('button[aria-label*="Play"]')
-                          .or(page.locator('.lucide-play')) // Shadcn Play Icon
+                          .or(page.locator('.lucide-play'))
                           .or(page.locator('text=Play'));
     }
 
     const count = await candidates.count();
     if (count > 0) {
-        // Pick one randomly
         const index = Math.floor(Math.random() * count);
         console.log(`      -> Found ${count} candidates. Clicking #${index}`);
-        
         const target = candidates.nth(index);
         await target.scrollIntoViewIfNeeded();
         await target.hover();
         await delay(500);
         await target.click();
         
-        // Wait to see if it opened a "Modal" (Netflix style) or navigated
         await delay(3000);
         
-        // CHECK: Did we open a modal with a "Play" button inside?
         const modalPlay = page.locator('button:has-text("Play")')
                               .or(page.locator('button[aria-label="Play"]'));
                               
@@ -116,11 +122,8 @@ async function doBrowse(page: Page) {
 async function doWatch(page: Page) {
     console.log('   📺 State: WATCHING.');
     const watchTime = 8000 + Math.random() * 5000;
-    
-    // Move mouse to keep controls visible/active
     await page.mouse.move(200, 200);
     await delay(watchTime);
-    
     console.log('      -> Done. Going back.');
     await page.goBack();
     await delay(3000);
@@ -130,15 +133,31 @@ async function doWatch(page: Page) {
 
 (async () => {
   const browser = await chromium.launch();
+  
+  // 🆕 NEW CONTEXT SETTINGS
   const context = await browser.newContext({ 
     viewport: { width: 1280, height: 800 },
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    bypassCSP: true, // 🟢 CRITICAL: Allow trackers to run
+    ignoreHTTPSErrors: true
   });
+  
   const page = await context.newPage();
 
-  // Network Spy
+  // 🆕 NETWORK SPY (Filtered)
   page.on('request', req => {
-      if (req.url().includes('/s/') && req.method() === 'POST') console.log('   🎥 Sending Replay Data');
+      // Look for the specific Session Replay endpoint
+      if (req.url().includes('/s/') && req.method() === 'POST') {
+          console.log(`   🎥 Sending REPLAY Data (${req.postData()?.length || 0} bytes)`);
+      }
+  });
+
+  // 🆕 CONSOLE SPY (See if PostHog complains)
+  page.on('console', msg => {
+      const text = msg.text();
+      if (text.includes('PostHog') || text.includes('posthog')) {
+          console.log(`   [Page Log]: ${text}`);
+      }
   });
 
   try {
@@ -146,11 +165,10 @@ async function doWatch(page: Page) {
     await page.goto(BASE_URL + START_PATH);
     await delay(3000);
     
-    const cookies = page.locator('button:has-text("Accept"), button:has-text("Allow")');
-    if (await cookies.count() > 0) await cookies.first().click();
+    // 1. Force Start
+    await forcePostHogStart(page);
 
     const maxSteps = 8;
-    
     for (let step = 0; step < maxSteps; step++) {
         const state = await detectState(page);
         console.log(`🔄 Step ${step+1}/${maxSteps}: Detected [${state}]`);
@@ -162,12 +180,15 @@ async function doWatch(page: Page) {
             case 'WATCHING': await doWatch(page); break;
             case 'UNKNOWN':
                 console.log('   ❓ Unknown state. Scrolling...');
-                // If on landing, try to sign in. If deep inside, try to go home.
                 const loginBtn = page.locator('button:has-text("Sign in")').first();
                 if (await loginBtn.isVisible()) await loginBtn.click();
                 else await page.mouse.wheel(0, 500);
                 break;
         }
+        
+        // Re-inject force start every few steps just to be safe
+        if (step % 2 === 0) await forcePostHogStart(page);
+        
         await delay(3000);
     }
 
