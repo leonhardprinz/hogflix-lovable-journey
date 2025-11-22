@@ -2,58 +2,54 @@ import { chromium } from 'playwright-extra';
 import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Page, ElementHandle } from '@playwright/test';
 
+// Apply the invisibility cloak to the browser
 chromium.use(stealthPlugin());
 
-// --- CONFIG ---
-const RAW_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app';
-const BASE_URL = RAW_URL.replace(/\/$/, ''); 
-const START_PATH = '/'; 
+// --- 1. CONFIGURATION ---
+const CONFIG = {
+    baseUrl: (process.env.TARGET_URL || 'https://hogflix-demo.lovable.app').replace(/\/$/, ''),
+    // CRITICAL: This forces the browser to stay open for 5 minutes minimum
+    minSessionDuration: 300000, 
+    users: [
+        { email: 'summers.nor-7f@icloud.com', password: 'zug2vec5ZBE.dkq*ubk' },
+        { email: 'slatted_combats.9i@icloud.com', password: 'qmt8fhv2vju1DMC*bzn' },
+        { email: 'treadle-tidbit-1b@icloud.com', password: 'avf6zqh6tfn!rap.MED' },
+        { email: 'toppers.tester_3c@icloud.com', password: 'sVcj_Z4HF4@sH24*xg36' },
+        { email: 'slate-polders3m@icloud.com', password: 'wbt_-bwbkUe@y9J_J.sK' },
+        { email: 'cabals-foyer-5w@icloud.com', password: '3f_ApN4jt4QQr@mYKg3Y' },
+        { email: 'arroyo.gunner_6z@icloud.com', password: 'eavAX!qGPmHyP*J9TwKY' }
+    ]
+};
 
-// 👥 EXPANDED CAST
-const USERS = [
-    { email: 'summers.nor-7f@icloud.com',  password: 'zug2vec5ZBE.dkq*ubk' },
-    { email: 'slatted_combats.9i@icloud.com', password: 'qmt8fhv2vju1DMC*bzn' },
-    { email: 'treadle-tidbit-1b@icloud.com', password: 'avf6zqh6tfn!rap.MED' }
-];
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// Pick random user for this run
-const CURRENT_USER = USERS[Math.floor(Math.random() * USERS.length)];
+// --- 2. UTILITIES (The "Human" Engine) ---
 
-// --- UTILS ---
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// Moves mouse in a smooth curve instead of teleporting
+async function humanMove(page: Page, selector: string | ElementHandle) {
+    try {
+        let box;
+        if (typeof selector === 'string') {
+            const el = page.locator(selector).first();
+            if (await el.count() > 0) box = await el.boundingBox();
+        } else {
+            box = await selector.boundingBox();
+        }
 
-/**
- * 🐭 SLOW HAND PHYSICS
- * Moves mouse in a curve with variable speed
- */
-async function humanMove(page: Page, selectorOrEl: string | ElementHandle) {
-    let element;
-    if (typeof selectorOrEl === 'string') {
-        element = page.locator(selectorOrEl).first();
-        if (await element.count() === 0) return;
-    } else {
-        element = selectorOrEl;
-    }
-
-    // @ts-ignore
-    const box = await element.boundingBox();
-    if (!box) return;
-
-    // Target: Slightly off-center (humans aren't perfect)
-    const targetX = box.x + (box.width / 2) + (Math.random() * 20 - 10);
-    const targetY = box.y + (box.height / 2) + (Math.random() * 20 - 10);
-
-    // "Steps" determines slowness. Higher = Slower.
-    // We use 50 steps for a very lazy, human feel.
-    await page.mouse.move(targetX, targetY, { steps: 50 });
+        if (box) {
+            const x = box.x + box.width / 2 + (Math.random() * 20 - 10);
+            const y = box.y + box.height / 2 + (Math.random() * 20 - 10);
+            // 'steps: 25' makes the movement visible and human-like
+            await page.mouse.move(x, y, { steps: 25 });
+        }
+    } catch (e) { /* Ignore move errors */ }
 }
 
-async function forcePostHogStart(page: Page) {
+// Manually wakes up PostHog recording if it's sleeping
+async function forcePostHog(page: Page) {
     await page.evaluate(() => {
         // @ts-ignore
         if (window.posthog) {
-            // @ts-ignore
-            window.posthog.register({ $device_type: 'Desktop', $browser: 'Chrome' });
             // @ts-ignore
             window.posthog.opt_in_capturing();
             // @ts-ignore
@@ -62,248 +58,231 @@ async function forcePostHogStart(page: Page) {
     });
 }
 
-// --- STATE MACHINE ---
-
-async function detectState(page: Page) {
-    const url = page.url();
-    if (url.includes('/auth') || url.includes('/login')) return 'AUTH';
-    if (url.includes('/profiles')) return 'PROFILES';
-    if (url.includes('/watch')) return 'WATCHING';
-    
-    if (await page.locator('input[type="password"]').count() > 0) return 'AUTH';
-    if (await page.locator('text=Who’s Watching?').count() > 0) return 'PROFILES';
-    
-    const dashboardSignals = page.locator('.movie-card')
-                                 .or(page.locator('nav'))
-                                 .or(page.locator('text=Home'))
-                                 .or(page.locator('text=My List'));
-
-    if (await dashboardSignals.count() > 0) return 'DASHBOARD';
-    return 'UNKNOWN';
-}
-
-async function doLogin(page: Page) {
-    console.log(`   🔐 State: AUTH. User: ${CURRENT_USER.email}`);
-    
-    await humanMove(page, 'input[type="email"]');
-    await page.fill('input[type="email"], input[name="email"]', CURRENT_USER.email);
-    await delay(500);
-    
-    await humanMove(page, 'input[type="password"]');
-    await page.fill('input[type="password"]', CURRENT_USER.password);
-    
-    const btn = page.locator('button[type="submit"]').first();
-    if (await btn.isVisible()) {
-        await humanMove(page, await btn.elementHandle());
-        await btn.click();
-    } else {
-        await page.keyboard.press('Enter');
+// The "Loiter Mode" - Keeps session alive until 5 minutes is up
+async function loiterUntil(page: Page, targetTime: number) {
+    console.log('   🕰️ Entering Loiter Mode to hit duration target...');
+    while (Date.now() < targetTime) {
+        await delay(5000);
+        
+        // 1. Scroll up/down randomly
+        const roll = Math.random();
+        if (roll < 0.3) await page.mouse.wheel(0, 300); 
+        else if (roll < 0.6) await page.mouse.wheel(0, -300);
+        else {
+            // 2. Jitter mouse (prevents "Idle" status)
+            const x = Math.random() * 500;
+            const y = Math.random() * 500;
+            await page.mouse.move(x, y, { steps: 20 });
+        }
+        
+        // 3. Re-inject recording command occasionally
+        if (Math.random() < 0.1) await forcePostHog(page);
     }
-    
-    console.log('   🚀 Submitted.');
-    await delay(5000);
 }
 
-async function doProfileSelection(page: Page) {
-    console.log('   👥 State: PROFILES.');
-    const userText = page.locator(`text=${CURRENT_USER.email.split('@')[0]}`).first();
-    const avatar = page.locator('.avatar, img[alt*="profile"]').first();
-    
-    if (await userText.isVisible()) {
-        await humanMove(page, await userText.elementHandle());
-        await userText.click();
-    } else if (await avatar.isVisible()) {
-        await humanMove(page, await avatar.elementHandle());
-        await avatar.click();
-    } else {
-        const vp = page.viewportSize();
-        if (vp) await page.mouse.click(vp.width/2, vp.height/2);
+// --- 3. JOURNEYS (Specific Missions) ---
+
+// 🏷️ JOURNEY 1: Pricing & CTA Test
+async function journeyPricing(page: Page) {
+    console.log('   🏷️ RUNNING JOURNEY: Pricing Page CTA Test');
+    await page.goto(`${CONFIG.baseUrl}/pricing`);
+    await delay(4000);
+
+    // Hover over plans to inspect them
+    // Use broad selector to catch any plan card
+    const plans = page.locator('div[class*="card"], div[class*="plan"]');
+    for (let i = 0; i < await plans.count(); i++) {
+        await humanMove(page, plans.nth(i));
+        await delay(1000);
     }
-    await delay(5000);
-}
 
-async function doBrowse(page: Page) {
-    console.log('   🍿 State: DASHBOARD.');
-
-    // 1. FRUSTRATION ENGINE (Rage Clicks)
-    if (Math.random() < 0.15) { // 15% chance
-        console.log('      😡 Frustration Event!');
-        // Click a random non-interactive text
-        const text = page.locator('h1, h2, p').first();
-        if (await text.isVisible()) {
-            await humanMove(page, await text.elementHandle());
-            await page.click('h1, h2, p', { clickCount: 5, delay: 80 }); // Rage click
+    // Test the "Ultimate" button (Rage Click Experiment)
+    const ultimateBtn = page.locator('button:has-text("Ultimate")').first();
+    if (await ultimateBtn.isVisible()) {
+        console.log('      -> Testing Ultimate Button Interaction');
+        await humanMove(page, ultimateBtn);
+        
+        // 50% chance to Rage Click
+        if (Math.random() > 0.5) {
+            console.log('      😡 Rage Clicking Ultimate Button...');
+            await ultimateBtn.click({ clickCount: 5, delay: 100 });
         } else {
-            // Dead click on empty space
-            await page.mouse.click(100, 300);
+            await ultimateBtn.click();
         }
+        await delay(3000);
+    }
+}
+
+// 🧭 JOURNEY 2: Browse Priority
+async function journeyBrowsePriority(page: Page) {
+    console.log('   🧭 RUNNING JOURNEY: Browse Priority');
+    await page.goto(`${CONFIG.baseUrl}/browse`);
+    await delay(4000);
+
+    // Feature Flag Detection: Which header is visible?
+    const popular = await page.locator('text=Popular on HogFlix').isVisible();
+    const trending = await page.locator('text=Trending Now').isVisible();
+    
+    let targetSection;
+    if (popular && !trending) {
+        console.log('      -> Variant Identified: POPULAR FIRST');
+        // Find a card strictly inside the Popular section
+        targetSection = page.locator(':text("Popular on HogFlix") ~ div .movie-card');
+    } else if (trending && !popular) {
+        console.log('      -> Variant Identified: TRENDING FIRST');
+        targetSection = page.locator(':text("Trending Now") ~ div .movie-card');
+    } else {
+        console.log('      -> Control/Mixed. Using generic selector.');
+        targetSection = page.locator('.movie-card');
     }
 
-    // 2. DECISION TREE
-    const roll = Math.random();
-    
-    // 30% Explore Nav (Pricing, FlixBuddy)
-    if (roll < 0.30) {
-        console.log('      -> Decision: Explore Nav');
-        const links = page.locator('nav a, header a');
-        const count = await links.count();
-        if (count > 0) {
-            const target = links.nth(Math.floor(Math.random() * count));
-            const text = await target.textContent();
-            if (text && !text.toLowerCase().includes('out')) { // Don't logout
-                 await humanMove(page, await target.elementHandle());
-                 await target.click();
-                 await delay(4000);
-                 return;
-            }
-        }
+    if (await targetSection.count() > 0) {
+        const card = targetSection.nth(1); // Click the 2nd one
+        await humanMove(page, card);
+        await card.click();
+        console.log('      -> Clicked movie card.');
     }
+}
 
-    // 70% Watch Movie
-    console.log('      -> Decision: Pick Movie');
-    let candidates = page.locator('.movie-card');
-    // Fallbacks
-    if (await candidates.count() === 0) candidates = page.locator('img[alt*="Movie"]');
+// 📺 JOURNEY 3: Deep Watch
+async function journeyDeepWatch(page: Page) {
+    console.log('   📺 RUNNING JOURNEY: Deep Watch');
     
-    if (await candidates.count() > 0) {
-        const index = Math.floor(Math.random() * await candidates.count());
-        const target = candidates.nth(index);
-        
-        await target.scrollIntoViewIfNeeded();
-        await humanMove(page, await target.elementHandle());
-        await delay(500);
-        await target.click();
-        
+    // 1. Navigate to video if not there
+    if (!page.url().includes('watch')) {
+        await page.goto(`${CONFIG.baseUrl}/browse`);
         await delay(3000);
         
-        // Handle Modal Play Button
-        const modalPlay = page.locator('button:has-text("Play"), button[aria-label="Play"]');
-        if (await modalPlay.count() > 0 && await modalPlay.first().isVisible()) {
-            console.log('      -> Modal detected. Playing.');
-            await humanMove(page, await modalPlay.first().elementHandle());
-            await modalPlay.first().click();
-        }
+        // Try clicking a movie image
+        const card = page.locator('img[alt*="Movie"], .movie-card').first();
+        if (await card.isVisible()) await card.click();
+        
+        // Handle "Play" button in Modal
+        const playBtn = page.locator('button:has-text("Play")').first();
+        if (await playBtn.isVisible()) await playBtn.click();
+        
+        // Wait for URL change
+        try { await page.waitForURL(/.*watch.*/, { timeout: 5000 }); } catch(e) {}
     }
-    await delay(2000);
-}
 
-async function doWatch(page: Page) {
-    // DYNAMIC WATCH LOGIC
-    const percentages = [0.30, 0.55, 0.75, 0.95];
-    const targetPercent = percentages[Math.floor(Math.random() * percentages.length)];
-    
-    // Assume avg video is ~45 seconds for demo purposes
-    const totalDuration = 45000; 
-    const watchMs = totalDuration * targetPercent;
-    
-    console.log(`   📺 State: WATCHING. Target: ${(targetPercent*100)}% (${watchMs/1000}s)`);
+    // 2. AI Summary (Early Access Test)
+    const aiBtn = page.locator('button:has-text("Generate Summary")').first();
+    if (await aiBtn.isVisible()) {
+        console.log('      ✨ AI Summary Feature Visible. Interacting...');
+        await humanMove(page, aiBtn);
+        await aiBtn.click();
+        await delay(5000); // Wait for generation
+    }
 
-    // 1. Ensure Video is Playing
+    // 3. Watch Logic
+    console.log('      -> Waiting for video player...');
     const video = page.locator('video').first();
-    // Wait up to 5s for video tag to appear
-    try { await video.waitFor({ timeout: 5000 }); } catch(e) {}
-
-    // Check if playing, if not click center
-    const isPaused = await page.evaluate(() => {
+    
+    // JS Injection: Force the video to play if UI fails
+    await page.evaluate(() => {
         const v = document.querySelector('video');
-        return v ? v.paused : true;
+        if(v) { v.muted = true; v.play(); }
     });
-    
-    if (isPaused) {
-        console.log('      -> Video paused. Clicking to start...');
-        const box = await video.boundingBox();
-        if (box) {
-            await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
-        }
-    }
 
-    // 2. The Watch Loop (with Keep-Alive Jitter)
-    const startTime = Date.now();
-    while (Date.now() - startTime < watchMs) {
-        // Every 4 seconds, wiggle mouse so PostHog knows we are alive
-        await delay(4000);
-        
-        const jitterX = Math.random() * 100;
-        const jitterY = Math.random() * 100;
-        // Small, idle movement
-        await page.mouse.move(300 + jitterX, 300 + jitterY, { steps: 10 });
-        
-        // 5% chance to pause and resume (indecisive user)
-        if (Math.random() < 0.05) {
-             console.log('      -> User paused briefly...');
-             const box = await video.boundingBox();
-             if (box) await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
-             await delay(2000);
-             if (box) await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
-        }
-    }
+    // Watch for random %
+    const targetPercent = [0.3, 0.55, 0.75, 1.0][Math.floor(Math.random()*4)];
+    const duration = 60000 * targetPercent; // Scale to 1 min base for demo
     
-    console.log('      -> Watch target reached. Leaving.');
-    await page.goBack();
-    await delay(3000);
+    console.log(`      -> Watching for ${duration/1000}s (${targetPercent*100}%)`);
+    
+    const start = Date.now();
+    while (Date.now() - start < duration) {
+        await delay(5000);
+        // Mouse jitter to keep alive
+        const x = Math.random() * 300;
+        await page.mouse.move(200 + x, 200 + x);
+    }
+    console.log('      -> Watch complete.');
 }
 
-// --- MAIN ---
+// 🦔 JOURNEY 4: Floating Widget
+async function journeyFloatingWidget(page: Page) {
+    console.log('   🦔 RUNNING JOURNEY: Floating Widget');
+    await page.goto(`${CONFIG.baseUrl}/`);
+    await delay(3000);
+
+    const widget = page.locator('.floating-hedgehog, [aria-label="Chat"]').first();
+    if (await widget.isVisible()) {
+        console.log('      -> Widget visible (Variant A or Control). Clicking...');
+        await humanMove(page, widget);
+        await widget.click();
+        await delay(5000);
+    } else {
+        console.log('      -> Widget hidden (Variant B). Working as intended.');
+    }
+}
+
+// --- 4. MAIN CONTROLLER ---
 
 (async () => {
-  // Launch browser using playwright-extra
-  const browser = await chromium.launch({ headless: true });
-  
-  const context = await browser.newContext({ 
-    viewport: { width: 1280, height: 800 },
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    deviceScaleFactor: 2,
-    locale: 'en-US'
-  });
-
-  const page = await context.newPage();
-
-  page.on('request', req => {
-      if (req.url().includes('/s/') && req.method() === 'POST') {
-         // console.log(`   🎥 Sending REPLAY (${req.postData()?.length} bytes)`);
-      }
-  });
-
-  try {
-    console.log(`🔗 Visiting ${BASE_URL + START_PATH}`);
-    await page.goto(BASE_URL + START_PATH);
-    await delay(3000);
+    // Launch browser using playwright-extra (Stealth Mode)
+    const browser = await chromium.launch({ headless: true });
     
-    const cookies = page.locator('button:has-text("Accept"), button:has-text("Allow")');
-    if (await cookies.count() > 0) await cookies.first().click();
+    const context = await browser.newContext({ 
+        viewport: { width: 1280, height: 800 },
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        deviceScaleFactor: 2,
+        locale: 'en-US'
+    });
 
-    await forcePostHogStart(page);
+    const page = await context.newPage();
+    // Calculate when we are allowed to stop (Now + 5 mins)
+    const sessionEndTime = Date.now() + CONFIG.minSessionDuration;
 
-    // Increased steps to ensure we hit multiple videos/pages
-    const maxSteps = 12;
-    for (let step = 0; step < maxSteps; step++) {
-        const state = await detectState(page);
-        console.log(`🔄 Step ${step+1}/${maxSteps}: [${state}]`);
-        
-        switch (state) {
-            case 'AUTH': await doLogin(page); break;
-            case 'PROFILES': await doProfileSelection(page); break;
-            case 'DASHBOARD': await doBrowse(page); break;
-            case 'WATCHING': await doWatch(page); break;
-            case 'UNKNOWN':
-                console.log('   ❓ Unknown. Scrolling...');
-                const login = page.locator('button:has-text("Sign in")').first();
-                if (await login.isVisible()) await login.click();
-                else await page.mouse.wheel(0, 500);
-                break;
-        }
-        
-        if (step % 2 === 0) await forcePostHogStart(page);
+    try {
+        // --- AUTH PHASE ---
+        console.log(`🔗 Visiting ${CONFIG.baseUrl}`);
+        await page.goto(CONFIG.baseUrl);
         await delay(2000);
+        
+        // Cookie Banner
+        const cookieBtn = page.locator('button:has-text("Accept"), button:has-text("Allow")').first();
+        if (await cookieBtn.isVisible()) await cookieBtn.click();
+
+        // Login
+        const user = CONFIG.users[Math.floor(Math.random() * CONFIG.users.length)];
+        console.log(`🔐 Logging in as ${user.email}`);
+        
+        await page.goto(`${CONFIG.baseUrl}/login`);
+        await page.fill('input[type="email"]', user.email);
+        await page.fill('input[type="password"]', user.password);
+        await page.click('button[type="submit"]');
+        // Wait for dashboard redirect
+        await page.waitForURL(/.*browse|.*profiles/, { timeout: 15000 }).catch(() => console.log('Login redirect timeout'));
+
+        // Profile Check
+        if (page.url().includes('profiles')) {
+            const profile = page.locator('.avatar, img[alt*="profile"]').first();
+            if (await profile.isVisible()) await profile.click();
+            await delay(3000);
+        }
+
+        // --- JOURNEY PHASE ---
+        // Randomly pick one specific mission for this session
+        const roll = Math.random();
+        if (roll < 0.25) await journeyPricing(page);
+        else if (roll < 0.50) await journeyBrowsePriority(page);
+        else if (roll < 0.75) await journeyDeepWatch(page);
+        else await journeyFloatingWidget(page);
+
+        // --- LOITER PHASE (The 5-Min Guarantee) ---
+        // This loop prevents the browser from closing until the time is up.
+        // This solves the "1:30 cutoff" issue.
+        await loiterUntil(page, sessionEndTime);
+
+        console.log('✅ Session Target Duration Reached. Flushing...');
+        
+        // Final hard wait to ensure PostHog uploads the last chunk
+        await delay(20000); 
+
+    } catch (e) {
+        console.error('❌ Error:', e);
+    } finally {
+        await browser.close();
     }
-
-    // Increased flush time to 30s to catch the tail end of long sessions
-    console.log('⏳ Flushing Replay Buffer (Waiting 30s)...');
-    await delay(30000);
-
-  } catch (e) {
-    console.error('❌ Error:', e);
-  } finally {
-    await browser.close();
-  }
 })();
