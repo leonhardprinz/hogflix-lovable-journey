@@ -5,8 +5,7 @@ const RAW_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app';
 const BASE_URL = RAW_URL.replace(/\/$/, ''); 
 const START_PATH = '/'; 
 
-// 🚨 CREDENTIALS 🚨
-const DEMO_USER = {
+const USER = {
     email: 'summers.nor-7f@icloud.com', 
     password: 'zug2vec5ZBE.dkq*ubk'
 };
@@ -14,175 +13,193 @@ const DEMO_USER = {
 // --- UTILS ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function handleCookieConsent(page: Page) {
-    const consentBtn = page.locator('button:has-text("Accept")')
-                           .or(page.locator('button:has-text("Allow")'))
-                           .or(page.locator('button:has-text("Agree")'));
+/**
+ * The "Brain" - Scans the page and decides what state we are in.
+ */
+async function detectState(page: Page) {
+    const url = page.url();
     
-    if (await consentBtn.count() > 0 && await consentBtn.first().isVisible()) {
-        console.log('   🍪 Clicking Cookie Consent...');
-        await consentBtn.first().click();
-        await delay(1000);
-    }
+    // 1. Check for specific URL patterns first
+    if (url.includes('/auth') || url.includes('/login')) return 'AUTH';
+    if (url.includes('/profiles')) return 'PROFILES';
+    if (url.includes('/watch')) return 'WATCHING';
+    
+    // 2. Check for UI Elements
+    if (await page.locator('input[type="password"]').count() > 0) return 'AUTH';
+    if (await page.locator('text=Who’s Watching?').count() > 0) return 'PROFILES';
+    if (await page.locator('.movie-card').count() > 0) return 'DASHBOARD';
+    
+    // Default fallback
+    return 'UNKNOWN';
 }
 
-// 🆕 NEW FUNCTION: Handles the "Who is watching?" screen
-async function handleProfileScreen(page: Page) {
-    if (page.url().includes('/profiles')) {
-        console.log('   👥 Profile Screen detected. Selecting a profile...');
-        
-        // Look for common profile elements: Images, Avatars, or just any button
-        const profile = page.locator('.avatar')
-                            .or(page.locator('img[alt*="profile"]'))
-                            .or(page.locator('img[alt*="Profile"]'))
-                            .or(page.locator('button')); // Fallback
-
-        if (await profile.count() > 0) {
-            // Click the first available profile
-            await profile.first().click();
-            console.log('   🖱️ Clicked Profile.');
-            
-            // Wait for navigation to the REAL dashboard
-            await page.waitForURL(url => !url.toString().includes('/profiles'), { timeout: 10000 });
-            console.log(`   ✅ Entered Dashboard: ${page.url()}`);
-            await delay(2000);
-        } else {
-            console.log('   ❌ On profile screen but no profiles found!');
-        }
-    }
-}
-
-async function performLogin(page: Page) {
-  console.log(`🔐 Login Start. URL: ${page.url()}`);
-  
-  let passInput = page.locator('input[type="password"]');
-  
-  // If not on auth page, click Sign In
-  if (await passInput.count() === 0) {
-      console.log('   -> Not on auth page. Clicking "Sign in"...');
-      const signInBtn = page.locator('button:has-text("Sign in")')
-                            .or(page.locator('a:has-text("Sign in")'))
-                            .or(page.locator('button:has-text("Log in")'))
-                            .or(page.locator('a:has-text("Log in")'));
-
-      if (await signInBtn.count() > 0) {
-          await signInBtn.first().click();
-          await delay(2000); 
-      }
-  }
-
-  // Fill Credentials
-  const emailInput = page.locator('input[type="email"], input[name="email"]');
-  passInput = page.locator('input[type="password"]');
-
-  if (await emailInput.count() > 0 && await passInput.count() > 0) {
-    console.log(`   ✍️ Filling credentials...`);
-    await emailInput.fill(DEMO_USER.email);
-    await delay(300);
-    await passInput.fill(DEMO_USER.password);
-    await delay(500);
-
-    // Submit
-    const submitBtn = page.locator('button[type="submit"]');
-    if (await submitBtn.count() > 0) {
-        await submitBtn.click();
+/**
+ * Action: Handle Login
+ */
+async function doLogin(page: Page) {
+    console.log('   🔐 State: AUTH. Filling credentials...');
+    
+    // 1. Fill
+    await page.fill('input[type="email"], input[name="email"]', USER.email);
+    await delay(200);
+    await page.fill('input[type="password"]', USER.password);
+    
+    // 2. Submit
+    // Try explicit button first, then Enter
+    const btn = page.locator('button[type="submit"]').first();
+    if (await btn.isVisible()) {
+        await btn.click();
     } else {
         await page.keyboard.press('Enter');
     }
     
-    console.log('   🚀 Waiting for redirect...');
-    // Wait specifically for EITHER dashboard OR profiles
-    try {
-        await page.waitForURL(url => !url.toString().includes('auth') && !url.toString().includes('login'), { timeout: 15000 });
-        console.log(`   📍 Landed at: ${page.url()}`);
-    } catch(e) {
-        console.log('   ⚠️ Redirect timeout.');
+    console.log('   🚀 Submitted. Waiting for navigation...');
+    await page.waitForLoadState('networkidle');
+    await delay(3000); // Give app time to process
+}
+
+/**
+ * Action: Handle Profile Selection (Your screenshot specific)
+ */
+async function doProfileSelection(page: Page) {
+    console.log('   👥 State: PROFILES. Picking a user...');
+    
+    // Strategy: Find the container that holds the user name or icon
+    // We look for the text of your user (from config) or generic profile items
+    
+    // 1. Try to click the specific user text if it exists
+    const userText = page.locator(`text=${USER.email.split('@')[0]}`).first();
+    const genericAvatar = page.locator('.avatar, [role="button"] img').first();
+    
+    // Broad click target: Click the center of the screen if elements are weird
+    // (Often works for overlay menus)
+    
+    if (await userText.isVisible()) {
+        console.log('      -> Clicking by Username Text');
+        await userText.click();
+    } else if (await genericAvatar.count() > 0) {
+        console.log('      -> Clicking generic Avatar');
+        await genericAvatar.click();
+    } else {
+        console.log('      -> fallback: Clicking center of page');
+        const viewport = page.viewportSize();
+        if (viewport) await page.mouse.click(viewport.width / 2, viewport.height / 2);
     }
-  }
+    
+    await delay(3000);
 }
 
-async function browseContent(page: Page) {
-  console.log('👀 Browsing content...');
-  
-  // 🆕 Extra check: Did we land on profiles?
-  await handleProfileScreen(page);
-
-  // Now look for movies
-  const movies = page.locator('.movie-card')
-                     .or(page.locator('img[alt*="Movie"]'))
-                     .or(page.locator('[role="img"]'))
-                     .or(page.locator('a[href*="/watch"]')); // Catch links to movies
-  
-  const count = await movies.count();
-  if (count > 0) {
-      console.log(`   🎬 Found ${count} movies. Watching one...`);
-      const index = Math.floor(Math.random() * count);
-      
-      // Hover first to trigger UI effects
-      await movies.nth(index).hover();
-      await delay(800);
-      await movies.nth(index).click();
-      
-      console.log('   🍿 Watching movie...');
-      
-      // 🆕 Force PostHog Capture manually to ensure data is sent
-      await page.evaluate(() => {
-          // @ts-ignore
-          if (window.posthog) window.posthog.capture('synthetic_video_start');
-      });
-
-      // Simulate a long watch session (20s)
-      for(let i=0; i<4; i++) {
-        await page.mouse.move(Math.random()*500, Math.random()*500);
-        await delay(5000);
-      }
-  } else {
-      console.log('   ❌ No movies found.');
-      // Dump page content to debug what we are actually looking at
-      const title = await page.title();
-      console.log(`   📄 Page Title: ${title}`);
-  }
+/**
+ * Action: Dashboard / Browsing
+ */
+async function doBrowse(page: Page) {
+    console.log('   🍿 State: DASHBOARD. Hunting for content...');
+    
+    // Find all potential clickables (Posters, Play buttons)
+    const candidates = page.locator('.movie-card, img[alt*="Movie"], [role="img"]');
+    const count = await candidates.count();
+    
+    if (count > 0) {
+        const index = Math.floor(Math.random() * count);
+        console.log(`      -> Clicking item ${index}/${count}`);
+        
+        // Hover first (triggers css effects)
+        await candidates.nth(index).hover();
+        await delay(500);
+        await candidates.nth(index).click();
+        
+        await delay(3000); // Wait for transition
+    } else {
+        console.log('      -> No movies found? Scrolling...');
+        await page.mouse.wheel(0, 500);
+        await delay(2000);
+    }
 }
 
-// --- MAIN ---
+/**
+ * Action: Watching Video
+ */
+async function doWatch(page: Page) {
+    console.log('   📺 State: WATCHING. Enjoying the show...');
+    
+    // Stay here for a random time between 5s and 15s
+    const watchTime = Math.floor(Math.random() * 10000) + 5000;
+    
+    // Simulate activity so we don't look idle
+    const steps = 5;
+    for(let i=0; i<steps; i++) {
+        await page.mouse.move(Math.random() * 500, Math.random() * 500);
+        await delay(watchTime / steps);
+    }
+    
+    // Go back / Close
+    console.log('      -> Done watching. Going back.');
+    await page.goBack();
+    await delay(2000);
+}
+
+// --- MAIN LOOP ---
 
 (async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext({ 
     viewport: { width: 1280, height: 800 },
-    // Use standard User Agent
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   });
   const page = await context.newPage();
 
-  // Network Spy
-  page.on('request', req => {
-      if (req.url().includes('posthog.com') && req.url().includes('/s/')) {
-          console.log('   🎥 Sending REPLAY Data');
-      }
-  });
-
   try {
     console.log(`🔗 Visiting ${BASE_URL + START_PATH}`);
     await page.goto(BASE_URL + START_PATH);
-    await delay(3000);
+    await delay(2000);
     
-    await handleCookieConsent(page);
+    // Handle Cookie Banner (Always check first)
+    const cookies = page.locator('button:has-text("Accept"), button:has-text("Allow")');
+    if (await cookies.count() > 0) await cookies.first().click();
 
-    // Initial check
-    if (page.url().includes('/profiles')) {
-        await handleProfileScreen(page);
-    } else if (await page.locator('.movie-grid').count() > 0) {
-        console.log('   ✅ Already on Dashboard.');
-    } else {
-        await performLogin(page);
+    // --- THE AUTONOMOUS LOOP ---
+    // We run this loop X times to simulate a session flow
+    // 1 Loop = 1 Decision (Login -> Profile -> Watch -> Leave)
+    
+    const maxSteps = 6; // Limit steps to prevent infinite loops
+    
+    for (let step = 0; step < maxSteps; step++) {
+        const state = await detectState(page);
+        console.log(`🔄 Step ${step+1}/${maxSteps}: Detected State [${state}]`);
+        
+        switch (state) {
+            case 'AUTH':
+                await doLogin(page);
+                break;
+            case 'PROFILES':
+                await doProfileSelection(page);
+                break;
+            case 'DASHBOARD':
+                await doBrowse(page);
+                break;
+            case 'WATCHING':
+                await doWatch(page);
+                break;
+            case 'UNKNOWN':
+                // If we are logged in but on landing page, try to find "Log in" or "Launch"
+                console.log('   ❓ Unknown state. Checking for navigation buttons...');
+                const loginBtn = page.locator('button:has-text("Sign in"), a:has-text("Sign in")');
+                if (await loginBtn.count() > 0) {
+                    await loginBtn.first().click();
+                } else {
+                    // Just scroll
+                    await page.mouse.wheel(0, 300);
+                }
+                await delay(2000);
+                break;
+        }
+        
+        // Wait between steps for network/transitions
+        await delay(2000);
     }
 
-    // Browse
-    await browseContent(page);
-
-    console.log('⏳ Flushing Replay Buffer (Waiting 20s)...');
-    await delay(20000); // 20s flush for safety
+    console.log('⏳ Flushing Replay Buffer (Waiting 15s)...');
+    await delay(15000);
 
   } catch (e) {
     console.error('❌ Error:', e);
