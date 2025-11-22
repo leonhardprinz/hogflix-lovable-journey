@@ -28,10 +28,11 @@ const ContentPreviewCarousel = () => {
           .from('videos')
           .select(`
             id, title, description, thumbnail_url, duration,
-            categories!videos_category_id_fkey!inner (
+            categories (
               name
             )
           `)
+          .eq('is_public', true)
           .order('created_at', { ascending: false })
           .limit(8);
 
