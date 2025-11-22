@@ -35,6 +35,7 @@ async function humanMove(page: Page, selectorOrEl: string | ElementHandle) {
         element = selectorOrEl;
     }
 
+    // @ts-ignore
     const box = await element.boundingBox();
     if (!box) return;
 
@@ -93,7 +94,7 @@ async function doLogin(page: Page) {
     
     const btn = page.locator('button[type="submit"]').first();
     if (await btn.isVisible()) {
-        await humanMove(page, btn);
+        await humanMove(page, await btn.elementHandle());
         await btn.click();
     } else {
         await page.keyboard.press('Enter');
@@ -109,10 +110,10 @@ async function doProfileSelection(page: Page) {
     const avatar = page.locator('.avatar, img[alt*="profile"]').first();
     
     if (await userText.isVisible()) {
-        await humanMove(page, userText);
+        await humanMove(page, await userText.elementHandle());
         await userText.click();
     } else if (await avatar.isVisible()) {
-        await humanMove(page, avatar);
+        await humanMove(page, await avatar.elementHandle());
         await avatar.click();
     } else {
         const vp = page.viewportSize();
@@ -130,7 +131,7 @@ async function doBrowse(page: Page) {
         // Click a random non-interactive text
         const text = page.locator('h1, h2, p').first();
         if (await text.isVisible()) {
-            await humanMove(page, text);
+            await humanMove(page, await text.elementHandle());
             await page.click('h1, h2, p', { clickCount: 5, delay: 80 }); // Rage click
         } else {
             // Dead click on empty space
@@ -150,7 +151,7 @@ async function doBrowse(page: Page) {
             const target = links.nth(Math.floor(Math.random() * count));
             const text = await target.textContent();
             if (text && !text.toLowerCase().includes('out')) { // Don't logout
-                 await humanMove(page, target);
+                 await humanMove(page, await target.elementHandle());
                  await target.click();
                  await delay(4000);
                  return;
@@ -169,7 +170,7 @@ async function doBrowse(page: Page) {
         const target = candidates.nth(index);
         
         await target.scrollIntoViewIfNeeded();
-        await humanMove(page, target);
+        await humanMove(page, await target.elementHandle());
         await delay(500);
         await target.click();
         
@@ -179,7 +180,7 @@ async function doBrowse(page: Page) {
         const modalPlay = page.locator('button:has-text("Play"), button[aria-label="Play"]');
         if (await modalPlay.count() > 0 && await modalPlay.first().isVisible()) {
             console.log('      -> Modal detected. Playing.');
-            await humanMove(page, modalPlay.first());
+            await humanMove(page, await modalPlay.first().elementHandle());
             await modalPlay.first().click();
         }
     }
@@ -192,7 +193,6 @@ async function doWatch(page: Page) {
     const targetPercent = percentages[Math.floor(Math.random() * percentages.length)];
     
     // Assume avg video is ~45 seconds for demo purposes
-    // In a real app, we would scrape the duration from the video player
     const totalDuration = 45000; 
     const watchMs = totalDuration * targetPercent;
     
@@ -246,6 +246,7 @@ async function doWatch(page: Page) {
 // --- MAIN ---
 
 (async () => {
+  // Launch browser using playwright-extra
   const browser = await chromium.launch({ headless: true });
   
   const context = await browser.newContext({ 
@@ -289,4 +290,20 @@ async function doWatch(page: Page) {
                 const login = page.locator('button:has-text("Sign in")').first();
                 if (await login.isVisible()) await login.click();
                 else await page.mouse.wheel(0, 500);
-                break
+                break;
+        }
+        
+        if (step % 2 === 0) await forcePostHogStart(page);
+        await delay(2000);
+    }
+
+    // Increased flush time to 30s to catch the tail end of long sessions
+    console.log('⏳ Flushing Replay Buffer (Waiting 30s)...');
+    await delay(30000);
+
+  } catch (e) {
+    console.error('❌ Error:', e);
+  } finally {
+    await browser.close();
+  }
+})();
