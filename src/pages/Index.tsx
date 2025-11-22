@@ -86,8 +86,25 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background-dark">
+      {/* Top Navigation Bar */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-background-dark via-background-dark/95 to-transparent">
+        <div className="container-netflix flex justify-between items-center py-4 px-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary-red font-manrope">
+            HogFlix
+          </h1>
+          <Link to="/login">
+            <Button 
+              variant="default"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-2 shadow-lg"
+            >
+              Sign In
+            </Button>
+          </Link>
+        </div>
+      </div>
+
       {/* Hero Section - Compact */}
-      <div className="relative min-h-[60vh] lg:min-h-[70vh] overflow-hidden pt-12 pb-16">
+      <div className="relative min-h-[60vh] lg:min-h-[70vh] overflow-hidden pt-24 pb-16">
         {/* Background Video */}
         {featuredVideo?.signedVideoUrl && !videoError && (
           <>

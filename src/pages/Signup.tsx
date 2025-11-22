@@ -273,20 +273,24 @@ const Signup = () => {
         </div>
 
         {step !== 'verify' && (
-          <div className="mt-8 text-center">
-            <div className="flex items-center gap-2 justify-center text-sm text-text-tertiary mb-4">
+          <div className="mt-8 text-center space-y-4">
+            <div className="flex items-center gap-2 justify-center text-sm text-text-tertiary">
               <Shield className="w-4 h-4" />
               256-bit SSL encryption • GDPR compliant • Your data is safe
             </div>
-            <p className="text-text-secondary">
-              Already have an account?{' '}
-              <button
+            
+            <div className="pt-4 border-t border-gray-800/50">
+              <p className="text-text-secondary mb-3">
+                Already have an account?
+              </p>
+              <Button
                 onClick={() => navigate('/login')}
-                className="text-primary-red hover:underline font-semibold transition-colors"
+                variant="outline"
+                className="w-full sm:w-auto border-2 border-primary-red/50 text-primary-red hover:bg-primary-red/10 hover:border-primary-red font-semibold px-8 py-2 transition-all"
               >
-                Sign In
-              </button>
-            </p>
+                Sign In to Your Account
+              </Button>
+            </div>
           </div>
         )}
       </div>
