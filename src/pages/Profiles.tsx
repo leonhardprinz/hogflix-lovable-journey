@@ -147,9 +147,14 @@ const Profiles = () => {
           <h1 className="text-5xl font-bold text-text-primary mb-4 font-manrope">
             Who's Watching?
           </h1>
-          <p className="text-text-secondary font-manrope mb-6">
-            Select your profile to continue
-          </p>
+          <div className="flex flex-col items-center gap-2 mb-6">
+            <p className="text-2xl font-semibold text-primary-red font-manrope animate-pulse">
+              👇 Click Your Profile to Continue 👇
+            </p>
+            <p className="text-text-secondary font-manrope">
+              Choose a profile below to start browsing
+            </p>
+          </div>
           
           {/* Enhanced Subscription Display */}
           {subscription && (
@@ -208,26 +213,36 @@ const Profiles = () => {
             <div
               key={profile.id}
               onClick={() => handleProfileSelect(profile)}
-              className="flex flex-col items-center cursor-pointer group relative"
+              className="flex flex-col items-center cursor-pointer group relative transform transition-all duration-300 hover:scale-110"
             >
-              <div className="w-32 h-32 bg-card-background rounded-lg flex items-center justify-center mb-4 card-hover border-2 border-transparent group-hover:border-primary-red transition-all duration-200 relative">
-                <User size={48} className="text-text-secondary" />
-                {profile.is_kids_profile && (
-                  <div className="absolute top-2 right-2 bg-primary-red text-white text-xs px-2 py-1 rounded">
-                    KIDS
-                  </div>
-                )}
+              <div className="relative">
+                {/* Animated ring indicator */}
+                <div className="absolute inset-0 w-32 h-32 rounded-lg border-4 border-primary-red animate-pulse group-hover:animate-none" />
                 
-                {/* Edit Button */}
-                <button
-                  onClick={(e) => handleEditProfile(profile, e)}
-                  className="absolute -top-2 -right-2 w-8 h-8 bg-primary-red rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-primary-red/80 shadow-lg"
-                  title="Edit Profile"
-                >
-                  <Edit3 size={16} className="text-white" />
-                </button>
+                <div className="w-32 h-32 bg-gradient-to-br from-card-background to-card-background/50 rounded-lg flex items-center justify-center mb-4 card-hover border-4 border-primary-red/50 group-hover:border-primary-red group-hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] transition-all duration-300 relative">
+                  <User size={48} className="text-text-secondary group-hover:text-primary-red transition-colors" />
+                  {profile.is_kids_profile && (
+                    <div className="absolute top-2 right-2 bg-primary-red text-white text-xs px-2 py-1 rounded">
+                      KIDS
+                    </div>
+                  )}
+                  
+                  {/* Edit Button */}
+                  <button
+                    onClick={(e) => handleEditProfile(profile, e)}
+                    className="absolute -top-2 -right-2 w-8 h-8 bg-background-dark border-2 border-primary-red rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-primary-red shadow-lg z-10"
+                    title="Edit Profile"
+                  >
+                    <Edit3 size={16} className="text-primary-red hover:text-white" />
+                  </button>
+                  
+                  {/* Click indicator badge */}
+                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary-red text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg group-hover:bg-green-500 transition-colors">
+                    CLICK TO START
+                  </div>
+                </div>
               </div>
-              <span className="text-text-primary font-manrope text-lg group-hover:text-primary-red transition-colors text-center max-w-32 truncate">
+              <span className="text-text-primary font-manrope text-lg font-semibold group-hover:text-primary-red transition-colors text-center max-w-32 truncate mt-2">
                 {profile.display_name || 'Set your name'}
               </span>
               {!profile.display_name && (
