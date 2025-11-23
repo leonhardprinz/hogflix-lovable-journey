@@ -232,13 +232,13 @@ const Header = () => {
           )}
 
           {/* Logo */}
-          <Link to={user ? '/browse' : '/'}>
+          <Link to={user ? '/browse' : '/'} className="mr-8 shrink-0">
             <h1 className="text-3xl font-bold text-primary-red cursor-pointer font-manrope hover:opacity-80 transition-opacity">
               HogFlix
             </h1>
           </Link>
 
-          <nav className="flex items-center space-x-6">
+          <nav className="flex items-center space-x-6 flex-1">
             {user ? (
               <>
                 {/* Navigation Links */}
