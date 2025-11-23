@@ -1,7 +1,6 @@
 import { chromium } from 'playwright-extra';
 import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Page, ElementHandle } from '@playwright/test';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // 1. SETUP STEALTH
 chromium.use(stealthPlugin());
@@ -10,7 +9,6 @@ chromium.use(stealthPlugin());
 const CONFIG = {
     baseUrl: (process.env.TARGET_URL || 'https://hogflix-demo.lovable.app').replace(/\/$/, ''),
     minSessionDuration: 300000, // 5 Minutes Target
-    geminiKey: process.env.GEMINI_API_KEY_2 || process.env.GEMINI_API_KEY,
     users: [
         { email: 'toppers.tester_3c@icloud.com', password: 'sVcj_Z4HF4@sH24*xg36' },
         { email: 'slate-polders3m@icloud.com', password: 'wbt_-bwbkUe@y9J_J.sK' },
@@ -21,10 +19,6 @@ const CONFIG = {
         { email: 'treadle-tidbit-1b@icloud.com', password: 'avf6zqh6tfn!rap.MED' }
     ]
 };
-
-// Initialize AI
-const genAI = new GoogleGenerativeAI(CONFIG.geminiKey || '');
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 // Mouse State Tracking
 let MOUSE_STATE = { x: 0, y: 0 };
@@ -50,8 +44,7 @@ async function humanMove(page: Page, target: ElementHandle | {x: number, y: numb
         targetY = Math.max(5, Math.min(targetY, 795));
 
         const distance = Math.hypot(targetX - MOUSE_STATE.x, targetY - MOUSE_STATE.y);
-        // SLOW: 50 steps is very lazy/human
-        const steps = Math.max(30, Math.min(Math.floor(distance / 5), 80));
+        const steps = Math.max(25, Math.min(Math.floor(distance / 6), 60)); 
 
         await page.mouse.move(targetX, targetY, { steps });
         MOUSE_STATE = { x: targetX, y: targetY };
@@ -69,7 +62,7 @@ async function smartClick(page: Page, selectorOrEl: string | ElementHandle) {
         
         if (element && await element.isVisible()) {
             await humanMove(page, element);
-            await delay(400 + Math.random() * 300); 
+            await delay(300 + Math.random() * 200); 
             await element.click();
             return true;
         }
@@ -89,175 +82,144 @@ async function forcePostHog(page: Page) {
     });
 }
 
-// --- 3. CRITICAL: THE "NUCLEAR" PROFILE SMASHER ---
+// --- 3. CRITICAL HELPERS ---
 
-async function smashProfileGate(page: Page) {
-    // Check if we are stuck
+async function ensureDashboard(page: Page) {
+    // 1. Handle Profile Gate
     if (page.url().includes('profiles') || await page.locator('text=Who’s Watching?').count() > 0) {
-        console.log('      -> 🛑 Profile Gate Detected. SMASHING...');
-        
-        // 1. Try your new specific text
+        console.log('      -> 🛑 Profile Gate Detected. Clicking through...');
         const startBtn = page.locator('text="CLICK TO START"').first();
-        // 2. Try any avatar
-        const avatar = page.locator('.avatar, img[alt*="profile"]').first();
-        
-        if (await startBtn.isVisible()) {
-            await startBtn.click({ force: true }); // Force click ignores overlays
-        } else if (await avatar.isVisible()) {
-            await avatar.click({ force: true });
-        } else {
-            // Blind click center of screen
-            const vp = page.viewportSize();
-            if(vp) await page.mouse.click(vp.width/2, vp.height/2);
-        }
+        const hedgehog = page.locator('img[src*="hedgehog"]').first();
+        const avatar = page.locator('.avatar').first();
 
-        // Wait for navigation
-        try { 
-            await page.waitForURL(u => !u.toString().includes('profiles'), { timeout: 8000 });
-            console.log('      ✅ Smashed through to Dashboard.');
-        } catch(e) {
-            console.log('      ⚠️ Navigation slow/failed.');
-        }
+        if (await startBtn.isVisible()) await startBtn.click({ force: true });
+        else if (await hedgehog.isVisible()) await hedgehog.click({ force: true });
+        else if (await avatar.isVisible()) await avatar.click({ force: true });
+        
+        try { await page.waitForURL(u => !u.toString().includes('profiles'), { timeout: 8000 }); }
+        catch (e) { console.log('      ⚠️ Profile transition slow.'); }
     }
 }
 
-/**
- * 🧭 SPA NAVIGATOR: Moves without reloading page (Crucial for state)
- */
 async function softNavigate(page: Page, path: string) {
-    console.log(`      -> Soft Navigating to ${path}...`);
-    
-    // 1. Try finding a link in the UI first (Most human)
+    const targetUrl = `${CONFIG.baseUrl}${path}`;
+    if (page.url() === targetUrl) return;
+
+    console.log(`      -> Navigating to ${path}...`);
     const link = page.locator(`a[href="${path}"]`).first();
     if (await link.isVisible()) {
         await smartClick(page, await link.elementHandle());
         return;
     }
-
-    // 2. JS Injection (Keeps React State alive)
-    await page.evaluate((target) => {
-        window.history.pushState({}, '', target);
+    // Fallback: JS Navigation
+    await page.evaluate((path) => {
+        window.history.pushState({}, '', path);
         window.dispatchEvent(new PopStateEvent('popstate'));
     }, path);
     await delay(2000);
 }
 
-// --- 4. AI BRAIN ---
+// --- 4. JOURNEY MODULES ---
 
-async function askGemini(page: Page, goal: string): Promise<number> {
-    if (!CONFIG.geminiKey) return -1;
-    
-    // Smart Scraper: Filter out footer/invisible junk
-    const elements = await page.$$('button, a, input, [role="button"], .movie-card');
-    const descriptions = [];
-    const vp = page.viewportSize();
-
-    for (let i = 0; i < elements.length; i++) {
-        const box = await elements[i].boundingBox();
-        // Ignore if invisible or in footer area (> 1.5x viewport height)
-        if (!box || (vp && box.y > vp.height * 1.5)) continue;
-        
-        const t = await elements[i].textContent().catch(()=>'');
-        const l = await elements[i].getAttribute('aria-label').catch(()=>'');
-        const card = (await elements[i].getAttribute('class'))?.includes('movie-card');
-        
-        if (!t?.trim() && !l && !card) continue;
-        
-        descriptions.push(`${i}: ${card ? '[MOVIE]' : ''} ${t?.substring(0,30)} ${l}`);
-    }
-
-    if (descriptions.length === 0) return -1;
-
-    const prompt = `Goal: ${goal}. Screen:\n${descriptions.slice(0,20).join('\n')}\nReply ONLY with index.`;
-    try {
-        const result = await model.generateContent(prompt);
-        const idx = parseInt(result.response.text().match(/\d+/)?.[0] || '-1');
-        return isNaN(idx) ? -1 : idx;
-    } catch(e) { return -1; }
-}
-
-// --- 5. JOURNEYS ---
-
-async function journeyPricing(page: Page) {
-    console.log('   💳 JOURNEY: Pricing');
-    await smashProfileGate(page);
+async function journeyPricingCheckout(page: Page) {
+    console.log('   💳 JOURNEY: Pricing & Checkout');
+    await ensureDashboard(page);
     await softNavigate(page, '/pricing');
-    
-    // Hover plans
-    const plans = await page.$$('.pricing-card');
-    for (const p of plans) { await humanMove(page, p); await delay(500); }
+    await delay(3000);
 
-    // Rage Click
-    const ult = page.locator('button:has-text("Ultimate")').first();
-    if (await ult.isVisible()) {
-        console.log('      -> Rage Clicking Ultimate...');
-        await humanMove(page, await ult.elementHandle());
-        await ult.click({ clickCount: 6, delay: 80 });
+    const ultimateBtn = page.locator('button:has-text("Ultimate")').first();
+    if (await ultimateBtn.isVisible()) {
+        console.log('      -> Rage clicking Ultimate...');
+        await humanMove(page, await ultimateBtn.elementHandle());
+        await ultimateBtn.click({ clickCount: 6, delay: 80 });
     }
-    
-    // Subscribe Standard
-    const std = page.locator('button:has-text("Standard")').first();
-    if (await std.isVisible()) {
-        await smartClick(page, await std.elementHandle());
+
+    const standardBtn = page.locator('button:has-text("Standard")').first();
+    if (await standardBtn.isVisible()) {
+        console.log('      -> Clicking Standard Plan...');
+        await smartClick(page, await standardBtn.elementHandle());
         await delay(2000);
-        // Fill Fake Card
+        
         if (await page.locator('input[placeholder*="Card"]').isVisible()) {
-            console.log('      -> Filling Card...');
+            console.log('      -> Filling Fake Card...');
             await page.fill('input[placeholder*="Card"]', '4242424242424242');
             await page.fill('input[placeholder*="MM/YY"]', '12/25');
             await page.fill('input[placeholder*="CVC"]', '123');
+            await delay(1000);
             const pay = page.locator('button:has-text("Pay"), button:has-text("Subscribe")').last();
             if (await pay.isVisible()) await smartClick(page, await pay.elementHandle());
         }
     }
+    await delay(3000);
 }
 
 async function journeySearch(page: Page) {
     console.log('   🔍 JOURNEY: Search');
-    await smashProfileGate(page);
+    await ensureDashboard(page);
     
     const searchBtn = page.locator('button[aria-label="Search"], .lucide-search, a[href="/search"]').first();
     if (await searchBtn.isVisible()) {
         await smartClick(page, await searchBtn.elementHandle());
+        await delay(1000);
         
-        const term = ["Sci-Fi", "Hog", "Space", "Comedy"][Math.floor(Math.random()*4)];
-        console.log(`      -> Searching "${term}"...`);
+        const term = ["Hog", "Sci-Fi", "Space"][Math.floor(Math.random()*3)];
+        console.log(`      -> Searching "${term}"`);
         await page.keyboard.type(term, { delay: 150 });
         await delay(500);
         await page.keyboard.press('Enter');
         await delay(3000);
         
-        // AI Pick Result
-        const choice = await askGemini(page, `Click a movie result for ${term}`);
-        const cards = await page.$$('.movie-card');
-        const target = cards[choice > -1 ? choice : 0];
-        if (target) await smartClick(page, target);
+        // Click first result that looks like an image
+        const res = page.locator('img[alt], .movie-card').nth(1);
+        if (await res.isVisible()) await smartClick(page, await res.elementHandle());
+        await delay(3000);
     }
 }
 
 async function journeyWatch(page: Page) {
-    console.log('   📺 JOURNEY: Watch');
-    await smashProfileGate(page);
+    console.log('   📺 JOURNEY: Watch Content');
+    await ensureDashboard(page);
 
+    // 1. ENTER WATCH MODE
     if (!page.url().includes('watch')) {
         if (!page.url().includes('browse')) await softNavigate(page, '/browse');
         await delay(3000);
         
-        const choice = await askGemini(page, "Pick a movie to watch");
-        const cards = await page.$$('.movie-card');
-        if (cards.length > 0) {
-            const target = cards[choice > -1 ? choice : Math.floor(Math.random()*cards.length)];
+        // --- THE FIX: FIND ANY IMAGE THAT LOOKS LIKE A POSTER ---
+        console.log('      -> Hunting for Movie Posters...');
+        const images = await page.$$('img');
+        const candidates = [];
+        
+        for (const img of images) {
+            const box = await img.boundingBox();
+            // Must be visible and substantial size (avoiding tiny icons)
+            if (box && box.width > 150 && box.height > 150) {
+                candidates.push(img);
+            }
+        }
+
+        if (candidates.length > 0) {
+            const target = candidates[Math.floor(Math.random() * Math.min(5, candidates.length))];
+            console.log('      -> Clicking a Poster...');
             await smartClick(page, target);
             
-            // Handle Modal
+            // 2. HANDLE MODAL (The "Play" Button Trap)
             await delay(2000);
-            const play = page.locator('button:has-text("Play")').first();
-            if (await play.isVisible()) await smartClick(page, await play.elementHandle());
+            const playBtn = page.locator('button:has-text("Play"), button[aria-label="Play"]').first();
+            if (await playBtn.isVisible()) {
+                console.log('      -> Modal detected. Clicking "Play"...');
+                await smartClick(page, await playBtn.elementHandle());
+            }
+        } else {
+            console.log('      ⚠️ No posters found. Navigating directly to demo video...');
+            // Failsafe: Go to a specific video URL if click fails
+            await page.goto(`${CONFIG.baseUrl}/watch/1`); 
         }
+        
         try { await page.waitForURL(/.*watch.*/, { timeout: 6000 }); } catch(e) {}
     }
 
-    // Verify & Force Play
+    // 3. FORCE PLAY
     const playing = await page.evaluate(async () => {
         const v = document.querySelector('video');
         if (!v) return false;
@@ -276,12 +238,12 @@ async function journeyWatch(page: Page) {
         }
         await page.goBack();
     } else {
-        console.log('      ⚠️ Playback failed. Back to Browse.');
+        console.log('      ⚠️ Video error. Resetting to browse.');
         await softNavigate(page, '/browse');
     }
 }
 
-// --- 5. MAIN ---
+// --- 5. MAIN CONTROLLER ---
 
 (async () => {
     const browser = await chromium.launch({ headless: true });
@@ -316,24 +278,23 @@ async function journeyWatch(page: Page) {
         await page.fill('input[type="email"]', user.email);
         await page.fill('input[type="password"]', user.password);
         await page.click('button[type="submit"]');
-        
         try { await page.waitForURL(/.*browse|.*profiles/, { timeout: 15000 }); } catch(e) {}
 
-        // LOOP
+        // MAIN LOOP
         let cycle = 1;
         while (Date.now() < sessionEndTime) {
             const remaining = Math.ceil((sessionEndTime - Date.now()) / 1000);
             console.log(`\n--- Cycle #${cycle} (${remaining}s left) ---`);
 
-            await smashProfileGate(page); // Run Bouncer
+            await ensureDashboard(page);
 
             const roll = Math.random();
             try {
                 if (roll < 0.25) await journeyPricingCheckout(page);
-                else if (roll < 0.50) await journeySearchAI(page);
-                else await journeyWatch(page);
+                else if (roll < 0.50) await journeySearch(page);
+                else await journeyWatch(page); 
             } catch (e) {
-                console.log('   ⚠️ Error:', e.message?.substring(0,50));
+                console.log('   ⚠️ Journey Error:', e.message?.substring(0,50));
                 await softNavigate(page, '/browse');
             }
 
@@ -344,8 +305,8 @@ async function journeyWatch(page: Page) {
             cycle++;
         }
 
-        console.log('✅ Session Complete. Final Flush...');
-        await delay(25000);
+        console.log('✅ Session Complete. Flushing...');
+        await delay(20000);
 
     } catch (e) {
         console.error('❌ Fatal Error:', e);
