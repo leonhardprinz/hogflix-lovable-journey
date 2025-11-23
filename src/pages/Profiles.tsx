@@ -143,83 +143,27 @@ const Profiles = () => {
   return (
     <div className="min-h-screen bg-background-dark">
       <div className="container-netflix py-16">
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-text-primary mb-4 font-manrope">
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold text-text-primary mb-6 font-manrope">
             Who's Watching?
           </h1>
-          <div className="flex flex-col items-center gap-2 mb-6">
-            <p className="text-2xl font-semibold text-primary-red font-manrope animate-pulse">
-              👇 Click Your Profile to Continue 👇
-            </p>
-            <p className="text-text-secondary font-manrope">
-              Choose a profile below to start browsing
-            </p>
-          </div>
-          
-          {/* Enhanced Subscription Display */}
-          {subscription && (
-            <Card className="max-w-2xl mx-auto mb-8 bg-card/50 backdrop-blur">
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
-                      <Check className="w-6 h-6 text-primary" />
-                    </div>
-                    <div className="text-left">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-xl font-bold">
-                          {subscription.plan_display_name} Plan
-                        </h3>
-                        <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500">
-                          Active
-                        </Badge>
-                      </div>
-                      <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <span className="font-semibold text-foreground">{subscription.video_quality}</span> Quality
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <span className="font-semibold text-foreground">{profiles.length}</span> of{' '}
-                          <span className="font-semibold text-foreground">{subscription.max_profiles}</span> profiles
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          Next: {getNextBillingDate()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      posthog?.capture('subscription:manage_clicked');
-                      navigate('/pricing');
-                    }}
-                    className="whitespace-nowrap"
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Manage Subscription
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <p className="text-2xl font-semibold text-primary-red font-manrope animate-pulse">
+            👇 Click Your Profile to Continue 👇
+          </p>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-8 max-w-4xl mx-auto">
+        <div className="flex flex-wrap justify-center gap-8 max-w-4xl mx-auto mb-12">
           {profiles.map((profile) => (
             <div
               key={profile.id}
               onClick={() => handleProfileSelect(profile)}
               className="flex flex-col items-center cursor-pointer group relative transform transition-all duration-300 hover:scale-110"
             >
-              <div className="relative mb-6">
+              <div className="relative pb-8">
                 {/* Animated ring indicator */}
                 <div className="absolute inset-0 w-32 h-32 rounded-lg border-4 border-primary-red animate-pulse group-hover:animate-none" />
                 
-                <div className="w-32 h-32 bg-primary-red rounded-lg flex items-center justify-center card-hover border-4 border-primary-red group-hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] transition-all duration-300 relative">
+                <div className="w-32 h-32 rounded-lg flex items-center justify-center card-hover border-4 border-primary-red group-hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] transition-all duration-300 relative" style={{ backgroundColor: 'rgb(220, 38, 38)' }}>
                   {/* Hedgehog emoji as icon */}
                   <span className="text-6xl group-hover:scale-110 transition-transform">🦔</span>
                   
@@ -239,12 +183,12 @@ const Profiles = () => {
                   </button>
                 </div>
                 
-                {/* Click indicator badge - moved outside the box */}
-                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-background-dark border-2 border-primary-red text-primary-red text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg group-hover:bg-primary-red group-hover:text-white transition-all z-20">
+                {/* Click indicator badge - moved completely outside */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 bg-background-dark border-2 border-primary-red text-primary-red text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg group-hover:bg-primary-red group-hover:text-white transition-all">
                   CLICK TO START
                 </div>
               </div>
-              <span className="text-text-primary font-manrope text-lg font-semibold group-hover:text-primary-red transition-colors text-center max-w-32 truncate mt-2">
+              <span className="text-text-primary font-manrope text-lg font-semibold group-hover:text-primary-red transition-colors text-center max-w-32 truncate">
                 {profile.display_name || 'Set your name'}
               </span>
               {!profile.display_name && (
@@ -268,6 +212,57 @@ const Profiles = () => {
             </span>
           </div>
         </div>
+
+        {/* Enhanced Subscription Display - Moved Below Profiles */}
+        {subscription && (
+          <Card className="max-w-2xl mx-auto bg-card/50 backdrop-blur">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
+                    <Check className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-xl font-bold">
+                        {subscription.plan_display_name} Plan
+                      </h3>
+                      <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500">
+                        Active
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <span className="font-semibold text-foreground">{subscription.video_quality}</span> Quality
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <span className="font-semibold text-foreground">{profiles.length}</span> of{' '}
+                        <span className="font-semibold text-foreground">{subscription.max_profiles}</span> profiles
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        Next: {getNextBillingDate()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    posthog?.capture('subscription:manage_clicked');
+                    navigate('/pricing');
+                  }}
+                  className="whitespace-nowrap"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Manage Subscription
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {profiles.length === 0 && (
           <div className="text-center mt-12">
