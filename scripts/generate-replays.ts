@@ -3,12 +3,13 @@ import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Page, ElementHandle } from '@playwright/test';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// 1. SETUP STEALTH
 chromium.use(stealthPlugin());
 
 // --- CONFIGURATION ---
 const CONFIG = {
     baseUrl: (process.env.TARGET_URL || 'https://hogflix-demo.lovable.app').replace(/\/$/, ''),
-    minSessionDuration: 300000, // 5 Minutes
+    minSessionDuration: 300000, // 5 Minutes Target
     geminiKey: process.env.GEMINI_API_KEY_2 || process.env.GEMINI_API_KEY,
     users: [
         { email: 'toppers.tester_3c@icloud.com', password: 'sVcj_Z4HF4@sH24*xg36' },
@@ -21,193 +22,266 @@ const CONFIG = {
     ]
 };
 
-// Init AI
+// Initialize AI
 const genAI = new GoogleGenerativeAI(CONFIG.geminiKey || '');
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+// Mouse State Tracking
 let MOUSE_STATE = { x: 0, y: 0 };
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// --- 1. PERCEPTION SYSTEM (The Eyes) ---
+// --- 2. PHYSICS & UTILS ---
 
-interface Interactable {
-    index: number;
-    handle: ElementHandle;
-    desc: string;
-    type: string;
-}
-
-async function scanPage(page: Page): Promise<Interactable[]> {
-    // Select meaningful elements. We exclude footer items if we can to keep focus.
-    const selector = 'button, a, input, [role="button"], .movie-card, video, h1, h2';
-    const elements = await page.$$(selector);
-    const interactables: Interactable[] = [];
-    const viewport = page.viewportSize();
-
-    for (let i = 0; i < elements.length; i++) {
-        const el = elements[i];
-        const box = await el.boundingBox();
-        
-        // Filter: Visible & In Viewport (mostly)
-        if (!box || box.width < 5 || box.height < 5) continue;
-        
-        // Get semantic info
-        const text = (await el.textContent())?.trim().replace(/\s+/g, ' ').substring(0, 50) || '';
-        const label = await el.getAttribute('aria-label') || '';
-        const placeholder = await el.getAttribute('placeholder') || '';
-        const role = await el.evaluate(e => e.tagName.toLowerCase());
-        const isCard = (await el.getAttribute('class'))?.includes('movie-card');
-        
-        // Semantic Filter: Ignore empty divs unless they look like movie cards
-        if (!text && !label && !placeholder && !isCard && role !== 'video') continue;
-
-        // Build description for AI
-        let desc = `<${role}>`;
-        if (text) desc += ` "${text}"`;
-        if (label) desc += ` [Label: ${label}]`;
-        if (placeholder) desc += ` [Input: ${placeholder}]`;
-        if (isCard) desc += ` [TYPE: MOVIE_CARD]`;
-        if (role === 'video') desc += ` [TYPE: VIDEO_PLAYER]`;
-
-        interactables.push({ index: i, handle: el, desc, type: role });
-    }
-    
-    // Limit to top 30 elements to avoid overwhelming AI context window
-    return interactables.slice(0, 30);
-}
-
-// --- 2. DECISION ENGINE (The Brain) ---
-
-async function decideNextAction(goal: string, elements: Interactable[], history: string[]) {
-    if (!CONFIG.geminiKey) return null;
-
-    const prompt = `
-    I am simulating a human user on a Netflix-like streaming site.
-    CURRENT GOAL: ${goal}
-    
-    RECENT HISTORY: ${history.join(' -> ')}
-    
-    VISIBLE ELEMENTS:
-    ${elements.map(e => `${e.index}: ${e.desc}`).join('\n')}
-    
-    INSTRUCTIONS:
-    1. Pick the SINGLE best element index to interact with to advance the goal.
-    2. If the goal is "Watch", look for movie cards or play buttons.
-    3. If the goal is "Search", look for search icons or inputs.
-    4. If on a "Who's Watching" profile screen, ALWAYS pick a profile/avatar.
-    5. If nothing is relevant, reply "-1" to trigger scrolling.
-    
-    RESPONSE FORMAT (JSON ONLY):
-    { "index": number, "reason": "short explanation" }
-    `;
-
+async function humanMove(page: Page, target: ElementHandle | {x: number, y: number}) {
     try {
-        const result = await model.generateContent(prompt);
-        const text = result.response.text().replace(/```json|```/g, '').trim();
-        return JSON.parse(text);
-    } catch (e) {
-        return { index: -1, reason: "AI Error" };
-    }
+        let targetX = 0, targetY = 0;
+
+        if (typeof target === 'object' && 'boundingBox' in target) {
+            const box = await target.boundingBox();
+            if (!box) return;
+            targetX = box.x + (box.width * 0.5) + (Math.random() * 10 - 5);
+            targetY = box.y + (box.height * 0.5) + (Math.random() * 10 - 5);
+        } else if ('x' in target) {
+            targetX = target.x;
+            targetY = target.y;
+        }
+
+        targetX = Math.max(5, Math.min(targetX, 1275));
+        targetY = Math.max(5, Math.min(targetY, 795));
+
+        const distance = Math.hypot(targetX - MOUSE_STATE.x, targetY - MOUSE_STATE.y);
+        // SLOW: 50 steps is very lazy/human
+        const steps = Math.max(30, Math.min(Math.floor(distance / 5), 80));
+
+        await page.mouse.move(targetX, targetY, { steps });
+        MOUSE_STATE = { x: targetX, y: targetY };
+    } catch (e) { }
 }
 
-// --- 3. ORGANIC ACTUATION (The Body) ---
-
-async function organicMove(page: Page, target: ElementHandle) {
+async function smartClick(page: Page, selectorOrEl: string | ElementHandle) {
     try {
-        const box = await target.boundingBox();
-        if (!box) return;
-
-        // Human jitter: don't click dead center
-        const x = box.x + (box.width * (0.2 + Math.random() * 0.6));
-        const y = box.y + (box.height * (0.2 + Math.random() * 0.6));
-
-        // Fitts's Law Movement
-        const start = MOUSE_STATE;
-        const dist = Math.hypot(x - start.x, y - start.y);
-        const steps = Math.min(100, Math.max(30, Math.floor(dist / 5))); // Slower steps
-
-        await page.mouse.move(x, y, { steps });
-        MOUSE_STATE = { x, y };
-    } catch (e) {}
-}
-
-async function organicClick(page: Page, element: ElementHandle, isRage = false) {
-    try {
-        await organicMove(page, element);
-        
-        // Human hesitation (reading tooltip, thinking)
-        await delay(300 + Math.random() * 600);
-        
-        if (isRage) {
-            console.log('      😡 Rage clicking...');
-            await element.click({ clickCount: 5, delay: 80 });
+        let element: ElementHandle | null = null;
+        if (typeof selectorOrEl === 'string') {
+            element = await page.locator(selectorOrEl).first().elementHandle();
         } else {
-            await element.click();
+            element = selectorOrEl;
         }
-        return true;
-    } catch (e) { return false; }
-}
-
-async function organicType(page: Page, text: string) {
-    for (const char of text) {
-        await page.keyboard.type(char);
-        await delay(50 + Math.random() * 100); // Variable typing speed
-    }
-    await delay(500);
-    await page.keyboard.press('Enter');
-}
-
-async function organicWatch(page: Page) {
-    console.log('      🍿 Entering "Human Watch" Mode...');
-    
-    // 1. Check if video is playing
-    const isPlaying = await page.evaluate(async () => {
-        const v = document.querySelector('video');
-        if (!v) return false;
-        if (v.paused) { v.muted = true; await v.play().catch(() => {}); }
-        return !v.paused;
-    });
-
-    if (!isPlaying) {
-        console.log('      ⚠️ Video not playing. Trying center click...');
-        const vp = page.viewportSize();
-        if (vp) {
-            await page.mouse.move(vp.width/2, vp.height/2, { steps: 30 });
-            await page.mouse.click(vp.width/2, vp.height/2);
-        }
-    }
-
-    // 2. Watch duration (Variable)
-    const duration = 45000 + Math.random() * 120000; // 45s to 3m
-    const end = Date.now() + duration;
-    
-    while (Date.now() < end) {
-        await delay(5000);
-        // Micro-movements to keep session alive (like checking time)
-        const x = Math.random() * 200;
-        await page.mouse.move(300 + x, 300 + x, { steps: 20 });
         
-        // 10% Chance to pause/resume
-        if (Math.random() < 0.1) {
-            console.log('      ⏸️ User paused video...');
-            await page.keyboard.press('Space');
-            await delay(3000 + Math.random() * 5000);
-            await page.keyboard.press('Space');
+        if (element && await element.isVisible()) {
+            await humanMove(page, element);
+            await delay(400 + Math.random() * 300); 
+            await element.click();
+            return true;
         }
-    }
-    
-    console.log('      🔙 Bored now. Going back.');
-    await page.goBack();
+    } catch(e) { return false; }
+    return false;
 }
-
-// --- 4. MAIN LOOP ---
 
 async function forcePostHog(page: Page) {
     await page.evaluate(() => {
         // @ts-ignore
-        if (window.posthog) { window.posthog.opt_in_capturing(); window.posthog.startSessionRecording(); }
+        if (window.posthog) {
+            // @ts-ignore
+            window.posthog.opt_in_capturing();
+            // @ts-ignore
+            window.posthog.startSessionRecording();
+        }
     });
 }
+
+// --- 3. CRITICAL: THE "NUCLEAR" PROFILE SMASHER ---
+
+async function smashProfileGate(page: Page) {
+    // Check if we are stuck
+    if (page.url().includes('profiles') || await page.locator('text=Who’s Watching?').count() > 0) {
+        console.log('      -> 🛑 Profile Gate Detected. SMASHING...');
+        
+        // 1. Try your new specific text
+        const startBtn = page.locator('text="CLICK TO START"').first();
+        // 2. Try any avatar
+        const avatar = page.locator('.avatar, img[alt*="profile"]').first();
+        
+        if (await startBtn.isVisible()) {
+            await startBtn.click({ force: true }); // Force click ignores overlays
+        } else if (await avatar.isVisible()) {
+            await avatar.click({ force: true });
+        } else {
+            // Blind click center of screen
+            const vp = page.viewportSize();
+            if(vp) await page.mouse.click(vp.width/2, vp.height/2);
+        }
+
+        // Wait for navigation
+        try { 
+            await page.waitForURL(u => !u.toString().includes('profiles'), { timeout: 8000 });
+            console.log('      ✅ Smashed through to Dashboard.');
+        } catch(e) {
+            console.log('      ⚠️ Navigation slow/failed.');
+        }
+    }
+}
+
+/**
+ * 🧭 SPA NAVIGATOR: Moves without reloading page (Crucial for state)
+ */
+async function softNavigate(page: Page, path: string) {
+    console.log(`      -> Soft Navigating to ${path}...`);
+    
+    // 1. Try finding a link in the UI first (Most human)
+    const link = page.locator(`a[href="${path}"]`).first();
+    if (await link.isVisible()) {
+        await smartClick(page, await link.elementHandle());
+        return;
+    }
+
+    // 2. JS Injection (Keeps React State alive)
+    await page.evaluate((target) => {
+        window.history.pushState({}, '', target);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+    }, path);
+    await delay(2000);
+}
+
+// --- 4. AI BRAIN ---
+
+async function askGemini(page: Page, goal: string): Promise<number> {
+    if (!CONFIG.geminiKey) return -1;
+    
+    // Smart Scraper: Filter out footer/invisible junk
+    const elements = await page.$$('button, a, input, [role="button"], .movie-card');
+    const descriptions = [];
+    const vp = page.viewportSize();
+
+    for (let i = 0; i < elements.length; i++) {
+        const box = await elements[i].boundingBox();
+        // Ignore if invisible or in footer area (> 1.5x viewport height)
+        if (!box || (vp && box.y > vp.height * 1.5)) continue;
+        
+        const t = await elements[i].textContent().catch(()=>'');
+        const l = await elements[i].getAttribute('aria-label').catch(()=>'');
+        const card = (await elements[i].getAttribute('class'))?.includes('movie-card');
+        
+        if (!t?.trim() && !l && !card) continue;
+        
+        descriptions.push(`${i}: ${card ? '[MOVIE]' : ''} ${t?.substring(0,30)} ${l}`);
+    }
+
+    if (descriptions.length === 0) return -1;
+
+    const prompt = `Goal: ${goal}. Screen:\n${descriptions.slice(0,20).join('\n')}\nReply ONLY with index.`;
+    try {
+        const result = await model.generateContent(prompt);
+        const idx = parseInt(result.response.text().match(/\d+/)?.[0] || '-1');
+        return isNaN(idx) ? -1 : idx;
+    } catch(e) { return -1; }
+}
+
+// --- 5. JOURNEYS ---
+
+async function journeyPricing(page: Page) {
+    console.log('   💳 JOURNEY: Pricing');
+    await smashProfileGate(page);
+    await softNavigate(page, '/pricing');
+    
+    // Hover plans
+    const plans = await page.$$('.pricing-card');
+    for (const p of plans) { await humanMove(page, p); await delay(500); }
+
+    // Rage Click
+    const ult = page.locator('button:has-text("Ultimate")').first();
+    if (await ult.isVisible()) {
+        console.log('      -> Rage Clicking Ultimate...');
+        await humanMove(page, await ult.elementHandle());
+        await ult.click({ clickCount: 6, delay: 80 });
+    }
+    
+    // Subscribe Standard
+    const std = page.locator('button:has-text("Standard")').first();
+    if (await std.isVisible()) {
+        await smartClick(page, await std.elementHandle());
+        await delay(2000);
+        // Fill Fake Card
+        if (await page.locator('input[placeholder*="Card"]').isVisible()) {
+            console.log('      -> Filling Card...');
+            await page.fill('input[placeholder*="Card"]', '4242424242424242');
+            await page.fill('input[placeholder*="MM/YY"]', '12/25');
+            await page.fill('input[placeholder*="CVC"]', '123');
+            const pay = page.locator('button:has-text("Pay"), button:has-text("Subscribe")').last();
+            if (await pay.isVisible()) await smartClick(page, await pay.elementHandle());
+        }
+    }
+}
+
+async function journeySearch(page: Page) {
+    console.log('   🔍 JOURNEY: Search');
+    await smashProfileGate(page);
+    
+    const searchBtn = page.locator('button[aria-label="Search"], .lucide-search, a[href="/search"]').first();
+    if (await searchBtn.isVisible()) {
+        await smartClick(page, await searchBtn.elementHandle());
+        
+        const term = ["Sci-Fi", "Hog", "Space", "Comedy"][Math.floor(Math.random()*4)];
+        console.log(`      -> Searching "${term}"...`);
+        await page.keyboard.type(term, { delay: 150 });
+        await delay(500);
+        await page.keyboard.press('Enter');
+        await delay(3000);
+        
+        // AI Pick Result
+        const choice = await askGemini(page, `Click a movie result for ${term}`);
+        const cards = await page.$$('.movie-card');
+        const target = cards[choice > -1 ? choice : 0];
+        if (target) await smartClick(page, target);
+    }
+}
+
+async function journeyWatch(page: Page) {
+    console.log('   📺 JOURNEY: Watch');
+    await smashProfileGate(page);
+
+    if (!page.url().includes('watch')) {
+        if (!page.url().includes('browse')) await softNavigate(page, '/browse');
+        await delay(3000);
+        
+        const choice = await askGemini(page, "Pick a movie to watch");
+        const cards = await page.$$('.movie-card');
+        if (cards.length > 0) {
+            const target = cards[choice > -1 ? choice : Math.floor(Math.random()*cards.length)];
+            await smartClick(page, target);
+            
+            // Handle Modal
+            await delay(2000);
+            const play = page.locator('button:has-text("Play")').first();
+            if (await play.isVisible()) await smartClick(page, await play.elementHandle());
+        }
+        try { await page.waitForURL(/.*watch.*/, { timeout: 6000 }); } catch(e) {}
+    }
+
+    // Verify & Force Play
+    const playing = await page.evaluate(async () => {
+        const v = document.querySelector('video');
+        if (!v) return false;
+        v.muted = true;
+        try { await v.play(); return true; } catch(e) { return false; }
+    });
+
+    if (playing) {
+        const duration = 40000 + Math.random() * 80000;
+        console.log(`      -> Watching for ${(duration/1000).toFixed(0)}s`);
+        const start = Date.now();
+        while (Date.now() - start < duration) {
+            await delay(5000);
+            const x = Math.random() * 300;
+            await page.mouse.move(300+x, 300+x, { steps: 30 });
+        }
+        await page.goBack();
+    } else {
+        console.log('      ⚠️ Playback failed. Back to Browse.');
+        await softNavigate(page, '/browse');
+    }
+}
+
+// --- 5. MAIN ---
 
 (async () => {
     const browser = await chromium.launch({ headless: true });
@@ -229,98 +303,52 @@ async function forcePostHog(page: Page) {
     try {
         console.log(`🔗 Visiting ${CONFIG.baseUrl}`);
         await page.goto(CONFIG.baseUrl);
-        await delay(3000);
+        await delay(2000);
+        
+        const cookie = page.locator('button:has-text("Accept")').first();
+        if (await cookie.isVisible()) await cookie.click();
         await forcePostHog(page);
 
-        // --- LOGIN (Hardcoded because it's security, not exploration) ---
+        // Login
         const user = CONFIG.users[Math.floor(Math.random() * CONFIG.users.length)];
         console.log(`🔐 Login: ${user.email}`);
         await page.goto(`${CONFIG.baseUrl}/login`);
         await page.fill('input[type="email"]', user.email);
         await page.fill('input[type="password"]', user.password);
         await page.click('button[type="submit"]');
-        await delay(5000); // Wait for auth redirect
-
-        // --- AUTONOMOUS LOOP ---
-        const goals = [
-            "Pass the profile selection screen if visible.",
-            "Browse the dashboard and click a movie to watch.",
-            "Find the search bar, search for 'Sci-Fi' or 'Comedy', and click a result.",
-            "Go to the Pricing page and rage-click the Ultimate plan button.",
-            "Watch whatever video is on screen."
-        ];
         
-        // We keep a short history to give context to the AI
-        let actionHistory: string[] = ["Logged in"];
-        let activeGoal = goals[0]; // Start with Profile check
+        try { await page.waitForURL(/.*browse|.*profiles/, { timeout: 15000 }); } catch(e) {}
 
-        console.log('🧠 AI Agent Started. Exploring...');
-
+        // LOOP
+        let cycle = 1;
         while (Date.now() < sessionEndTime) {
             const remaining = Math.ceil((sessionEndTime - Date.now()) / 1000);
-            console.log(`\n⏱️ ${remaining}s left. Goal: "${activeGoal}"`);
+            console.log(`\n--- Cycle #${cycle} (${remaining}s left) ---`);
 
-            // 1. Check for special states (Video / Profile)
-            const url = page.url();
-            const interactables = await scanPage(page);
+            await smashProfileGate(page); // Run Bouncer
 
-            // Special Case: Profile Screen (Priority 1)
-            if (url.includes('profile') || interactables.some(i => i.desc.includes('Who’s Watching'))) {
-                activeGoal = "Pass the profile selection screen.";
-            }
-            // Special Case: Video Player (Priority 1)
-            else if (url.includes('watch')) {
-                await organicWatch(page);
-                activeGoal = "Browse the dashboard and click a movie to watch."; // Reset goal after watching
-                continue;
+            const roll = Math.random();
+            try {
+                if (roll < 0.25) await journeyPricingCheckout(page);
+                else if (roll < 0.50) await journeySearchAI(page);
+                else await journeyWatch(page);
+            } catch (e) {
+                console.log('   ⚠️ Error:', e.message?.substring(0,50));
+                await softNavigate(page, '/browse');
             }
 
-            // 2. Ask AI what to do
-            const decision = await decideNextAction(activeGoal, interactables, actionHistory);
-            
-            if (decision && decision.index !== -1) {
-                const target = interactables.find(i => i.index === decision.index);
-                if (target) {
-                    console.log(`   👉 AI Action: Clicked ${target.desc} (${decision.reason})`);
-                    
-                    // Check for special actions
-                    if (target.desc.includes('Search') || target.desc.includes('Input')) {
-                        await organicClick(page, target.handle);
-                        const terms = ["Hog", "Space", "Comedy", "Adventure"];
-                        const term = terms[Math.floor(Math.random()*terms.length)];
-                        await organicType(page, term);
-                    } 
-                    else if (target.desc.includes('Ultimate') && activeGoal.includes('Pricing')) {
-                        await organicClick(page, target.handle, true); // Rage click
-                    }
-                    else {
-                        await organicClick(page, target.handle);
-                    }
-                    
-                    actionHistory.push(`Clicked ${target.desc.substring(0,20)}`);
-                    if (actionHistory.length > 5) actionHistory.shift();
-                    
-                    // If we successfully clicked something relevant, maybe switch goals?
-                    if (Math.random() > 0.6) {
-                        activeGoal = goals[Math.floor(Math.random() * goals.length)];
-                    }
-                }
-            } else {
-                console.log('   🤔 AI found nothing relevant. Scrolling...');
-                await page.mouse.wheel(0, 500);
-                // If stuck, force a goal switch
-                if (Math.random() > 0.5) activeGoal = goals[Math.floor(Math.random() * goals.length)];
-            }
-
-            await delay(4000);
+            console.log('   ...transitioning...');
+            await page.mouse.wheel(0, 400);
+            await delay(3000);
             await forcePostHog(page);
+            cycle++;
         }
 
-        console.log('✅ Session Complete.');
-        await delay(15000); // Flush buffer
+        console.log('✅ Session Complete. Final Flush...');
+        await delay(25000);
 
     } catch (e) {
-        console.error('❌ Error:', e);
+        console.error('❌ Fatal Error:', e);
     } finally {
         await browser.close();
     }
