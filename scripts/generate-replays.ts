@@ -3,13 +3,12 @@ import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Page, ElementHandle } from '@playwright/test';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// 1. SETUP STEALTH
 chromium.use(stealthPlugin());
 
-// --- CONFIGURATION ---
+// --- 1. CONFIGURATION ---
 const CONFIG = {
     baseUrl: (process.env.TARGET_URL || 'https://hogflix-demo.lovable.app').replace(/\/$/, ''),
-    minSessionDuration: 300000, // 5 Minutes Target
+    minSessionDuration: 300000, // 5 Minutes
     geminiKey: process.env.GEMINI_API_KEY_2 || process.env.GEMINI_API_KEY,
     users: [
         { email: 'toppers.tester_3c@icloud.com', password: 'sVcj_Z4HF4@sH24*xg36' },
@@ -22,16 +21,13 @@ const CONFIG = {
     ]
 };
 
-// Initialize AI
 const genAI = new GoogleGenerativeAI(CONFIG.geminiKey || '');
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-// Mouse State Tracking
 let MOUSE_STATE = { x: 0, y: 0 };
-
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// --- 2. PHYSICS & UTILS ---
+// --- 2. PHYSICS ENGINE (The "Human" Part) ---
 
 async function humanMove(page: Page, target: ElementHandle | {x: number, y: number}) {
     try {
@@ -40,20 +36,19 @@ async function humanMove(page: Page, target: ElementHandle | {x: number, y: numb
         if (typeof target === 'object' && 'boundingBox' in target) {
             const box = await target.boundingBox();
             if (!box) return;
-            // Aim for "meaty" part of element
-            targetX = box.x + (box.width * 0.5) + (Math.random() * 10 - 5);
-            targetY = box.y + (box.height * 0.5) + (Math.random() * 10 - 5);
+            targetX = box.x + (box.width * 0.5);
+            targetY = box.y + (box.height * 0.5);
         } else if ('x' in target) {
             targetX = target.x;
             targetY = target.y;
         }
 
-        targetX = Math.max(5, Math.min(targetX, 1275));
-        targetY = Math.max(5, Math.min(targetY, 795));
+        // Clamp to Viewport
+        targetX = Math.max(1, Math.min(targetX, 1279));
+        targetY = Math.max(1, Math.min(targetY, 799));
 
         const distance = Math.hypot(targetX - MOUSE_STATE.x, targetY - MOUSE_STATE.y);
-        // SLOWER: 60 steps is very lazy/human
-        const steps = Math.max(40, Math.min(Math.floor(distance / 4), 80));
+        const steps = Math.max(25, Math.min(Math.floor(distance / 6), 60)); // Smooth curve
 
         await page.mouse.move(targetX, targetY, { steps });
         MOUSE_STATE = { x: targetX, y: targetY };
@@ -69,10 +64,9 @@ async function smartClick(page: Page, selectorOrEl: string | ElementHandle) {
             element = selectorOrEl;
         }
         
-        if (element) {
+        if (element && await element.isVisible()) {
             await humanMove(page, element);
-            // Hover for a second like reading a tooltip
-            await delay(500 + Math.random() * 500); 
+            await delay(300 + Math.random() * 200);
             await element.click();
             return true;
         }
@@ -92,113 +86,61 @@ async function forcePostHog(page: Page) {
     });
 }
 
-// --- 3. SMART HELPERS ---
-
-async function getPageSnapshot(page: Page) {
-    const elements = await page.$$('button, a, input, [role="button"], .movie-card, video, h1, h2');
-    const interactables: any[] = [];
-    const viewport = page.viewportSize();
-
-    for (let i = 0; i < elements.length; i++) {
-        const el = elements[i];
-        const box = await el.boundingBox();
-        
-        if (!box || box.width < 10 || box.height < 10) continue;
-        if (viewport && box.y > viewport.height * 2) continue;
-
-        const text = await el.textContent().catch(()=>'') || '';
-        const label = await el.getAttribute('aria-label').catch(()=>'') || '';
-        const role = await el.getAttribute('role').catch(()=>'') || '';
-        
-        const isCard = (await el.getAttribute('class'))?.includes('movie-card');
-        if (!text.trim() && !label && !isCard) continue;
-
-        interactables.push({
-            index: i,
-            handle: el,
-            description: `[${i}] Text:"${text.substring(0,40).replace(/\n/g,'')}" Label:"${label}" Role:"${role}"`
-        });
-    }
-    return interactables;
-}
-
-async function askGemini(page: Page, goal: string): Promise<ElementHandle | null> {
-    if (!CONFIG.geminiKey) return null;
-    
-    const interactables = await getPageSnapshot(page);
-    if (interactables.length === 0) return null;
-
-    const prompt = `
-    GOAL: "${goal}"
-    SCREEN ELEMENTS:
-    ${interactables.map(i => i.description).join('\n')}
-    
-    INSTRUCTIONS:
-    - Pick the SINGLE best element to click.
-    - Reply ONLY with the index number (e.g., 5).
-    `;
-
-    try {
-        const result = await model.generateContent(prompt);
-        const index = parseInt(result.response.text().match(/\d+/)?.[0] || '-1');
-        if (index !== -1) {
-            const target = interactables.find(i => i.index === index);
-            if (target) return target.handle;
-        }
-    } catch (e) { /* Ignore AI errors */ }
-    return null;
-}
-
-// Helper to find a "Play" button
-async function findPlayButton(page: Page) {
-    let btn = page.locator('button[aria-label="Play"], button[title="Play"]').first();
-    if (await btn.isVisible()) return btn;
-
-    btn = page.locator('button:has-text("Play")').first();
-    if (await btn.isVisible()) return btn;
-
-    const playIcon = page.locator('svg path[d^="M"]').first(); 
-    btn = page.locator('button:has(svg)').first();
-    if (await btn.isVisible()) return btn;
-
-    return null;
-}
+// --- 3. CRITICAL GATEKEEPING (The "Robot" Part) ---
 
 async function ensureDashboard(page: Page) {
-    const url = page.url();
-    // Check if stuck on profile (Updated for your new UI)
-    const profileGate = page.locator('text=Who’s Watching?').first();
-    
-    if (url.includes('profiles') || await profileGate.isVisible()) {
-        console.log('      -> 🛑 Profile Gate. Clicking "CLICK TO START"...');
+    // If we see "Who's Watching" or are on /profiles, we MUST break through.
+    if (page.url().includes('profiles') || await page.locator('text=Who’s Watching?').count() > 0) {
+        console.log('      -> 🛑 Profile Gate detected. ENGAGING NUCLEAR CLICK.');
         
-        // 1. Try the new "CLICK TO START" button
-        const startBtn = page.locator('button:has-text("CLICK TO START")').first();
-        // 2. Try the new Hedgehog Image
-        const hedgehogImg = page.locator('img[alt*="profile"], img[src*="hedgehog"]').first();
-        // 3. Fallback to generic avatar class
-        const avatar = page.locator('.avatar').first();
+        // Hide the widget to prevent distraction/overlay
+        await page.evaluate(() => {
+            const widget = document.querySelector('.floating-hedgehog');
+            if (widget) (widget as HTMLElement).style.display = 'none';
+        });
 
-        if (await startBtn.isVisible()) await smartClick(page, await startBtn.elementHandle());
-        else if (await hedgehogImg.isVisible()) await smartClick(page, await hedgehogImg.elementHandle());
-        else if (await avatar.isVisible()) await smartClick(page, await avatar.elementHandle());
+        // TARGET YOUR SPECIFIC NEW UI
+        const startButton = page.locator('text="CLICK TO START"').first();
+        const hedgehogImg = page.locator('img[src*="hedgehog"]').first();
         
-        try { await page.waitForURL(u => !u.toString().includes('profiles'), { timeout: 8000 }); }
-        catch (e) {}
+        // Force click ignores overlays/visibility checks
+        if (await startButton.count() > 0) {
+            await startButton.click({ force: true });
+        } else if (await hedgehogImg.count() > 0) {
+            await hedgehogImg.click({ force: true });
+        } else {
+            // Fallback to center screen click
+            const vp = page.viewportSize();
+            if (vp) await page.mouse.click(vp.width/2, vp.height/2);
+        }
+
+        // Wait for navigation away from profiles
+        try { 
+            await page.waitForURL(u => !u.toString().includes('profiles'), { timeout: 8000 });
+            console.log('      ✅ Broken through to Dashboard.');
+        } catch(e) {
+            console.log('      ⚠️ Click registered, but navigation slow.');
+        }
     }
 }
 
-// --- 4. JOURNEY MODULES ---
+// --- 4. JOURNEYS ---
 
-async function journeyPricingCheckout(page: Page) {
+async function askGemini(page: Page, context: string, options: string[]): Promise<number> {
+    if (!CONFIG.geminiKey) return -1;
+    try {
+        const safeOptions = options.slice(0, 10); 
+        const prompt = `Context: ${context}\nOptions:\n${safeOptions.map((opt, i) => `${i}. ${opt}`).join('\n')}\nReply ONLY with the index number.`;
+        const result = await model.generateContent(prompt);
+        const index = parseInt(result.response.text().trim());
+        return isNaN(index) ? -1 : index;
+    } catch (e) { return -1; }
+}
+
+async function runJourneyPricing(page: Page) {
     console.log('   💳 JOURNEY: Pricing & Upgrade');
     await ensureDashboard(page);
-    
-    // Use AI to find Pricing link if possible, else direct
-    const aiLink = await askGemini(page, "Navigate to the Pricing or Subscription page");
-    if (aiLink) await smartClick(page, aiLink);
-    else await page.goto(`${CONFIG.baseUrl}/pricing`);
-    
+    await page.goto(`${CONFIG.baseUrl}/pricing`);
     await delay(3000);
 
     // Rage Click Experiment
@@ -209,119 +151,106 @@ async function journeyPricingCheckout(page: Page) {
         await ultimateBtn.click({ clickCount: 6, delay: 80 });
     }
 
-    // Checkout Flow
-    const standardBtn = page.locator('button:has-text("Standard"), button:has-text("Subscribe")').first();
+    // Subscribe Standard
+    const standardBtn = page.locator('button:has-text("Standard")').first();
     if (await standardBtn.isVisible()) {
-        console.log('      -> Attempting Subscribe...');
+        console.log('      -> Clicking Standard Plan...');
         await smartClick(page, await standardBtn.elementHandle());
         await delay(2000);
         
-        // Fill Stripe Fake
         if (await page.locator('input[placeholder*="Card"]').isVisible()) {
-            console.log('      -> Filling Credit Card...');
+            console.log('      -> Filling Payment...');
             await page.fill('input[placeholder*="Card"]', '4242424242424242');
-            await delay(300);
             await page.fill('input[placeholder*="MM/YY"]', '12/25');
-            await delay(300);
             await page.fill('input[placeholder*="CVC"]', '123');
             await delay(1000);
-            
             const pay = page.locator('button:has-text("Pay"), button:has-text("Subscribe")').last();
             if (await pay.isVisible()) await smartClick(page, await pay.elementHandle());
         }
     }
-    await delay(3000);
 }
 
-async function journeySearchAI(page: Page) {
-    console.log('   🔍 JOURNEY: Search Genres');
+async function runJourneySearch(page: Page) {
+    console.log('   🔍 JOURNEY: Search');
     await ensureDashboard(page);
-
-    // 1. Find Search via AI
-    const searchEl = await askGemini(page, "Find the Search button or icon");
-    if (searchEl) await smartClick(page, searchEl);
-    else {
-        // Fallback selector
-        const manualSearch = page.locator('.lucide-search, [aria-label="Search"]').first();
-        if (await manualSearch.isVisible()) await smartClick(page, await manualSearch.elementHandle());
-    }
     
-    await delay(1500);
-
-    // 2. Type Genre
-    if (await page.locator('input[type="search"], input[placeholder*="Search"]').isVisible()) {
-        const genres = ["Sci-Fi", "Comedy", "Hog", "Action", "Drama"];
-        const genre = genres[Math.floor(Math.random()*genres.length)];
-        console.log(`      -> Searching: "${genre}"`);
-        
-        await page.keyboard.type(genre, { delay: 150 });
+    // Find Search
+    const searchBtn = page.locator('button[aria-label="Search"], .lucide-search, a[href="/search"]').first();
+    if (await searchBtn.isVisible()) {
+        await smartClick(page, await searchBtn.elementHandle());
         await delay(1000);
         
-        // 🟢 FIX: Explicitly hit Enter to trigger search results page
-        console.log('      -> Pressing Enter...');
+        const term = ["Hog", "Sci-Fi", "Space", "Comedy"][Math.floor(Math.random()*4)];
+        console.log(`      -> Searching "${term}"...`);
+        await page.keyboard.type(term, { delay: 150 });
+        await delay(1000);
+        
+        console.log('      -> Hitting Enter...');
         await page.keyboard.press('Enter');
+        await delay(3000);
         
-        await delay(3000); // Wait for results
-        
-        // 3. Click Result
-        const result = await askGemini(page, `Click the first movie result for ${genre}`);
-        if (result) await smartClick(page, result);
-        else {
-            const manualRes = page.locator('.movie-card').first();
-            if (await manualRes.isVisible()) await smartClick(page, await manualRes.elementHandle());
+        // Use AI to pick result
+        const cards = await page.locator('.movie-card').all();
+        if (cards.length > 0) {
+            const texts = await Promise.all(cards.slice(0,5).map(c => c.textContent()));
+            const choice = await askGemini(page, "Pick a search result", texts as string[]);
+            const target = cards[choice > -1 ? choice : 0];
+            
+            console.log('      -> Clicking result...');
+            await smartClick(page, await target.elementHandle());
+            await delay(3000);
         }
-        await delay(4000);
     }
 }
 
-async function journeyWatch(page: Page) {
+async function runJourneyWatch(page: Page) {
     console.log('   📺 JOURNEY: Watch Content');
     await ensureDashboard(page);
 
-    // 1. Find Movie (AI)
+    // 1. Find Movie
     if (!page.url().includes('watch')) {
         if (!page.url().includes('browse')) await page.goto(`${CONFIG.baseUrl}/browse`);
         await delay(3000);
-
-        const aiMovie = await askGemini(page, "Pick an interesting movie card to watch");
-        if (aiMovie) await smartClick(page, aiMovie);
-        else {
-            const randomMovie = page.locator('.movie-card').nth(Math.floor(Math.random()*4));
-            if (await randomMovie.isVisible()) await smartClick(page, await randomMovie.elementHandle());
+        
+        // AI Selection
+        const cards = await page.locator('.movie-card').all();
+        if (cards.length > 0) {
+            const texts = await Promise.all(cards.slice(0,5).map(c => c.textContent()));
+            const choice = await askGemini(page, "Pick a movie to watch", texts as string[]);
+            const target = cards[choice > -1 ? choice : 0];
+            await smartClick(page, await target.elementHandle());
+            
+            // Modal Play
+            await delay(2000);
+            const play = page.locator('button:has-text("Play")').first();
+            if (await play.isVisible()) await smartClick(page, await play.elementHandle());
         }
-        await delay(3000);
+        try { await page.waitForURL(/.*watch.*/, { timeout: 6000 }); } catch(e) {}
     }
 
-    // 2. Handle Modal / Play
-    const playBtn = await findPlayButton(page);
-    if (playBtn) {
-        console.log('      -> Clicking Play Button...');
-        await smartClick(page, await playBtn.elementHandle());
-        await delay(3000);
-    }
-
-    // 3. Watch Loop
+    // 2. Force Play
     const isPlaying = await page.evaluate(async () => {
         const v = document.querySelector('video');
         if (!v) return false;
-        if (v.paused) { v.muted = true; try { await v.play(); } catch(e){} }
-        return !v.paused;
+        v.muted = true;
+        try { await v.play(); return true; } catch(e) { return false; }
     });
 
     if (isPlaying) {
-        const duration = 60000 + Math.random() * 120000; // 1-3 mins
+        const duration = 45000 + Math.random() * 90000;
         console.log(`      -> Watching for ${(duration/1000).toFixed(0)}s`);
         
         const start = Date.now();
         while (Date.now() - start < duration) {
             await delay(5000);
-            // Drift mouse to keep session alive
+            // Keep Alive Jitter
             const x = Math.random() * 300;
-            await page.mouse.move(200+x, 200+x, { steps: 30 });
+            await page.mouse.move(300+x, 300+x, { steps: 25 });
         }
         await page.goBack();
     } else {
-        console.log('      ⚠️ Playback not detected. Moving on.');
+        console.log('      ⚠️ Video error. Resetting.');
+        await page.goto(`${CONFIG.baseUrl}/browse`);
     }
 }
 
@@ -368,30 +297,33 @@ async function journeyWatch(page: Page) {
             const remaining = Math.ceil((sessionEndTime - Date.now()) / 1000);
             console.log(`\n--- Cycle #${cycle} (${remaining}s left) ---`);
 
+            // 1. THE GATEKEEPER (Fixed)
             await ensureDashboard(page);
 
+            // 2. JOURNEY SELECTOR
             const roll = Math.random();
             try {
                 if (roll < 0.25) await journeyPricingCheckout(page);
-                else if (roll < 0.50) await journeySearchAI(page);
-                else await journeyWatch(page); 
+                else if (roll < 0.50) await runJourneySearch(page);
+                else await runJourneyWatch(page); 
             } catch (e) {
-                console.log('   ⚠️ Journey Interrupted:', e.message?.substring(0,50));
+                console.log('   ⚠️ Journey Error:', e.message?.substring(0,50));
                 await page.goto(`${CONFIG.baseUrl}/browse`);
             }
 
+            // 3. TRANSITION
             console.log('   ...transitioning...');
-            await page.mouse.wheel(0, 400);
+            await page.mouse.wheel(0, 300);
             await delay(3000);
             await forcePostHog(page);
             cycle++;
         }
 
-        console.log('✅ Session Complete. Final Flush...');
+        console.log('✅ Session Complete. Flushing...');
         await delay(20000);
 
     } catch (e) {
-        console.error('❌ Error:', e);
+        console.error('❌ Fatal Error:', e);
     } finally {
         await browser.close();
     }
