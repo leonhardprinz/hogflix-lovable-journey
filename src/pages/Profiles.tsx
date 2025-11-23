@@ -7,7 +7,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Squirrel, Plus, Edit3, Loader2, Settings, Check, Calendar } from 'lucide-react';
+import { Plus, Edit3, Loader2, Settings, Check, Calendar } from 'lucide-react';
 import NewProfileModal from '@/components/NewProfileModal';
 import EditProfileModal from '@/components/EditProfileModal';
 
@@ -215,14 +215,16 @@ const Profiles = () => {
               onClick={() => handleProfileSelect(profile)}
               className="flex flex-col items-center cursor-pointer group relative transform transition-all duration-300 hover:scale-110"
             >
-              <div className="relative">
+              <div className="relative mb-6">
                 {/* Animated ring indicator */}
                 <div className="absolute inset-0 w-32 h-32 rounded-lg border-4 border-primary-red animate-pulse group-hover:animate-none" />
                 
-                <div className="w-32 h-32 bg-gradient-to-br from-primary-red/80 to-primary-red/60 rounded-lg flex items-center justify-center mb-4 card-hover border-4 border-primary-red group-hover:border-primary-red group-hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] transition-all duration-300 relative">
-                  <Squirrel size={56} className="text-white drop-shadow-lg group-hover:scale-110 transition-transform" strokeWidth={2.5} />
+                <div className="w-32 h-32 bg-primary-red rounded-lg flex items-center justify-center card-hover border-4 border-primary-red group-hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] transition-all duration-300 relative">
+                  {/* Hedgehog emoji as icon */}
+                  <span className="text-6xl group-hover:scale-110 transition-transform">🦔</span>
+                  
                   {profile.is_kids_profile && (
-                    <div className="absolute top-2 right-2 bg-background-dark text-white text-xs px-2 py-1 rounded border border-primary-red">
+                    <div className="absolute top-2 right-2 bg-background-dark text-white text-xs px-2 py-1 rounded border border-white">
                       KIDS
                     </div>
                   )}
@@ -235,11 +237,11 @@ const Profiles = () => {
                   >
                     <Edit3 size={16} className="text-primary-red hover:text-white" />
                   </button>
-                  
-                  {/* Click indicator badge */}
-                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background-dark border-2 border-primary-red text-primary-red text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg group-hover:bg-primary-red group-hover:text-white transition-all">
-                    CLICK TO START
-                  </div>
+                </div>
+                
+                {/* Click indicator badge - moved outside the box */}
+                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-background-dark border-2 border-primary-red text-primary-red text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg group-hover:bg-primary-red group-hover:text-white transition-all z-20">
+                  CLICK TO START
                 </div>
               </div>
               <span className="text-text-primary font-manrope text-lg font-semibold group-hover:text-primary-red transition-colors text-center max-w-32 truncate mt-2">
