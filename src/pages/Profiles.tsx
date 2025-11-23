@@ -3,13 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Edit3, Loader2, Settings, Check, Calendar } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import NewProfileModal from '@/components/NewProfileModal';
-import EditProfileModal from '@/components/EditProfileModal';
 
 interface Profile {
   id: string;
@@ -25,13 +21,10 @@ const Profiles = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [showNewProfileModal, setShowNewProfileModal] = useState(false);
-  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { setSelectedProfile } = useProfile();
-  const { subscription, loading: subLoading } = useSubscription();
 
   const fetchProfiles = async (userId: string) => {
     try {
@@ -100,11 +93,6 @@ const Profiles = () => {
     setShowNewProfileModal(true);
   };
 
-  const handleEditProfile = (profile: Profile, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent profile selection
-    setEditingProfile(profile);
-    setShowEditProfileModal(true);
-  };
 
   const handleProfileCreated = async () => {
     if (user) {
@@ -118,7 +106,7 @@ const Profiles = () => {
     }
   };
 
-  if (loading || subLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background-dark flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -128,17 +116,6 @@ const Profiles = () => {
       </div>
     );
   }
-
-  const getNextBillingDate = () => {
-    const today = new Date();
-    const nextBilling = new Date(today);
-    nextBilling.setMonth(today.getMonth() + 1);
-    return nextBilling.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
-    });
-  };
 
   return (
     <div className="min-h-screen bg-background-dark">
@@ -172,15 +149,6 @@ const Profiles = () => {
                       KIDS
                     </div>
                   )}
-                  
-                  {/* Edit Button */}
-                  <button
-                    onClick={(e) => handleEditProfile(profile, e)}
-                    className="absolute -top-2 -right-2 w-8 h-8 bg-background-dark border-2 border-primary-red rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-primary-red shadow-lg z-10"
-                    title="Edit Profile"
-                  >
-                    <Edit3 size={16} className="text-primary-red hover:text-white" />
-                  </button>
                 </div>
                 
                 {/* Click indicator badge - moved completely outside */}
@@ -191,11 +159,6 @@ const Profiles = () => {
               <span className="text-text-primary font-manrope text-lg font-semibold group-hover:text-primary-red transition-colors text-center max-w-32 truncate">
                 {profile.display_name || 'Set your name'}
               </span>
-              {!profile.display_name && (
-                <span className="text-xs text-text-tertiary mt-1">
-                  Click edit to add your name
-                </span>
-              )}
             </div>
           ))}
 
@@ -212,57 +175,6 @@ const Profiles = () => {
             </span>
           </div>
         </div>
-
-        {/* Enhanced Subscription Display - Moved Below Profiles */}
-        {subscription && (
-          <Card className="max-w-2xl mx-auto bg-card/50 backdrop-blur">
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
-                    <Check className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="text-left">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-xl font-bold">
-                        {subscription.plan_display_name} Plan
-                      </h3>
-                      <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500">
-                        Active
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <span className="font-semibold text-foreground">{subscription.video_quality}</span> Quality
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <span className="font-semibold text-foreground">{profiles.length}</span> of{' '}
-                        <span className="font-semibold text-foreground">{subscription.max_profiles}</span> profiles
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        Next: {getNextBillingDate()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    posthog?.capture('subscription:manage_clicked');
-                    navigate('/pricing');
-                  }}
-                  className="whitespace-nowrap"
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Manage Subscription
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {profiles.length === 0 && (
           <div className="text-center mt-12">
@@ -288,17 +200,6 @@ const Profiles = () => {
           userId={user.id}
         />
       )}
-
-      {/* Edit Profile Modal */}
-      <EditProfileModal
-        isOpen={showEditProfileModal}
-        onClose={() => {
-          setShowEditProfileModal(false);
-          setEditingProfile(null);
-        }}
-        onProfileUpdated={handleProfileUpdated}
-        profile={editingProfile}
-      />
     </div>
   );
 };
