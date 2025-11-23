@@ -40,7 +40,7 @@ async function humanMove(page: Page, target: ElementHandle | {x: number, y: numb
         if (typeof target === 'object' && 'boundingBox' in target) {
             const box = await target.boundingBox();
             if (!box) return;
-            // Aim for "meaty" part of element, not edges
+            // Aim for "meaty" part of element
             targetX = box.x + (box.width * 0.5) + (Math.random() * 10 - 5);
             targetY = box.y + (box.height * 0.5) + (Math.random() * 10 - 5);
         } else if ('x' in target) {
@@ -94,12 +94,7 @@ async function forcePostHog(page: Page) {
 
 // --- 3. SMART HELPERS ---
 
-/**
- * 🧠 INTELLIGENT SCRAPER
- * Ignores the footer and tiny elements to focus AI on the content.
- */
 async function getPageSnapshot(page: Page) {
-    // Only capture elements likely to be important
     const elements = await page.$$('button, a, input, [role="button"], .movie-card, video, h1, h2');
     const interactables: any[] = [];
     const viewport = page.viewportSize();
@@ -108,20 +103,15 @@ async function getPageSnapshot(page: Page) {
         const el = elements[i];
         const box = await el.boundingBox();
         
-        // Filter: Invisible or Tiny
         if (!box || box.width < 10 || box.height < 10) continue;
-        
-        // Filter: Way below the fold (Footer territory)
         if (viewport && box.y > viewport.height * 2) continue;
 
         const text = await el.textContent().catch(()=>'') || '';
         const label = await el.getAttribute('aria-label').catch(()=>'') || '';
         const role = await el.getAttribute('role').catch(()=>'') || '';
-        const placeholder = await el.getAttribute('placeholder').catch(()=>'') || '';
         
-        // If it has no identifiers, skip it (unless it's a video or card)
         const isCard = (await el.getAttribute('class'))?.includes('movie-card');
-        if (!text.trim() && !label && !isCard && !placeholder) continue;
+        if (!text.trim() && !label && !isCard) continue;
 
         interactables.push({
             index: i,
@@ -144,9 +134,7 @@ async function askGemini(page: Page, goal: string): Promise<ElementHandle | null
     ${interactables.map(i => i.description).join('\n')}
     
     INSTRUCTIONS:
-    - Pick the SINGLE best element to click to achieve the goal.
-    - If the goal is "Watch", pick a movie card or a Play button.
-    - If the goal is "Search", pick the search icon.
+    - Pick the SINGLE best element to click.
     - Reply ONLY with the index number (e.g., 5).
     `;
 
@@ -155,29 +143,21 @@ async function askGemini(page: Page, goal: string): Promise<ElementHandle | null
         const index = parseInt(result.response.text().match(/\d+/)?.[0] || '-1');
         if (index !== -1) {
             const target = interactables.find(i => i.index === index);
-            if (target) {
-                console.log(`      🧠 AI Decision: Clicked "${target.description.substring(0, 30)}..."`);
-                return target.handle;
-            }
+            if (target) return target.handle;
         }
     } catch (e) { /* Ignore AI errors */ }
     return null;
 }
 
-// Helper to find a "Play" button even if it's just an Icon
+// Helper to find a "Play" button
 async function findPlayButton(page: Page) {
-    // 1. Try standard accessibility labels
     let btn = page.locator('button[aria-label="Play"], button[title="Play"]').first();
     if (await btn.isVisible()) return btn;
 
-    // 2. Try text
     btn = page.locator('button:has-text("Play")').first();
     if (await btn.isVisible()) return btn;
 
-    // 3. Try Visuals (SVG paths often used for Play icons)
-    // This is a common SVG path for a "Play" triangle
     const playIcon = page.locator('svg path[d^="M"]').first(); 
-    // We check if it's inside a button wrapper
     btn = page.locator('button:has(svg)').first();
     if (await btn.isVisible()) return btn;
 
@@ -186,11 +166,22 @@ async function findPlayButton(page: Page) {
 
 async function ensureDashboard(page: Page) {
     const url = page.url();
-    // Check if stuck on profile
-    if (url.includes('profiles') || await page.locator('text=Who’s Watching?').count() > 0) {
-        console.log('      -> 🛑 Profile Gate. Clicking first avatar...');
-        const avatar = page.locator('.avatar, img[alt*="profile"]').first();
-        if (await avatar.isVisible()) await smartClick(page, await avatar.elementHandle());
+    // Check if stuck on profile (Updated for your new UI)
+    const profileGate = page.locator('text=Who’s Watching?').first();
+    
+    if (url.includes('profiles') || await profileGate.isVisible()) {
+        console.log('      -> 🛑 Profile Gate. Clicking "CLICK TO START"...');
+        
+        // 1. Try the new "CLICK TO START" button
+        const startBtn = page.locator('button:has-text("CLICK TO START")').first();
+        // 2. Try the new Hedgehog Image
+        const hedgehogImg = page.locator('img[alt*="profile"], img[src*="hedgehog"]').first();
+        // 3. Fallback to generic avatar class
+        const avatar = page.locator('.avatar').first();
+
+        if (await startBtn.isVisible()) await smartClick(page, await startBtn.elementHandle());
+        else if (await hedgehogImg.isVisible()) await smartClick(page, await hedgehogImg.elementHandle());
+        else if (await avatar.isVisible()) await smartClick(page, await avatar.elementHandle());
         
         try { await page.waitForURL(u => !u.toString().includes('profiles'), { timeout: 8000 }); }
         catch (e) {}
@@ -264,7 +255,13 @@ async function journeySearchAI(page: Page) {
         console.log(`      -> Searching: "${genre}"`);
         
         await page.keyboard.type(genre, { delay: 150 });
-        await delay(3000);
+        await delay(1000);
+        
+        // 🟢 FIX: Explicitly hit Enter to trigger search results page
+        console.log('      -> Pressing Enter...');
+        await page.keyboard.press('Enter');
+        
+        await delay(3000); // Wait for results
         
         // 3. Click Result
         const result = await askGemini(page, `Click the first movie result for ${genre}`);
@@ -296,7 +293,6 @@ async function journeyWatch(page: Page) {
     }
 
     // 2. Handle Modal / Play
-    // Often a modal opens with a "Play" button
     const playBtn = await findPlayButton(page);
     if (playBtn) {
         console.log('      -> Clicking Play Button...');
@@ -357,6 +353,7 @@ async function journeyWatch(page: Page) {
         if (await cookie.isVisible()) await cookie.click();
         await forcePostHog(page);
 
+        // Login
         const user = CONFIG.users[Math.floor(Math.random() * CONFIG.users.length)];
         console.log(`🔐 Login: ${user.email}`);
         await page.goto(`${CONFIG.baseUrl}/login`);
@@ -373,18 +370,16 @@ async function journeyWatch(page: Page) {
 
             await ensureDashboard(page);
 
-            // Weighted Randomness
             const roll = Math.random();
             try {
                 if (roll < 0.25) await journeyPricingCheckout(page);
                 else if (roll < 0.50) await journeySearchAI(page);
-                else await journeyWatch(page); // 50% focus on watching
+                else await journeyWatch(page); 
             } catch (e) {
                 console.log('   ⚠️ Journey Interrupted:', e.message?.substring(0,50));
                 await page.goto(`${CONFIG.baseUrl}/browse`);
             }
 
-            // Transition Loiter
             console.log('   ...transitioning...');
             await page.mouse.wheel(0, 400);
             await delay(3000);
@@ -392,8 +387,8 @@ async function journeyWatch(page: Page) {
             cycle++;
         }
 
-        console.log('✅ Session Complete. Flushing...');
-        await delay(25000);
+        console.log('✅ Session Complete. Final Flush...');
+        await delay(20000);
 
     } catch (e) {
         console.error('❌ Error:', e);
