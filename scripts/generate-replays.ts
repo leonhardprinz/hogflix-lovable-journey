@@ -32,7 +32,7 @@ const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // --- 2. PHYSICS & UTILS (The Body) ---
 
-async function humanMove(page: Page, target: ElementHandle | {x: number, y: number}) {
+async function humanMove(page: Page, target: ElementHandle | { x: number, y: number }) {
     try {
         let targetX = 0, targetY = 0;
 
@@ -52,7 +52,7 @@ async function humanMove(page: Page, target: ElementHandle | {x: number, y: numb
         targetY = Math.max(5, Math.min(targetY, 795));
 
         const distance = Math.hypot(targetX - MOUSE_STATE.x, targetY - MOUSE_STATE.y);
-        const steps = Math.max(25, Math.min(Math.floor(distance / 5), 80)); 
+        const steps = Math.max(25, Math.min(Math.floor(distance / 5), 80));
 
         await Promise.race([
             page.mouse.move(targetX, targetY, { steps }),
@@ -70,14 +70,14 @@ async function smartClick(page: Page, selectorOrEl: string | ElementHandle) {
         } else {
             element = selectorOrEl;
         }
-        
+
         if (element && await element.isVisible()) {
             await humanMove(page, element);
-            await delay(400 + Math.random() * 400); 
+            await delay(400 + Math.random() * 400);
             await element.click({ timeout: 3000 });
             return true;
         }
-    } catch(e) { return false; }
+    } catch (e) { return false; }
     return false;
 }
 
@@ -92,7 +92,7 @@ async function forcePostHog(page: Page) {
                 window.posthog.startSessionRecording();
             }
         });
-    } catch(e) {}
+    } catch (e) { }
 }
 
 // --- 3. THE BRAIN (AI Decision Engine) ---
@@ -107,18 +107,18 @@ async function getPageSnapshot(page: Page) {
     for (let i = 0; i < elements.length; i++) {
         const el = elements[i];
         const box = await el.boundingBox();
-        
+
         // Ignore tiny/invisible/off-screen (footer)
         if (!box || box.width < 10 || box.height < 10) continue;
         // if (viewport && box.y > viewport.height * 1.5) continue; 
 
-        const text = await el.textContent().catch(()=>'') || '';
-        const label = await el.getAttribute('aria-label').catch(()=>'') || '';
-        const role = await el.getAttribute('role').catch(()=>'') || '';
-        const href = await el.getAttribute('href').catch(()=>'') || '';
-        
+        const text = await el.textContent().catch(() => '') || '';
+        const label = await el.getAttribute('aria-label').catch(() => '') || '';
+        const role = await el.getAttribute('role').catch(() => '') || '';
+        const href = await el.getAttribute('href').catch(() => '') || '';
+
         const isCard = (await el.getAttribute('class'))?.includes('movie-card');
-        
+
         // Filter noise
         if (!text.trim() && !label && !isCard && !href) continue;
 
@@ -130,7 +130,7 @@ async function getPageSnapshot(page: Page) {
         interactables.push({
             index: i,
             handle: el,
-            description: `[${i}] TYPE:${type} TEXT:"${text.substring(0,40).replace(/\n/g,'')}" LABEL:"${label}" HREF:"${href}"`
+            description: `[${i}] TYPE:${type} TEXT:"${text.substring(0, 40).replace(/\n/g, '')}" LABEL:"${label}" HREF:"${href}"`
         });
     }
     return interactables;
@@ -171,13 +171,13 @@ async function ensureDashboard(page: Page) {
     // 1. Handle Profile Gate (Hard-coded Safety Net)
     if (page.url().includes('profiles') || await page.locator('text=Who’s Watching?').count() > 0) {
         console.log('      -> 🛑 Profile Gate. SMASHING...');
-        
+
         const startBtn = page.locator('text="CLICK TO START"').first();
         const avatar = page.locator('.avatar').first();
 
         if (await startBtn.isVisible()) await startBtn.click({ force: true });
         else if (await avatar.isVisible()) await avatar.click({ force: true });
-        
+
         try { await page.waitForURL(u => !u.toString().includes('profiles'), { timeout: 5000 }); }
         catch (e) { await page.reload(); }
     }
@@ -188,13 +188,13 @@ async function ensureDashboard(page: Page) {
 // Generic AI Driver for navigation tasks
 async function aiDriveJourney(page: Page, goal: string) {
     console.log(`   🤖 AI DRIVING: "${goal}"`);
-    
+
     // 1. Look at screen
     const elements = await getPageSnapshot(page);
-    
+
     // 2. Ask AI
     const choiceIndex = await askGeminiToDrive(page, goal, elements);
-    
+
     if (choiceIndex !== -1) {
         const target = elements.find(e => e.index === choiceIndex);
         if (target) {
@@ -204,7 +204,7 @@ async function aiDriveJourney(page: Page, goal: string) {
             return true;
         }
     }
-    
+
     console.log('      🤔 AI unsure. trying random interaction...');
     // Fallback: Scroll or random click to unstick
     await page.mouse.wheel(0, 400);
@@ -219,41 +219,41 @@ async function journeyWatchWithAI(page: Page) {
     if (!page.url().includes('watch')) {
         // Ask AI to find a movie
         const success = await aiDriveJourney(page, "Find a movie card or play button and click it to watch.");
-        
+
         // If AI failed, fallback to manual
         if (!success) {
             const card = page.locator('.movie-card').first();
             if (await card.isVisible()) await smartClick(page, await card.elementHandle());
         }
-        
-        try { await page.waitForURL(/.*watch.*/, { timeout: 6000 }); } catch(e) {}
+
+        try { await page.waitForURL(/.*watch.*/, { timeout: 6000 }); } catch (e) { }
     }
 
     // 2. Watch Loop (Hardcoded because watching is passive)
     console.log('      -> Checking player...');
     const video = page.locator('video').first();
-    
-    try { await video.waitFor({ timeout: 4000 }); } catch(e) {
+
+    try { await video.waitFor({ timeout: 4000 }); } catch (e) {
         console.log('      ⚠️ Waking up player...');
         const vp = page.viewportSize();
-        if(vp) await page.mouse.click(vp.width/2, vp.height/2);
+        if (vp) await page.mouse.click(vp.width / 2, vp.height / 2);
     }
 
     const isPlaying = await page.evaluate(async () => {
         const v = document.querySelector('video');
         if (!v) return false;
         v.muted = true;
-        try { await v.play(); return true; } catch(e) { return false; }
+        try { await v.play(); return true; } catch (e) { return false; }
     });
 
     if (isPlaying) {
         const duration = 30000 + Math.random() * 90000;
-        console.log(`      -> Watching for ${(duration/1000).toFixed(0)}s`);
+        console.log(`      -> Watching for ${(duration / 1000).toFixed(0)}s`);
         const start = Date.now();
         while (Date.now() - start < duration) {
             await delay(5000);
             const x = Math.random() * 300;
-            try { await page.mouse.move(300+x, 300+x, { steps: 25 }); } catch(e) {}
+            try { await page.mouse.move(300 + x, 300 + x, { steps: 25 }); } catch (e) { }
         }
         console.log('      -> Done. Going back.');
         await page.goBack();
@@ -269,9 +269,9 @@ async function journeySearchWithAI(page: Page) {
 
     // 1. Ask AI to find search
     await aiDriveJourney(page, "Find the search icon or search bar and click it.");
-    
+
     // 2. Type Query (Manual because Playwright typing is better)
-    const term = ["Hog", "Sci-Fi", "Space", "Comedy"][Math.floor(Math.random()*4)];
+    const term = ["Hog", "Sci-Fi", "Space", "Comedy"][Math.floor(Math.random() * 4)];
     console.log(`      -> Typing "${term}"...`);
     await page.keyboard.type(term, { delay: 100 });
     await delay(500);
@@ -282,6 +282,85 @@ async function journeySearchWithAI(page: Page) {
     await aiDriveJourney(page, `Click the best movie result for "${term}"`);
 }
 
+async function journeyRageClickUltimate(page: Page) {
+    console.log('   🔥 JOURNEY: Rage Click Ultimate Plan');
+    await ensureDashboard(page);
+
+    // Navigate to pricing
+    await page.goto(`${CONFIG.baseUrl}/pricing`);
+    await delay(2000);
+
+    // Find Ultimate button with multiple fallback selectors
+    const ultimateBtn = page.locator(
+        'button:has-text("Ultimate"), button:has-text("ultimate"), [data-plan="ultimate"], button:has-text("ULTIMATE")'
+    ).first();
+
+    if (await ultimateBtn.isVisible()) {
+        console.log('      -> Starting realistic rage click sequence...');
+
+        // Track rage click start
+        await page.evaluate(() => {
+            if ((window as any).posthog) {
+                (window as any).posthog.capture('rage_click_started', {
+                    button: 'ultimate_plan',
+                    page: '/pricing'
+                });
+            }
+        });
+
+        const clickCount = 5 + Math.floor(Math.random() * 7); // 5-12 clicks
+        const box = await ultimateBtn.boundingBox();
+
+        if (box) {
+            for (let i = 0; i < clickCount; i++) {
+                // Add jitter to mouse position
+                const jitterX = (Math.random() - 0.5) * 20;
+                const jitterY = (Math.random() - 0.5) * 20;
+                const clickX = box.x + box.width / 2 + jitterX;
+                const clickY = box.y + box.height / 2 + jitterY;
+
+                await page.mouse.click(clickX, clickY);
+
+                // Track each click
+                await page.evaluate((clickNum) => {
+                    if ((window as any).posthog) {
+                        (window as any).posthog.capture('rage_click_attempt', {
+                            button: 'ultimate_plan',
+                            click_number: clickNum
+                        });
+                    }
+                }, i + 1);
+
+                // Variable delay - faster as frustration builds
+                const baseDelay = 200 - (i * 15); // Start 200ms, decrease to 50ms
+                const delayMs = Math.max(50, baseDelay + Math.random() * 50);
+                await delay(delayMs);
+
+                // After 3 clicks, pause (user thinking "why isn't this working?")
+                if (i === 2) {
+                    await delay(500 + Math.random() * 500);
+                }
+            }
+
+            // Track abandonment
+            await page.evaluate((total) => {
+                if ((window as any).posthog) {
+                    (window as any).posthog.capture('rage_click_abandoned', {
+                        button: 'ultimate_plan',
+                        total_clicks: total
+                    });
+                }
+            }, clickCount);
+
+            console.log(`      ✅ Rage clicked ${clickCount} times with realistic pattern`);
+        }
+    } else {
+        console.log('      ⚠️ Ultimate button not found');
+    }
+
+    await delay(2000);
+}
+
 async function journeyPricingWithAI(page: Page) {
     console.log('   💳 JOURNEY: Pricing');
     await ensureDashboard(page);
@@ -290,17 +369,12 @@ async function journeyPricingWithAI(page: Page) {
     await aiDriveJourney(page, "Navigate to the Pricing or Subscription page.");
     await delay(2000);
 
-    // 2. Rage Click Ultimate (Manual override for experiment)
-    const ultimateBtn = page.locator('button:has-text("Ultimate")').first();
-    if (await ultimateBtn.isVisible()) {
-        console.log('      -> Rage clicking Ultimate...');
-        await humanMove(page, await ultimateBtn.elementHandle());
-        await ultimateBtn.click({ clickCount: 6, delay: 80 });
-    }
+    // 2. Use dedicated rage click function
+    await journeyRageClickUltimate(page);
 
     // 3. Ask AI to subscribe to another plan
     await aiDriveJourney(page, "Click the Subscribe button for the Standard plan.");
-    
+
     // 4. Handle Checkout Form (Manual because it's sensitive)
     await delay(2000);
     if (await page.locator('input[placeholder*="Card"]').isVisible()) {
@@ -318,7 +392,7 @@ async function journeyPricingWithAI(page: Page) {
 
 (async () => {
     const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ 
+    const context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
         userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         deviceScaleFactor: 2,
@@ -337,7 +411,7 @@ async function journeyPricingWithAI(page: Page) {
         console.log(`🔗 Visiting ${CONFIG.baseUrl}`);
         await page.goto(CONFIG.baseUrl);
         await delay(2000);
-        
+
         const cookie = page.locator('button:has-text("Accept")').first();
         if (await cookie.isVisible()) await cookie.click();
         await forcePostHog(page);
@@ -349,7 +423,7 @@ async function journeyPricingWithAI(page: Page) {
         await page.fill('input[type="email"]', user.email);
         await page.fill('input[type="password"]', user.password);
         await page.click('button[type="submit"]');
-        try { await page.waitForURL(/.*browse|.*profiles/, { timeout: 10000 }); } catch(e) {}
+        try { await page.waitForURL(/.*browse|.*profiles/, { timeout: 10000 }); } catch (e) { }
 
         // LOOP
         let cycle = 1;
@@ -361,12 +435,12 @@ async function journeyPricingWithAI(page: Page) {
 
             const roll = Math.random();
             try {
-                // 50% Watch, 25% Search, 25% Pricing
-                if (roll < 0.25) await journeyPricingWithAI(page);
-                else if (roll < 0.50) await journeySearchWithAI(page);
+                // 40% Watch, 25% Search, 35% Pricing (increased for more rage click data)
+                if (roll < 0.35) await journeyPricingWithAI(page);
+                else if (roll < 0.60) await journeySearchWithAI(page);
                 else await journeyWatchWithAI(page);
             } catch (e) {
-                console.log('   ⚠️ Journey Error:', e.message?.substring(0,50));
+                console.log('   ⚠️ Journey Error:', (e as Error).message?.substring(0, 50));
                 await page.goto(`${CONFIG.baseUrl}/browse`);
             }
 
