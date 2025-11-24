@@ -28,7 +28,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail, Menu } from 'lucide-react';
+import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail, Menu, Headphones } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface Profile {
@@ -255,18 +255,14 @@ const Header = () => {
                     >
                       My List
                     </Link>
-                    <Link 
-                      to="/support" 
-                      className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
-                    >
-                      Support
-                    </Link>
-                    <Link 
-                      to="/submit-content" 
-                      className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
-                    >
-                      Submit Content
-                    </Link>
+                    {role === 'admin' && (
+                      <Link 
+                        to="/submit-content" 
+                        className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                      >
+                        Submit Content
+                      </Link>
+                    )}
                     <Link 
                       to="/flixbuddy" 
                       className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
@@ -434,6 +430,13 @@ const Header = () => {
                       <Sparkles className="h-4 w-4 mr-2" />
                       Beta Features
                     </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/support')}
+                      className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                    >
+                      <Headphones className="h-4 w-4 mr-2" />
+                      Support
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-gray-700" />
                     <DropdownMenuItem 
                       onClick={handleLogout}
@@ -566,22 +569,16 @@ const Header = () => {
                 <Info className="h-5 w-5" />
                 <span>My List</span>
               </Link>
-              <Link 
-                to="/support" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
-              >
-                <Mail className="h-5 w-5" />
-                <span>Support</span>
-              </Link>
-              <Link 
-                to="/submit-content" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
-              >
-                <CreditCard className="h-5 w-5" />
-                <span>Submit Content</span>
-              </Link>
+              {role === 'admin' && (
+                <Link 
+                  to="/submit-content" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+                >
+                  <CreditCard className="h-5 w-5" />
+                  <span>Submit Content</span>
+                </Link>
+              )}
               <Link 
                 to="/flixbuddy" 
                 onClick={() => setMobileMenuOpen(false)}

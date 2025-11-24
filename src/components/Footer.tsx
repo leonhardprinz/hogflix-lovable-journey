@@ -27,6 +27,12 @@ const Footer = () => {
             Help Center
           </Link>
           <Link 
+            to="/support" 
+            className="hover:text-gray-300 transition-colors"
+          >
+            Support
+          </Link>
+          <Link 
             to="/terms" 
             className="hover:text-gray-300 transition-colors"
           >
