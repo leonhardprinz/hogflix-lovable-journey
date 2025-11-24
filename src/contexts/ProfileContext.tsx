@@ -36,6 +36,12 @@ export const ProfileProvider = ({ children }: ProfileProviderProps) => {
     setSelectedProfile(profile);
     
     if (profile && posthog.__loaded) {
+      // Set user properties for feature flag matching
+      posthog.people.set({
+        early_access_features: profile.early_access_features || [],
+        has_early_access: profile.early_access_features && profile.early_access_features.length > 0
+      });
+      
       // Set profile as a PostHog group
       posthog.group('profile', profile.id, {
         display_name: profile.display_name,
