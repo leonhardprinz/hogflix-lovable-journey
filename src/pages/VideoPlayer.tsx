@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { usePostHog } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
 import Hls from 'hls.js';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,6 +54,7 @@ const VideoPlayer = () => {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [hasEarlyAccess, setHasEarlyAccess] = useState(false);
+  const aiSummariesFlagEnabled = useFeatureFlagEnabled('early_access_ai_summaries');
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const isPiPSupported = 'pictureInPictureEnabled' in document;
@@ -542,13 +543,6 @@ const VideoPlayer = () => {
       
       const hasAccess = profile?.early_access_features?.includes('ai_summaries') || false;
       setHasEarlyAccess(hasAccess);
-      
-      // Check feature flag from PostHog
-      const flagEnabled = posthog.getFeatureFlag('early_access_ai_summaries') === true;
-      
-      if (hasAccess && flagEnabled && import.meta.env.DEV) {
-        console.log('✨ AI Summaries early access enabled');
-      }
     };
     
     checkEarlyAccess();
@@ -929,7 +923,7 @@ const VideoPlayer = () => {
           </div>
 
           {/* AI Summary Panel (Early Access Feature) */}
-          {hasEarlyAccess && posthog.getFeatureFlag('early_access_ai_summaries') === true && (
+          {hasEarlyAccess && aiSummariesFlagEnabled && (
             <AiSummaryPanel
               videoId={video.id}
               videoTitle={video.title}
