@@ -21,7 +21,7 @@ import { VideoPerformanceTable } from "@/components/admin/VideoPerformanceTable"
 import { VideoAnalyticsModal } from "@/components/admin/VideoAnalyticsModal";
 import { VideoManagementGrid } from "@/components/admin/VideoManagementGrid";
 import { TagManagementSection } from "@/components/admin/TagManagementSection";
-import { RefreshCw, Video, Clock, TrendingUp, Users, Award, Loader2, CreditCard } from "lucide-react";
+import { RefreshCw, Video, Clock, TrendingUp, Users, Award, Loader2, CreditCard, Sparkles } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
@@ -31,6 +31,8 @@ export default function Admin() {
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [generatingSummaries, setGeneratingSummaries] = useState(false);
+  const [summaryProgress, setSummaryProgress] = useState({ current: 0, total: 0, status: '' });
 
   const { data: dashboardStats, isLoading: statsLoading } = useDashboardStats();
   const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useVideoAnalytics();
@@ -100,6 +102,81 @@ export default function Admin() {
     } catch (error) {
       console.error('Error refreshing analytics:', error);
       toast.error("Failed to refresh analytics");
+    }
+  };
+
+  const handleGenerateAllSummaries = async () => {
+    try {
+      setGeneratingSummaries(true);
+      setSummaryProgress({ current: 0, total: 0, status: 'Fetching videos...' });
+      
+      // Fetch all videos without summaries
+      const { data: videos, error: fetchError } = await supabase
+        .from('videos')
+        .select('id, title, description, ai_summary')
+        .is('ai_summary', null)
+        .limit(50); // Limit to prevent overwhelming the API
+      
+      if (fetchError) throw fetchError;
+      
+      if (!videos || videos.length === 0) {
+        toast.info("All videos already have AI summaries!");
+        setGeneratingSummaries(false);
+        return;
+      }
+      
+      setSummaryProgress({ current: 0, total: videos.length, status: 'Generating summaries...' });
+      
+      let successCount = 0;
+      let failCount = 0;
+      
+      // Generate summaries one by one
+      for (let i = 0; i < videos.length; i++) {
+        const video = videos[i];
+        setSummaryProgress({
+          current: i + 1,
+          total: videos.length,
+          status: `Processing: ${video.title}`
+        });
+        
+        try {
+          const { error: summaryError } = await supabase.functions.invoke('generate-video-summary', {
+            body: {
+              videoId: video.id,
+              videoTitle: video.title,
+              videoDescription: video.description || ''
+            }
+          });
+          
+          if (summaryError) {
+            console.error(`Failed to generate summary for ${video.title}:`, summaryError);
+            failCount++;
+          } else {
+            successCount++;
+          }
+          
+          // Add a small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error(`Error generating summary for ${video.title}:`, error);
+          failCount++;
+        }
+      }
+      
+      setSummaryProgress({ current: 0, total: 0, status: '' });
+      
+      if (successCount > 0) {
+        toast.success(`Generated ${successCount} AI summaries!${failCount > 0 ? ` (${failCount} failed)` : ''}`);
+      } else {
+        toast.error(`Failed to generate summaries. Check console for details.`);
+      }
+      
+    } catch (error) {
+      console.error('Error generating summaries:', error);
+      toast.error("Failed to generate summaries");
+    } finally {
+      setGeneratingSummaries(false);
+      setSummaryProgress({ current: 0, total: 0, status: '' });
     }
   };
 
@@ -250,6 +327,61 @@ export default function Admin() {
 
             {/* Video Management Tab */}
             <TabsContent value="video-management" className="space-y-6">
+              {/* AI Summary Generation Tool */}
+              <Card className="bg-card-background border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-text-primary flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary-red" />
+                    AI Summary Generation
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-text-secondary text-sm">
+                    Generate AI-powered summaries for all videos that don't have one yet. This will use the Lovable AI Gateway.
+                  </p>
+                  
+                  {generatingSummaries && summaryProgress.total > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-text-secondary">
+                          Progress: {summaryProgress.current} / {summaryProgress.total}
+                        </span>
+                        <span className="text-text-secondary">
+                          {Math.round((summaryProgress.current / summaryProgress.total) * 100)}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary-red transition-all duration-300"
+                          style={{ width: `${(summaryProgress.current / summaryProgress.total) * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-text-secondary italic truncate">
+                        {summaryProgress.status}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <Button 
+                    onClick={handleGenerateAllSummaries}
+                    disabled={generatingSummaries}
+                    className="gap-2"
+                  >
+                    {generatingSummaries ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating Summaries...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Generate All AI Summaries
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+              
               <VideoManagementGrid />
               <Separator />
               <TagManagementSection />
