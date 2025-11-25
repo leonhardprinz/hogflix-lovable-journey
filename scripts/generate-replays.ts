@@ -177,16 +177,35 @@ async function askGeminiToDrive(page: Page, goal: string, interactables: any[]):
 async function ensureDashboard(page: Page) {
     // 1. Handle Profile Gate (Hard-coded Safety Net)
     if (page.url().includes('profiles') || await page.locator('text=Who’s Watching?').count() > 0) {
-        console.log('      -> 🛑 Profile Gate. SMASHING...');
+        console.log('      -> 🛑 Profile Gate detected.');
 
-        const startBtn = page.locator('text="CLICK TO START"').first();
-        const avatar = page.locator('.avatar').first();
+        // Try multiple selectors for the profile
+        const selectors = [
+            '[data-testid="profile-card"]',
+            '.avatar',
+            'text="CLICK TO START"',
+            'div:has-text("CLICK TO START")'
+        ];
 
-        if (await startBtn.isVisible()) await startBtn.click({ force: true });
-        else if (await avatar.isVisible()) await avatar.click({ force: true });
+        for (const sel of selectors) {
+            const el = page.locator(sel).first();
+            if (await el.isVisible()) {
+                console.log(`      -> Clicking profile selector: ${sel}`);
+                await el.click({ force: true });
+                // Wait for navigation or for profile gate to disappear
+                try {
+                    await page.waitForURL(u => !u.toString().includes('profiles'), { timeout: 3000 });
+                    console.log('      ✅ Profile Gate passed.');
+                    return;
+                } catch (e) {
+                    console.log('      ⚠️ Click didn\'t navigate. Trying next...');
+                }
+            }
+        }
 
-        try { await page.waitForURL(u => !u.toString().includes('profiles'), { timeout: 5000 }); }
-        catch (e) { await page.reload(); }
+        // If still here, try reload
+        console.log('      ⚠️ Profile Gate stuck. Reloading...');
+        await page.reload();
     }
 }
 
