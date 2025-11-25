@@ -299,14 +299,16 @@ async function journeyWatchWithAI(page: Page) {
     }
 
     // 2. Watch Loop (Hardcoded because watching is passive)
-    console.log('      -> Checking player...');
+    const currentUrl = page.url();
+    console.log(`      -> Checking player on: ${currentUrl}`);
     const video = page.locator('video').first();
 
     try {
         await video.waitFor({ timeout: 8000 });
+        console.log('      -> Video element found, waiting for play button overlay...');
 
-        // Wait a bit more for play button overlay to appear
-        await delay(2000);
+        // Wait longer for play button overlay to appear
+        await delay(3000);
         console.log('      -> Searching for play button among selectors...');
 
         // Always try to click the "Big Play Button" or center of screen to trigger playback
