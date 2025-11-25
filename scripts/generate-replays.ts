@@ -207,6 +207,13 @@ async function ensureDashboard(page: Page) {
         console.log('      ⚠️ Profile Gate stuck. Reloading...');
         await page.reload();
     }
+
+    // Ensure we're on the browse page
+    if (!page.url().includes('/browse')) {
+        console.log('      -> Navigating to /browse...');
+        await page.goto(`${CONFIG.baseUrl}/browse`);
+        await delay(2000);
+    }
 }
 
 // --- 5. JOURNEY EXECUTORS (AI Guided) ---
@@ -243,15 +250,26 @@ async function journeyWatchWithAI(page: Page) {
 
     // 1. Get to Video (AI Driven)
     if (!page.url().includes('watch')) {
+        // Wait for movie links to load on the browse page
+        console.log('      -> Waiting for dashboard content...');
+        try {
+            await page.waitForSelector('a[href*="/watch"], button:has-text("Watch")', { timeout: 5000 });
+        } catch (e) {
+            console.log('      ⚠️ Dashboard content did not load in time');
+        }
+
         // Ask AI to find a movie
         const success = await aiDriveJourney(page, "Find a movie card or play button and click it to watch.");
 
         // If AI failed, fallback to manual
         if (!success) {
             console.log('      ⚠️ AI failed to find movie. Trying manual fallback...');
+            console.log(`      -> Current URL: ${page.url()}`);
 
             // 1. Try Hero "Watch Now" Button (in hero section)
             const heroWatch = page.locator('a[href*="/watch"] button, button:has-text("Watch")').first();
+            const heroCount = await heroWatch.count();
+            console.log(`      -> Found ${heroCount} hero buttons`);
             if (await heroWatch.isVisible()) {
                 console.log('      -> Clicking Hero Watch button');
                 const h = await heroWatch.elementHandle();
@@ -259,6 +277,8 @@ async function journeyWatchWithAI(page: Page) {
             } else {
                 // 2. Try clicking any movie card link (anchor tag with /watch href)
                 const movieLink = page.locator('a[href*="/watch"]').first();
+                const linkCount = await movieLink.count();
+                console.log(`      -> Found ${linkCount} movie links`);
                 if (await movieLink.isVisible()) {
                     console.log('      -> Clicking Movie Card link');
                     await movieLink.click();
