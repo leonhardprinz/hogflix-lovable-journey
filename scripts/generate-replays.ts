@@ -305,52 +305,15 @@ async function journeyWatchWithAI(page: Page) {
 
     try {
         await video.waitFor({ timeout: 8000 });
-        console.log('      -> Video element found, waiting for play button overlay...');
+        console.log('      -> Video element found, clicking to play...');
 
-        // Wait longer for play button overlay to appear
-        await delay(3000);
-        console.log('      -> Searching for play button among selectors...');
-
-        // Always try to click the "Big Play Button" or center of screen to trigger playback
-        const bigPlaySelectors = [
-            'button[class*="rounded-full"][class*="h-20"]', // HogFlix: large rounded button
-            'button[class*="rounded-full"][class*="w-20"]', // HogFlix: try w-20 variant
-            '.vjs-big-play-button',
-            '.plyr__control--overlaid',
-            'button[aria-label="Play Video"]',
-            'button[aria-label="Play"]',
-            '.player-overlay button',
-            '.video-overlay button',
-            'button:has-text("Play")',
-            '[class*="play"][class*="button"]'
-        ];
-
-        let playButtonFound = false;
-        for (const selector of bigPlaySelectors) {
-            const playBtn = page.locator(selector).first();
-            const count = await playBtn.count();
-            console.log(`      -> ${selector}: found ${count}, checking visibility...`);
-            if (count > 0) {
-                const isVis = await playBtn.isVisible();
-                console.log(`      -> ${selector}: visible=${isVis}`);
-                if (isVis) {
-                    console.log(`      -> Clicking Play Button (${selector})...`);
-                    await playBtn.click({ force: true });
-                    await delay(1500);
-                    playButtonFound = true;
-                    break;
-                }
-            }
-        }
-
-        if (!playButtonFound) {
-            // Fallback: Click center of video to wake it up / play
-            console.log('      -> No play button found, clicking video center...');
-            const box = await video.boundingBox();
-            if (box) {
-                await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-                await delay(1500);
-            }
+        // Click on the video element itself (now has click-to-play functionality)
+        const box = await video.boundingBox();
+        if (box) {
+            // Click center of video to trigger play
+            await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+            await delay(1500);
+            console.log('      -> Clicked video to play');
         }
     } catch (e) {
         console.log('      ⚠️ Video element not found or timed out.');
