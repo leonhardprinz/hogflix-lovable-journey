@@ -306,18 +306,37 @@ async function journeyWatchWithAI(page: Page) {
         await video.waitFor({ timeout: 8000 });
 
         // Always try to click the "Big Play Button" or center of screen to trigger playback
-        const bigPlay = page.locator('.vjs-big-play-button, .plyr__control--overlaid, button[aria-label="Play Video"]').first();
-        if (await bigPlay.isVisible()) {
-            console.log('      -> Clicking Big Play Button...');
-            await bigPlay.click({ force: true });
-            await delay(1000);
-        } else {
-            // Click center of video to wake it up / play
-            console.log('      -> Clicking video center...');
+        const bigPlaySelectors = [
+            '.vjs-big-play-button',
+            '.plyr__control--overlaid',
+            'button[aria-label="Play Video"]',
+            'button[aria-label="Play"]',
+            '.player-overlay button',
+            '.video-overlay button',
+            'button:has-text("Play")',
+            '[class*="play"][class*="button"]'
+        ];
+
+        let playButtonFound = false;
+        for (const selector of bigPlaySelectors) {
+            const playBtn = page.locator(selector).first();
+            const count = await playBtn.count();
+            if (count > 0 && await playBtn.isVisible()) {
+                console.log(`      -> Clicking Play Button (${selector})...`);
+                await playBtn.click({ force: true });
+                await delay(1500);
+                playButtonFound = true;
+                break;
+            }
+        }
+
+        if (!playButtonFound) {
+            // Fallback: Click center of video to wake it up / play
+            console.log('      -> No play button found, clicking video center...');
             const box = await video.boundingBox();
             if (box) {
                 await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-                await delay(1000);
+                await delay(1500);
             }
         }
     } catch (e) {
