@@ -251,7 +251,7 @@ async function journeyWatchWithAI(page: Page) {
             console.log('      ⚠️ AI failed to find movie. Trying manual fallback...');
 
             // 1. Try Hero Play Button
-            const heroPlay = page.locator('button:has-text("Play"), [aria-label="Play"], .hero-play-button').first();
+            const heroPlay = page.locator('button:has-text("Play"), button:has-text("Watch"), button:has-text("Start"), [aria-label="Play"], .hero-play-button').first();
             if (await heroPlay.isVisible()) {
                 console.log('      -> Clicking Hero Play button');
                 const h = await heroPlay.elementHandle();
