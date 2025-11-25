@@ -587,6 +587,20 @@ const VideoPlayer = () => {
     }
   };
 
+  const handleVideoAreaClick = () => {
+    const action = isPlaying ? 'pause' : 'play';
+    togglePlayPause();
+    
+    posthog.capture('video:click_toggle', {
+      video_id: video?.id,
+      action,
+      current_time_s: currentTime,
+      category: categoryName,
+      profile_id: selectedProfile?.id,
+      session_id: sessionId
+    });
+  };
+
   const handleBackClick = () => {
     navigate('/browse');
   };
@@ -849,6 +863,14 @@ const VideoPlayer = () => {
                   Your browser does not support the video tag.
                 </video>
                 
+                {/* Click overlay for play/pause - excludes controls area */}
+                {!resumeMessage && (
+                  <div 
+                    className="absolute inset-0 bottom-16 cursor-pointer z-10"
+                    onClick={handleVideoAreaClick}
+                  />
+                )}
+                
                 {/* Resume Message Overlay */}
                 {resumeMessage && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -871,7 +893,7 @@ const VideoPlayer = () => {
                   <>
                     {/* Center Play Button */}
                     {!isPlaying && isReady && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
                         <Button
                           onClick={togglePlayPause}
                           variant="ghost"
@@ -883,12 +905,12 @@ const VideoPlayer = () => {
                       </div>
                     )}
                     
-                    {/* Video Controls Bar */}
-                    <div 
-                      className={`transition-opacity duration-300 ${
-                        showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
-                      }`}
-                    >
+            {/* Video Controls Bar */}
+            <div 
+              className={`relative z-30 transition-opacity duration-300 ${
+                showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
                       <VideoControls
                         isPlaying={isPlaying}
                         currentTime={currentTime}
