@@ -2,59 +2,64 @@
 
 ## 🔥 What's New
 
-Enhanced rage click simulation for the HogFlix demo's Ultimate pricing plan button with realistic human behavior patterns.
+Enhanced rage click simulation for the HogFlix demo's Ultimate pricing plan button with realistic human behavior patterns, **integrated into the existing session replay workflow**.
 
-## Files Created/Modified
+## How It Works
 
-1. **`scripts/generate-rage-clicks.ts`** - NEW
-   - Dedicated script for generating rage click sessions
-   - No AI required (simpler and cheaper than generate-replays.ts)
-   - Generates 5 sessions by default (configurable via `RAGE_CLICK_COUNT`)
+The rage click logic is built into the existing `generate-replays.ts` script which runs via the **"Synthetic Session Replays"** GitHub Action (every 6 hours).
 
-2. **`scripts/generate-replays.ts`** - MODIFIED
+- **35% of sessions** will visit the pricing page and rage click the Ultimate button
+- **Realistic patterns**: Variable click count (5-12), non-uniform timing (50-200ms), mouse jitter
+- **PostHog tracking**: Custom events + automatic session replay capture
+- **Enhanced visibility**: Automatically scrolls to Ultimate button and uses slow mouse movements for better tracking
+
+## Files Modified
+
+1. **`scripts/generate-replays.ts`** ✅
    - Added `journeyRageClickUltimate()` function with realistic rage click patterns
    - Increased pricing journey probability from 25% to 35%
-   - Enhanced with PostHog event tracking
+   - Enhanced with PostHog event tracking (`rage_click_started`, `rage_click_attempt`, `rage_click_abandoned`)
+   - Improved video playback reliability and mouse movement realism
 
-3. **`.github/workflows/synthetic-rage-clicks.yml`** - NEW
-   - Dedicated GitHub Action that runs every 2 hours
-   - Can be manually triggered via workflow_dispatch
+## Usage
+
+### Automatic (Production) - RECOMMENDED ✅
+
+The existing **"Synthetic Session Replays"** workflow already includes rage click logic:
+- Runs every 6 hours automatically
+- Generates full session replays (viewable in PostHog)
+- 35% probability of pricing journey with rage clicks
+
+**To manually trigger:**
+1. Go to GitHub Actions tab
+2. Select "Synthetic Session Replays" workflow  
+3. Click "Run workflow"
+
+### Manual Local Testing (Optional)
+
+To test the full replay flow locally:
+```bash
+cd hogflix-project
+TARGET_URL='https://hogflix-demo.lovable.app/' \
+GEMINI_API_KEY='your-key' \
+npx tsx scripts/generate-replays.ts
+```
 
 ## Features
 
 ### Realistic Rage Click Behavior
 - **Variable click count**: 5-12 clicks (randomized)
 - **Non-uniform timing**: Starts at 200ms, speeds up to 50ms as frustration builds
-- **Mouse jitter**: ±10-20px variation between clicks
-- **Thinking pause**: 500-1000ms pause after 3rd click
+- **Mouse jitter**: ±10-20px variation between clicks for natural movement
+- **Thinking pause**: 500-1000ms pause after 3rd click (user confusion)
 - **PostHog tracking**: Custom events for demo visibility
 
 ### PostHog Events Generated
 - `rage_click_started` - When rage clicking begins
-- `rage_click_attempt` - Each individual click (with click_number property)
-- `rage_click_abandoned` - When user gives up
+- `rage_click_attempt` - Each individual click (includes `click_number` property)
+- `rage_click_abandoned` - When user gives up (includes `total_clicks`)
 
-## Usage
-
-### Local Testing (Single Session)
-```bash
-cd hogflix-project
-TARGET_URL='https://hogflix-demo.lovable.app/' \
-npx tsx scripts/generate-rage-clicks.ts
-```
-
-### Local Testing (Multiple Sessions)
-```bash
-TARGET_URL='https://hogflix-demo.lovable.app/' \
-RAGE_CLICK_COUNT='3' \
-npx tsx scripts/generate-rage-clicks.ts
-```
-
-### Production (GitHub Actions)
-The workflow runs automatically every 2 hours, or you can manually trigger it:
-1. Go to GitHub Actions tab
-2. Select "Synthetic Rage Clicks (Ultimate Plan)" workflow
-3. Click "Run workflow"
+All events include `is_synthetic: true` and `button: 'ultimate_plan'` properties.
 
 ## Viewing in PostHog
 
@@ -64,42 +69,31 @@ event = "rage_click_started" OR
 properties.$current_url contains "/pricing"
 ```
 
-### Dashboard Insights
-Create insights with these filters:
-- **Rage Click Volume**: `event = "rage_click_attempt"` (count)
-- **Affected Users**: `event = "rage_click_started"` (unique users)
-- **Sessions with Rage Clicks**: Session recordings filtered by `$rageclick` event
+### Dashboard Insights (Recommended)
+Create a dashboard called "Session Replays - Rage Clicks" with:
 
-## Next Steps (Phase 2)
+1. **Rage Click Volume**
+   - Event: `rage_click_attempt`
+   - Chart: Time series (count)
 
-After rage clicks are generating consistently:
-1. **Error Tracking**: Make Ultimate button throw JavaScript error
-2. **Error → Replay Link**: Verify PostHog links error to session replay
-3. **Demo Dashboard**: Create pre-built dashboard for demo presentations
+2. **Affected Users**  
+   - Event: `rage_click_started`
+   - Chart: Unique users
 
-## Technical Details
+3. **Session Recordings**
+   - Filter: Sessions containing `$rageclick` event or `rage_click_started`
+   - Shows actual video replays
 
-### Why No AI for Rage Clicks?
-The dedicated `generate-rage-clicks.ts` script doesn't use Gemini AI because:
-- Rage clicking is a simple, repetitive action (no decision-making needed)
-- Saves API costs
-- Faster execution
-- More reliable/consistent
+## Expected Results
 
-### Session Flow
-1. Login with rotating user accounts (7 accounts available)
-2. Handle profile selection if needed
-3. Browse homepage briefly (realistic behavior)
-4. Navigate to pricing page
-5. Perform rage click with realistic pattern
-6. Flush PostHog session recording
-7. Repeat for N sessions
-
-### Rate Limiting
-- 5-second delay between sessions to avoid overwhelming the app
-- Each session uses a different user account (rotates through 7 accounts)
+After the workflow runs a few times (12-24 hours), you should see:
+- **5-10 rage click sessions per day** (35% of ~15-20 daily sessions)
+- **Realistic clicking patterns** in session replays (not robotic)
+- **PostHog's automatic rage click detection** flagging these sessions
+- **Clear narrative** for demo: "Users are frustrated with Ultimate button"
 
 ---
 
 **Last Updated**: 2025-11-25  
-**Created By**: Onboarding Project - Phase 1 (Rage Click Simulation)
+**Created By**: HogFlix Onboarding Project - Phase 1 (Rage Click Simulation)  
+**Integration**: Built into existing session replay workflow ✅

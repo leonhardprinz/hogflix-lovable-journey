@@ -52,11 +52,12 @@ async function humanMove(page: Page, target: ElementHandle | { x: number, y: num
         targetY = Math.max(5, Math.min(targetY, 795));
 
         const distance = Math.hypot(targetX - MOUSE_STATE.x, targetY - MOUSE_STATE.y);
-        const steps = Math.max(25, Math.min(Math.floor(distance / 5), 80));
+        // Slower movement for PostHog tracking (more steps)
+        const steps = Math.max(40, Math.min(Math.floor(distance / 3), 120));
 
         await Promise.race([
             page.mouse.move(targetX, targetY, { steps }),
-            delay(2000)
+            delay(3000)
         ]);
         MOUSE_STATE = { x: targetX, y: targetY };
     } catch (e) { }
@@ -222,11 +223,18 @@ async function journeyWatchWithAI(page: Page) {
 
         // If AI failed, fallback to manual
         if (!success) {
-            const card = page.locator('.movie-card').first();
-            if (await card.isVisible()) await smartClick(page, await card.elementHandle());
+            // Try to find a play button first (hero or card)
+            const playBtn = page.locator('button[aria-label="Play"], button:has-text("Play"), .play-button').first();
+            if (await playBtn.isVisible()) {
+                await smartClick(page, await playBtn.elementHandle());
+            } else {
+                // Fallback to clicking a movie card
+                const card = page.locator('.movie-card, [data-testid="movie-card"]').first();
+                if (await card.isVisible()) await smartClick(page, await card.elementHandle());
+            }
         }
 
-        try { await page.waitForURL(/.*watch.*/, { timeout: 6000 }); } catch (e) { }
+        try { await page.waitForURL(/.*watch.*/, { timeout: 8000 }); } catch (e) { }
     }
 
     // 2. Watch Loop (Hardcoded because watching is passive)
@@ -297,6 +305,10 @@ async function journeyRageClickUltimate(page: Page) {
 
     if (await ultimateBtn.isVisible()) {
         console.log('      -> Starting realistic rage click sequence...');
+
+        // CRITICAL: Scroll into view so session replay sees it
+        await ultimateBtn.scrollIntoViewIfNeeded();
+        await delay(1000); // Wait for scroll to settle
 
         // Track rage click start
         await page.evaluate(() => {
@@ -391,7 +403,8 @@ async function journeyPricingWithAI(page: Page) {
 // --- 6. MAIN ---
 
 (async () => {
-    const browser = await chromium.launch({ headless: true });
+    // VISUAL MODE: headless: false
+    const browser = await chromium.launch({ headless: false, slowMo: 50 });
     const context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
         userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -452,7 +465,24 @@ async function journeyPricingWithAI(page: Page) {
         }
 
         console.log('✅ Session Complete. Flushing...');
-        await delay(20000);
+
+        // Fixed flush logic
+        await page.evaluate(() => {
+            return new Promise((resolve) => {
+                const ph = (window as any).posthog;
+                if (ph && ph.sessionRecording) {
+                    if (typeof ph.sessionRecording.flush === 'function') {
+                        ph.sessionRecording.flush();
+                    }
+                    // Wait a bit for flush to happen
+                    setTimeout(resolve, 3000);
+                } else {
+                    resolve(undefined);
+                }
+            });
+        });
+
+        await delay(5000);
 
     } catch (e) {
         console.error('❌ Fatal Error:', e);
