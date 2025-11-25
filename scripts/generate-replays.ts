@@ -307,8 +307,8 @@ async function journeyWatchWithAI(page: Page) {
 
         // Always try to click the "Big Play Button" or center of screen to trigger playback
         const bigPlaySelectors = [
-            'button.h-20.w-20.rounded-full', // HogFlix specific: large center button
-            'button.rounded-full[class*="h-20"]', // Fallback for rounded large button
+            'button[class*="rounded-full"][class*="h-20"]', // HogFlix: large rounded button
+            'button[class*="rounded-full"][class*="w-20"]', // HogFlix: try w-20 variant
             '.vjs-big-play-button',
             '.plyr__control--overlaid',
             'button[aria-label="Play Video"]',
