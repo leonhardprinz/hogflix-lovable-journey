@@ -324,14 +324,31 @@ async function journeyWatchWithAI(page: Page) {
         console.log('      ⚠️ Video element not found or timed out.');
     }
 
-    const isPlaying = await page.evaluate(async () => {
-        const v = document.querySelector('video');
-        if (!v) return false;
-        if (!v.paused) return true; // Already playing
+    // Check if video is playing with a timeout to avoid hanging
+    console.log('      -> Checking if video is playing...');
+    let isPlaying = false;
+    try {
+        isPlaying = await Promise.race([
+            page.evaluate(async () => {
+                const v = document.querySelector('video');
+                if (!v) return false;
+                if (!v.paused) return true; // Already playing
 
-        v.muted = true; // Mute to allow autoplay
-        try { await v.play(); return true; } catch (e) { return false; }
-    });
+                v.muted = true; // Mute to allow autoplay
+                try {
+                    await v.play();
+                    return !v.paused; // Return actual playing state
+                } catch (e) {
+                    return false;
+                }
+            }),
+            delay(3000).then(() => false) // Timeout after 3 seconds
+        ]);
+        console.log(`      -> Video playing: ${isPlaying}`);
+    } catch (e) {
+        console.log('      ⚠️ Error checking video state:', (e as Error).message?.substring(0, 50));
+        isPlaying = false;
+    }
 
     if (isPlaying) {
         const duration = 30000 + Math.random() * 90000;
