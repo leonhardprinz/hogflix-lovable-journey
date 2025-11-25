@@ -262,7 +262,17 @@ async function journeyWatchWithAI(page: Page) {
                 if (await card.isVisible()) {
                     console.log('      -> Clicking Movie Card fallback');
                     const h = await card.elementHandle();
-                    if (h) await smartClick(page, h);
+                    if (h) {
+                        await smartClick(page, h);
+                        // NEW: Wait for potential modal and click Play inside it
+                        await delay(2000);
+                        const modalPlay = page.locator('button:has-text("Play"), [aria-label="Play"]').first();
+                        if (await modalPlay.isVisible()) {
+                            console.log('      -> Clicking Play in Modal');
+                            const mh = await modalPlay.elementHandle();
+                            if (mh) await smartClick(page, mh);
+                        }
+                    }
                 } else {
                     // 3. Last resort: click any image that looks like a poster
                     const poster = page.locator('img[alt*="poster"], img[class*="card"]').first();
