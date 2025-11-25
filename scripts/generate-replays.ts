@@ -250,34 +250,24 @@ async function journeyWatchWithAI(page: Page) {
         if (!success) {
             console.log('      ⚠️ AI failed to find movie. Trying manual fallback...');
 
-            // 1. Try Hero Play Button
-            const heroPlay = page.locator('button:has-text("Play"), button:has-text("Watch"), button:has-text("Start"), [aria-label="Play"], .hero-play-button').first();
-            if (await heroPlay.isVisible()) {
-                console.log('      -> Clicking Hero Play button');
-                const h = await heroPlay.elementHandle();
+            // 1. Try Hero "Watch Now" Button (in hero section)
+            const heroWatch = page.locator('a[href*="/watch"] button, button:has-text("Watch")').first();
+            if (await heroWatch.isVisible()) {
+                console.log('      -> Clicking Hero Watch button');
+                const h = await heroWatch.elementHandle();
                 if (h) await smartClick(page, h);
             } else {
-                // 2. Try any movie card
-                const card = page.locator('.movie-card, [data-testid="movie-card"], a[href^="/watch"]').first();
-                if (await card.isVisible()) {
-                    console.log('      -> Clicking Movie Card fallback');
-                    const h = await card.elementHandle();
-                    if (h) {
-                        await smartClick(page, h);
-                        // NEW: Wait for potential modal and click Play inside it
-                        await delay(2000);
-                        const modalPlay = page.locator('button:has-text("Play"), [aria-label="Play"]').first();
-                        if (await modalPlay.isVisible()) {
-                            console.log('      -> Clicking Play in Modal');
-                            const mh = await modalPlay.elementHandle();
-                            if (mh) await smartClick(page, mh);
-                        }
-                    }
+                // 2. Try clicking any movie card link (anchor tag with /watch href)
+                const movieLink = page.locator('a[href*="/watch"]').first();
+                if (await movieLink.isVisible()) {
+                    console.log('      -> Clicking Movie Card link');
+                    await movieLink.click();
+                    await delay(1000);
                 } else {
                     // 3. Last resort: click any image that looks like a poster
-                    const poster = page.locator('img[alt*="poster"], img[class*="card"]').first();
+                    const poster = page.locator('img[alt*="poster"], img[class*="poster"]').first();
                     if (await poster.isVisible()) {
-                        console.log('      -> Clicking Image fallback');
+                        console.log('      -> Clicking Poster image fallback');
                         const h = await poster.elementHandle();
                         if (h) await smartClick(page, h);
                     }
