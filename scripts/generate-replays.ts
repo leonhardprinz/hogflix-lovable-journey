@@ -292,16 +292,34 @@ async function journeyWatchWithAI(page: Page) {
     console.log('      -> Checking player...');
     const video = page.locator('video').first();
 
-    try { await video.waitFor({ timeout: 4000 }); } catch (e) {
-        console.log('      ⚠️ Waking up player...');
-        const vp = page.viewportSize();
-        if (vp) await page.mouse.click(vp.width / 2, vp.height / 2);
+    try {
+        await video.waitFor({ timeout: 8000 });
+
+        // Always try to click the "Big Play Button" or center of screen to trigger playback
+        const bigPlay = page.locator('.vjs-big-play-button, .plyr__control--overlaid, button[aria-label="Play Video"]').first();
+        if (await bigPlay.isVisible()) {
+            console.log('      -> Clicking Big Play Button...');
+            await bigPlay.click({ force: true });
+            await delay(1000);
+        } else {
+            // Click center of video to wake it up / play
+            console.log('      -> Clicking video center...');
+            const box = await video.boundingBox();
+            if (box) {
+                await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+                await delay(1000);
+            }
+        }
+    } catch (e) {
+        console.log('      ⚠️ Video element not found or timed out.');
     }
 
     const isPlaying = await page.evaluate(async () => {
         const v = document.querySelector('video');
         if (!v) return false;
-        v.muted = true;
+        if (!v.paused) return true; // Already playing
+
+        v.muted = true; // Mute to allow autoplay
         try { await v.play(); return true; } catch (e) { return false; }
     });
 
