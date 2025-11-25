@@ -101,7 +101,8 @@ async function forcePostHog(page: Page) {
 // Scrapes the page for actionable elements
 async function getPageSnapshot(page: Page) {
     // We include more elements now to give AI freedom
-    const elements = await page.$$('button, a, input, [role="button"], .movie-card, video, h1, h2, h3');
+    // Added: img[alt], [data-testid], .play-icon, .card
+    const elements = await page.$$('button, a, input, [role="button"], .movie-card, video, h1, h2, h3, img[alt], [data-testid], .play-icon');
     const interactables: any[] = [];
     const viewport = page.viewportSize();
 
@@ -117,21 +118,26 @@ async function getPageSnapshot(page: Page) {
         const label = await el.getAttribute('aria-label').catch(() => '') || '';
         const role = await el.getAttribute('role').catch(() => '') || '';
         const href = await el.getAttribute('href').catch(() => '') || '';
+        const alt = await el.getAttribute('alt').catch(() => '') || '';
+        const testId = await el.getAttribute('data-testid').catch(() => '') || '';
+        const className = await el.getAttribute('class').catch(() => '') || '';
 
-        const isCard = (await el.getAttribute('class'))?.includes('movie-card');
+        const isCard = className.includes('movie-card') || className.includes('card');
+        const isPlay = className.includes('play') || label.toLowerCase().includes('play') || text.toLowerCase().includes('play');
 
         // Filter noise
-        if (!text.trim() && !label && !isCard && !href) continue;
+        if (!text.trim() && !label && !isCard && !href && !alt && !isPlay) continue;
 
         let type = "ELEMENT";
         if (isCard) type = "MOVIE_CARD";
+        else if (isPlay) type = "PLAY_BUTTON";
         else if (href) type = "LINK";
         else if (text) type = "TEXT/BUTTON";
 
         interactables.push({
             index: i,
             handle: el,
-            description: `[${i}] TYPE:${type} TEXT:"${text.substring(0, 40).replace(/\n/g, '')}" LABEL:"${label}" HREF:"${href}"`
+            description: `[${i}] TYPE:${type} TEXT:"${text.substring(0, 40).replace(/\n/g, '')}" LABEL:"${label}" ALT:"${alt}" HREF:"${href}" TESTID:"${testId}"`
         });
     }
     return interactables;
@@ -223,14 +229,30 @@ async function journeyWatchWithAI(page: Page) {
 
         // If AI failed, fallback to manual
         if (!success) {
-            // Try to find a play button first (hero or card)
-            const playBtn = page.locator('button[aria-label="Play"], button:has-text("Play"), .play-button').first();
-            if (await playBtn.isVisible()) {
-                await smartClick(page, await playBtn.elementHandle());
+            console.log('      ⚠️ AI failed to find movie. Trying manual fallback...');
+
+            // 1. Try Hero Play Button
+            const heroPlay = page.locator('button:has-text("Play"), [aria-label="Play"], .hero-play-button').first();
+            if (await heroPlay.isVisible()) {
+                console.log('      -> Clicking Hero Play button');
+                const h = await heroPlay.elementHandle();
+                if (h) await smartClick(page, h);
             } else {
-                // Fallback to clicking a movie card
-                const card = page.locator('.movie-card, [data-testid="movie-card"]').first();
-                if (await card.isVisible()) await smartClick(page, await card.elementHandle());
+                // 2. Try any movie card
+                const card = page.locator('.movie-card, [data-testid="movie-card"], a[href^="/watch"]').first();
+                if (await card.isVisible()) {
+                    console.log('      -> Clicking Movie Card fallback');
+                    const h = await card.elementHandle();
+                    if (h) await smartClick(page, h);
+                } else {
+                    // 3. Last resort: click any image that looks like a poster
+                    const poster = page.locator('img[alt*="poster"], img[class*="card"]').first();
+                    if (await poster.isVisible()) {
+                        console.log('      -> Clicking Image fallback');
+                        const h = await poster.elementHandle();
+                        if (h) await smartClick(page, h);
+                    }
+                }
             }
         }
 
