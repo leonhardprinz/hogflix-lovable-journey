@@ -364,39 +364,28 @@ async function journeyWatchWithAI(page: Page) {
             page.evaluate(async () => {
                 const v = document.querySelector('video');
                 if (!v) return false;
-                if (!v.paused) return true; // Already playing
-
-                v.muted = true; // Mute to allow autoplay
-                try {
-                    await v.play();
-                    return !v.paused; // Return actual playing state
-                } catch (e) {
-                    return false;
-                }
+                console.log(`Video state: paused=${v.paused}, readyState=${v.readyState}`);
+                return !v.paused;
             }),
-            delay(3000).then(() => false) // Timeout after 3 seconds
+            delay(2000).then(() => false)
         ]);
-        console.log(`      -> Video playing: ${isPlaying}`);
+        console.log(`      -> Video currently playing: ${isPlaying}`);
     } catch (e) {
         console.log('      ⚠️ Error checking video state:', (e as Error).message?.substring(0, 50));
-        isPlaying = false;
     }
 
-    if (isPlaying) {
-        const duration = 30000 + Math.random() * 90000;
-        console.log(`      -> Watching for ${(duration / 1000).toFixed(0)}s`);
-        const start = Date.now();
-        while (Date.now() - start < duration) {
-            await delay(5000);
-            const x = Math.random() * 300;
-            try { await page.mouse.move(300 + x, 300 + x, { steps: 25 }); } catch (e) { }
-        }
-        console.log('      -> Done. Going back.');
-        await page.goBack();
-    } else {
-        console.log('      ⚠️ Playback failed.');
-        await page.goto(`${CONFIG.baseUrl}/browse`);
+    // If not playing, it's okay - we'll still watch and move mouse to generate activity
+    // This ensures PostHog doesn't mark as "inactive"
+    const duration = 30000 + Math.random() * 90000;
+    console.log(`      -> Watching for ${(duration / 1000).toFixed(0)}s (video playing=${isPlaying})`);
+    const start = Date.now();
+    while (Date.now() - start < duration) {
+        await delay(5000);
+        const x = Math.random() * 300;
+        try { await page.mouse.move(300 + x, 300 + x, { steps: 25 }); } catch (e) { }
     }
+    console.log('      -> Done. Going back.');
+    await page.goBack();
 }
 
 async function journeySearchWithAI(page: Page) {
