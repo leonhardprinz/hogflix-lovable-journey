@@ -157,6 +157,21 @@ export const DemoVideoPlayer = ({
     }
   }, [videoRef, handleEnded]);
 
+  const handleVideoAreaClick = useCallback(() => {
+    const action = isPlaying ? 'pause' : 'play';
+    togglePlayPause();
+    
+    if (!isSynthetic) {
+      posthog.capture('demo_video:click_toggle', {
+        video_id: videoId,
+        video_title: videoTitle,
+        action,
+        current_time_s: currentTime
+      });
+      console.log(`🖱️ PostHog: demo_video:click_toggle (${action})`);
+    }
+  }, [isPlaying, togglePlayPause, posthog, videoId, videoTitle, currentTime, isSynthetic]);
+
   return (
     <div
       ref={containerRef}
@@ -172,11 +187,17 @@ export const DemoVideoPlayer = ({
         playsInline
       />
 
+      {/* Click overlay for play/pause - excludes controls area */}
+      <div 
+        className="absolute inset-0 bottom-16 cursor-pointer z-10"
+        onClick={handleVideoAreaClick}
+      />
+
       {/* Unified Video Controls */}
       <>
         {/* Center Play Button */}
         {!isPlaying && isReady && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
             <Button
               onClick={play}
               variant="ghost"
@@ -190,7 +211,7 @@ export const DemoVideoPlayer = ({
         
         {/* Video Controls Bar */}
         <div 
-          className={`transition-opacity duration-300 ${
+          className={`relative z-30 transition-opacity duration-300 ${
             showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
           }`}
         >
