@@ -305,6 +305,10 @@ async function journeyWatchWithAI(page: Page) {
     try {
         await video.waitFor({ timeout: 8000 });
 
+        // Wait a bit more for play button overlay to appear
+        await delay(2000);
+        console.log('      -> Searching for play button among selectors...');
+
         // Always try to click the "Big Play Button" or center of screen to trigger playback
         const bigPlaySelectors = [
             'button[class*="rounded-full"][class*="h-20"]', // HogFlix: large rounded button
@@ -323,12 +327,17 @@ async function journeyWatchWithAI(page: Page) {
         for (const selector of bigPlaySelectors) {
             const playBtn = page.locator(selector).first();
             const count = await playBtn.count();
-            if (count > 0 && await playBtn.isVisible()) {
-                console.log(`      -> Clicking Play Button (${selector})...`);
-                await playBtn.click({ force: true });
-                await delay(1500);
-                playButtonFound = true;
-                break;
+            console.log(`      -> ${selector}: found ${count}, checking visibility...`);
+            if (count > 0) {
+                const isVis = await playBtn.isVisible();
+                console.log(`      -> ${selector}: visible=${isVis}`);
+                if (isVis) {
+                    console.log(`      -> Clicking Play Button (${selector})...`);
+                    await playBtn.click({ force: true });
+                    await delay(1500);
+                    playButtonFound = true;
+                    break;
+                }
             }
         }
 
