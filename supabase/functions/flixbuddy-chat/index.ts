@@ -136,7 +136,7 @@ FlixBuddy:`;
     const startTime = Date.now();
     
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -171,7 +171,7 @@ FlixBuddy:`;
         '$ai_generation',
         userId,
         {
-          $ai_model: 'gemini-1.5-flash',
+          $ai_model: 'gemini-2.0-flash',
           $ai_provider: 'google',
           $ai_input: message,
           $ai_trace_id: conversationId,
@@ -225,7 +225,7 @@ FlixBuddy:`;
       '$ai_generation',
       userId,
       {
-        $ai_model: 'gemini-1.5-flash',
+        $ai_model: 'gemini-2.0-flash',
         $ai_provider: 'google',
         $ai_input: message,
         $ai_output_choices: [assistantMessage],
@@ -257,7 +257,7 @@ FlixBuddy:`;
         role: 'assistant',
         content: assistantMessage,
         metadata: {
-          model: 'gemini-1.5-flash',
+          model: 'gemini-2.0-flash',
           timestamp: new Date().toISOString()
         }
       });
@@ -275,7 +275,7 @@ FlixBuddy:`;
           output: outputCost,
           total: totalCost
         },
-        model: 'gemini-1.5-flash'
+        model: 'gemini-2.0-flash'
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
