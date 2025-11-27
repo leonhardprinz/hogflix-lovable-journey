@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
+import { PostHog } from 'https://esm.sh/posthog-node@4.0.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +21,7 @@ serve(async (req) => {
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const POSTHOG_API_KEY = Deno.env.get('POSTHOG_API_KEY');
 
     if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error('Missing environment variables');
@@ -27,6 +29,11 @@ serve(async (req) => {
     }
 
     console.log('Environment variables loaded successfully');
+
+    // Initialize PostHog client for server-side LLM analytics
+    const phClient = new PostHog(POSTHOG_API_KEY || '', {
+      host: 'https://eu.i.posthog.com',
+    });
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -116,7 +123,7 @@ FlixBuddy:`;
     const startTime = Date.now();
     
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -138,14 +145,48 @@ FlixBuddy:`;
       }
     );
 
+    const latency = Date.now() - startTime;
+    const httpStatus = geminiResponse.status;
+
     if (!geminiResponse.ok) {
       const errorText = await geminiResponse.text();
-      console.error('Gemini API error:', geminiResponse.status, errorText);
-      throw new Error(`Gemini API error: ${geminiResponse.status} - ${errorText}`);
+      console.error('Gemini API error:', httpStatus, errorText);
+      
+      // Track error in PostHog
+      phClient.capture({
+        distinctId: userId,
+        event: '$ai_generation',
+        properties: {
+          $ai_model: 'gemini-1.5-flash',
+          $ai_provider: 'google',
+          $ai_input: message,
+          $ai_trace_id: conversationId,
+          $ai_latency: latency / 1000,
+          $ai_http_status: httpStatus,
+          $ai_is_error: true,
+          error_message: errorText,
+        },
+      });
+      
+      await phClient.shutdown();
+
+      if (httpStatus === 429) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Rate limit exceeded. Please try again in a moment.',
+            isRateLimit: true 
+          }), 
+          {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      throw new Error(`Gemini API error: ${httpStatus} - ${errorText}`);
     }
 
     const geminiData = await geminiResponse.json();
-    const latency = Date.now() - startTime;
     console.log('Gemini API response received, latency:', latency, 'ms');
 
     // Parse response
@@ -161,10 +202,33 @@ FlixBuddy:`;
     };
     console.log('Token usage:', tokenUsage);
 
-    // Calculate cost breakdown (Gemini 2.0 Flash pricing: $0.075 per 1M input, $0.30 per 1M output)
+    // Calculate cost breakdown (Gemini 1.5 Flash pricing: $0.075 per 1M input, $0.30 per 1M output)
     const inputCost = (tokenUsage.input / 1_000_000) * 0.075;
     const outputCost = (tokenUsage.output / 1_000_000) * 0.30;
     const totalCost = inputCost + outputCost;
+
+    // Capture successful AI generation in PostHog
+    phClient.capture({
+      distinctId: userId,
+      event: '$ai_generation',
+      properties: {
+        $ai_model: 'gemini-1.5-flash',
+        $ai_provider: 'google',
+        $ai_input: message,
+        $ai_output_choices: [assistantMessage],
+        $ai_input_tokens: tokenUsage.input,
+        $ai_output_tokens: tokenUsage.output,
+        $ai_total_cost_usd: totalCost,
+        $ai_latency: latency / 1000,
+        $ai_trace_id: conversationId,
+        $ai_http_status: httpStatus,
+        $ai_is_error: false,
+        profile_id: profileId,
+      },
+    });
+
+    // Ensure PostHog events are sent
+    await phClient.shutdown();
 
     // Save user message
     await supabase
@@ -201,7 +265,7 @@ FlixBuddy:`;
           output: outputCost,
           total: totalCost
         },
-        model: 'gemini-2.0-flash-exp'
+        model: 'gemini-1.5-flash'
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

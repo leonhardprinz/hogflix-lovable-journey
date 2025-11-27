@@ -111,7 +111,7 @@ const FlixBuddy = () => {
           posthog.capture('$ai_trace', {
             $ai_trace_id: conversation.id,
             $ai_provider: 'google',
-            $ai_model: 'gemini-2.0-flash-exp',
+            $ai_model: 'gemini-1.5-flash',
             profile_id: selectedProfile.id
           });
         } catch (e) {
@@ -195,7 +195,7 @@ const FlixBuddy = () => {
       try {
         posthog.capture('$ai_generation', {
           $ai_provider: 'google',
-          $ai_model: 'gemini-2.0-flash-exp',
+          $ai_model: 'gemini-1.5-flash',
           $ai_input: message,
           $ai_output: data.message,
           $ai_input_tokens: data.metadata?.tokens?.input || 0,
@@ -217,7 +217,7 @@ const FlixBuddy = () => {
       try {
         posthog.capture('$ai_generation_complete', {
           $ai_provider: 'google',
-          $ai_model: 'gemini-2.0-flash-exp',
+          $ai_model: 'gemini-1.5-flash',
           $ai_output: data.message,
           $ai_input_tokens: data.metadata?.tokens?.input || 0,
           $ai_output_tokens: data.metadata?.tokens?.output || 0,
@@ -234,17 +234,23 @@ const FlixBuddy = () => {
         console.error('PostHog tracking error:', e);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Detailed error:', errorMessage);
+      
+      // Check if it's a rate limit error
+      const isRateLimit = error?.status === 429 || 
+                          error?.message?.includes('rate limit') || 
+                          error?.message?.includes('429');
       
       // Track LLM generation error (PostHog LLM Analytics)
       try {
         posthog.capture('$ai_generation_error', {
           $ai_error: errorMessage,
+          $ai_is_rate_limit: isRateLimit,
           $ai_provider: 'google',
-          $ai_model: 'gemini-2.0-flash-exp',
+          $ai_model: 'gemini-1.5-flash',
           $ai_conversation_id: conversationId,
           $ai_trace_id: conversationId,
           profile_id: selectedProfile.id
@@ -253,11 +259,20 @@ const FlixBuddy = () => {
         console.error('PostHog tracking error:', e);
       }
       
-      toast({
-        title: "FlixBuddy Error", 
-        description: `Failed to get response: ${errorMessage}. Please check the console for details.`,
-        variant: "destructive",
-      });
+      // Show user-friendly error message
+      if (isRateLimit) {
+        toast({
+          title: "FlixBuddy is Busy", 
+          description: "FlixBuddy is experiencing high demand right now. Please wait a moment and try again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "FlixBuddy Error", 
+          description: `Failed to get response: ${errorMessage}. Please try again.`,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
