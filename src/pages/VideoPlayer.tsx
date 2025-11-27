@@ -1,20 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
-import Hls from 'hls.js';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
-import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 import { trackVideoCompletion, trackVideoStarted } from '@/lib/posthog-utils';
 import Header from '@/components/Header';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { Button } from '@/components/ui/button';
-import { VideoControls } from '@/components/VideoControls';
-import { ArrowLeft, Loader2, Play } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { AiSummaryPanel } from '@/components/AiSummaryPanel';
+import { UnifiedVideoPlayer } from '@/components/UnifiedVideoPlayer';
 import { toast } from 'sonner';
 
 interface Video {
@@ -43,23 +41,16 @@ const VideoPlayer = () => {
   const [totalRatings, setTotalRatings] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sessionId] = useState(() => crypto.randomUUID());
-  const [lastSaveTime, setLastSaveTime] = useState(0);
+  const lastSaveTime = useRef(0);
   const [resumeMessage, setResumeMessage] = useState<string | null>(null);
   const [showStartOverButton, setShowStartOverButton] = useState(false);
   const [categoryName, setCategoryName] = useState<string>('Unknown');
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
-  const [showControls, setShowControls] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [hasEarlyAccess, setHasEarlyAccess] = useState(false);
   const aiSummariesFlagEnabled = useFeatureFlagEnabled('early_access_ai_summaries');
-  const containerRef = useRef<HTMLDivElement>(null);
-  const controlsTimeoutRef = useRef<NodeJS.Timeout>();
-  const isPiPSupported = 'pictureInPictureEnabled' in document;
   
-  const hlsRef = useRef<Hls | null>(null);
   const hasAppliedResume = useRef(false);
   const initialProgressRef = useRef<typeof progress | null>(null);
   const navigate = useNavigate();
@@ -68,118 +59,99 @@ const VideoPlayer = () => {
   const { selectedProfile } = useProfile();
   const { progress, saveProgress, loadProgress } = useWatchProgress(videoId);
 
-  // Video player hook with progress tracking and enhanced controls
-  const { 
-    videoRef, 
-    videoProps, 
-    isPlaying, 
-    isReady, 
-    play, 
-    pause, 
-    togglePlayPause, 
-    seekTo,
-    playbackRate,
-    changePlaybackRate,
-    skipBackward,
-    skipForward,
-    togglePiP,
-    isPiPActive
-  } = useVideoPlayer({
-    autoplay: false, // We'll control autoplay manually for better timing
-    onTimeUpdate: (currentTimeValue, duration) => {
-      setCurrentTime(currentTimeValue);
-      
-      if (video && selectedProfile) {
-        const progressPercentage = (currentTimeValue / duration) * 100;
-        const now = Date.now();
+  // Handle time updates with progress tracking
+  const handleTimeUpdate = (currentTimeValue: number, duration: number) => {
+    setCurrentTime(currentTimeValue);
+    
+    if (video && selectedProfile) {
+      const progressPercentage = (currentTimeValue / duration) * 100;
+      const now = Date.now();
 
-        // Save progress every 10 seconds (reduced frequency) once meaningful watching has occurred
-        if (now - lastSaveTime >= 10000 && currentTimeValue >= 3 && duration > 0) {
-          // Non-blocking progress save
-          saveProgress(video.id, currentTimeValue, duration, sessionId);
-          setLastSaveTime(now);
-        }
+      // Save progress every 10 seconds once meaningful watching has occurred
+      if (now - lastSaveTime.current >= 10000 && currentTimeValue >= 3 && duration > 0) {
+        saveProgress(video.id, currentTimeValue, duration, sessionId);
+        lastSaveTime.current = now;
+      }
 
-        // Track milestone progress
-        if (!milestone25 && progressPercentage >= 25) {
-          setMilestone25(true);
-          posthog.capture('video:progress_milestone', {
-            video_id: video.id,
-            milestone: 25,
-            category: categoryName,
-            profile_id: selectedProfile.id,
-            session_id: sessionId
-          });
-        }
+      // Track milestone progress
+      if (!milestone25 && progressPercentage >= 25) {
+        setMilestone25(true);
+        posthog.capture('video:progress_milestone', {
+          video_id: video.id,
+          milestone: 25,
+          category: categoryName,
+          profile_id: selectedProfile.id,
+          session_id: sessionId
+        });
+      }
 
-        if (!milestone50 && progressPercentage >= 50) {
-          setMilestone50(true);
-          posthog.capture('video:progress_milestone', {
-            video_id: video.id,
-            milestone: 50,
-            category: categoryName,
-            profile_id: selectedProfile.id,
-            session_id: sessionId
-          });
-        }
+      if (!milestone50 && progressPercentage >= 50) {
+        setMilestone50(true);
+        posthog.capture('video:progress_milestone', {
+          video_id: video.id,
+          milestone: 50,
+          category: categoryName,
+          profile_id: selectedProfile.id,
+          session_id: sessionId
+        });
+      }
 
-        if (!milestone75 && progressPercentage >= 75) {
-          setMilestone75(true);
-          posthog.capture('video:progress_milestone', {
-            video_id: video.id,
-            milestone: 75,
-            category: categoryName,
-            profile_id: selectedProfile.id,
-            session_id: sessionId
-          });
-        }
+      if (!milestone75 && progressPercentage >= 75) {
+        setMilestone75(true);
+        posthog.capture('video:progress_milestone', {
+          video_id: video.id,
+          milestone: 75,
+          category: categoryName,
+          profile_id: selectedProfile.id,
+          session_id: sessionId
+        });
+      }
 
-        // Track completion
-        if (progressPercentage >= 95) {
-          const sourceSection = sessionStorage.getItem('video_source_section') || 'unknown';
+      // Track completion
+      if (progressPercentage >= 95) {
+        const sourceSection = sessionStorage.getItem('video_source_section') || 'unknown';
+        
+        posthog.capture('video:completed', {
+          video_id: video.id,
+          category: categoryName,
+          session_id: sessionId,
+          profile_id: selectedProfile.id,
+          total_duration: duration
+        });
+        
+        // Video completed event for A/B test tracking
+        posthog.capture('video:completed', {
+          content_id: video.id,
+          category: categoryName,
+          source_section: sourceSection,
+          completion_pct: Math.round(progressPercentage),
+          watch_seconds: Math.round(currentTimeValue),
+          profile_id: selectedProfile.id,
+          session_id: sessionId
+        });
+        
+        // Update user properties
+        setTimeout(async () => {
+          const { count: completedCount } = await supabase
+            .from('watch_progress')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user?.id)
+            .eq('completed', true);
           
-          posthog.capture('video:completed', {
-            video_id: video.id,
-            category: categoryName,
-            session_id: sessionId,
-            profile_id: selectedProfile.id,
-            total_duration: duration
-          });
+          const { data: watchData } = await supabase
+            .from('watch_progress')
+            .select('progress_seconds')
+            .eq('user_id', user?.id);
           
-          // Video completed event for A/B test tracking
-          posthog.capture('video:completed', {
-            content_id: video.id,
-            category: categoryName,
-            source_section: sourceSection,
-            completion_pct: Math.round(progressPercentage),
-            watch_seconds: Math.round(currentTimeValue),
-            profile_id: selectedProfile.id,
-            session_id: sessionId
-          });
+          const totalMinutes = Math.round(
+            (watchData?.reduce((sum, w) => sum + (w.progress_seconds || 0), 0) || 0) / 60
+          );
           
-          // Update user properties - query for accurate totals
-          setTimeout(async () => {
-            const { count: completedCount } = await supabase
-              .from('watch_progress')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', user?.id)
-              .eq('completed', true);
-            
-            const { data: watchData } = await supabase
-              .from('watch_progress')
-              .select('progress_seconds')
-              .eq('user_id', user?.id);
-            
-            const totalMinutes = Math.round(
-              (watchData?.reduce((sum, w) => sum + (w.progress_seconds || 0), 0) || 0) / 60
-            );
-            
-            trackVideoCompletion(completedCount || 0, totalMinutes);
-          }, 0);
-        }
+          trackVideoCompletion(completedCount || 0, totalMinutes);
+        }, 0);
       }
     }
-  });
+  };
 
   useEffect(() => {
     const initializePlayer = async () => {
@@ -330,7 +302,7 @@ const VideoPlayer = () => {
     };
 
     initializePlayer();
-  }, [navigate, selectedProfile, videoId, loadProgress, sessionId, posthog]);
+  }, [navigate, selectedProfile, videoId, loadProgress, sessionId, posthog, video, categoryName, milestone25, milestone50, milestone75, user, saveProgress]);
 
   const loadRatingData = async () => {
     if (!videoId) return;
@@ -356,179 +328,24 @@ const VideoPlayer = () => {
     }
   };
 
-  // Setup video player when URL is ready
-  useEffect(() => {
-    if (!videoRef.current || !videoUrl) return;
-
+  // Handle video ready callback
+  const handleVideoReady = () => {
     if (import.meta.env.DEV) {
-      console.log('🎥 Setting up video player');
+      console.log('📋 Video ready');
     }
-
-  const handleLoadedMetadata = async () => {
-    if (import.meta.env.DEV) {
-      console.log('📋 Video metadata loaded, duration:', videoRef.current?.duration);
-    }
-    
-    const videoElement = videoRef.current;
-    if (!videoElement) return;
-
-    // Don't interrupt if video is already playing
-    if (!videoElement.paused) {
-      console.log('⚠️ Video already playing, skipping setup');
-      return;
-    }
-
-    // Apply resume time if we have meaningful progress (ONLY ONCE)
-    const resumeProgress = initialProgressRef.current;
-    if (resumeProgress && resumeProgress.progress_seconds > 3 && resumeProgress.progress_percentage < 95 && !hasAppliedResume.current) {
-      hasAppliedResume.current = true;
-      const resumeTime = Math.min(resumeProgress.progress_seconds, videoElement.duration || 0);
-        console.log('⏯️ Applying resume time:', resumeTime, 'seconds');
-        
-        if (resumeTime > 3) {
-          // For HLS videos, we need to wait for seeking to complete
-          if (isHLS) {
-            videoElement.currentTime = resumeTime;
-            // Wait for seek to complete before playing
-            await new Promise((resolve) => {
-              const onSeeked = () => {
-                videoElement.removeEventListener('seeked', onSeeked);
-                resolve(void 0);
-              };
-              videoElement.addEventListener('seeked', onSeeked);
-              
-              // Timeout fallback
-              setTimeout(resolve, 1000);
-            });
-          } else {
-            videoElement.currentTime = resumeTime;
-          }
-          
-          console.log('✅ Resume time set to:', videoElement.currentTime);
-        }
-        
-        posthog.capture('video:session_resumed', {
-          video_id: videoId,
-          category: categoryName,
-          session_id: sessionId,
-          resumed_at_seconds: resumeTime,
-          profile_id: selectedProfile?.id
-        });
-      }
-      
-      // Auto-play the video after seeking is complete
-      console.log('▶️ Starting video playback...');
-      try {
-        await videoElement.play();
-        console.log('✅ Video started successfully');
-      } catch (error) {
-        console.log('⚠️ Autoplay failed (user interaction required):', error);
-      }
-    };
-
-    if (isHLS) {
-      if (Hls.isSupported()) {
-        const hls = new Hls();
-        hlsRef.current = hls;
-        hls.loadSource(videoUrl);
-        hls.attachMedia(videoRef.current);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, handleLoadedMetadata);
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-            console.error('🔴 Fatal HLS error:', data);
-            setError('Video playback failed');
-          }
-        });
-
-        return () => {
-          if (hlsRef.current) {
-            hlsRef.current.destroy();
-            hlsRef.current = null;
-          }
-        };
-      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari native HLS support
-        videoRef.current.src = videoUrl;
-        // Don't add loadedmetadata listener - videoProps already has it
-      }
-    } else {
-      // Regular MP4 video
-      videoRef.current.src = videoUrl;
-      // Don't add loadedmetadata listener - videoProps already has it
-    }
-  }, [videoUrl, isHLS, videoId, sessionId, selectedProfile, posthog]);
+  };
 
   // Handle start over button
   const handleStartOver = () => {
-    seekTo(0);
     setResumeMessage(null);
     setShowStartOverButton(false);
   };
 
-  // Handle continue button (dismiss message and start playing from resume point)
-  const handleContinue = async () => {
+  // Handle continue button
+  const handleContinue = () => {
     setResumeMessage(null);
     setShowStartOverButton(false);
-    
-    const videoElement = videoRef.current;
-    if (!videoElement) return;
-
-    // Apply resume time before playing (using initial progress ref)
-    const resumeProgress = initialProgressRef.current;
-    if (resumeProgress && resumeProgress.progress_seconds > 3) {
-      const resumeTime = Math.min(resumeProgress.progress_seconds, videoElement.duration || 0);
-      console.log('▶️ Continuing from:', resumeTime, 'seconds');
-      
-      if (isHLS) {
-        // For HLS, wait for seek completion
-        videoElement.currentTime = resumeTime;
-        await new Promise((resolve) => {
-          const onSeeked = () => {
-            videoElement.removeEventListener('seeked', onSeeked);
-            resolve(void 0);
-          };
-          videoElement.addEventListener('seeked', onSeeked);
-          setTimeout(resolve, 500);
-        });
-      } else {
-        videoElement.currentTime = resumeTime;
-      }
-    }
-    
-    // Start playing
-    play();
   };
-
-  // Fullscreen functionality
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(
-        document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement
-      );
-      
-      setIsFullscreen(isCurrentlyFullscreen);
-      
-      if (isCurrentlyFullscreen && videoRef.current) {
-        videoRef.current.play().catch(console.error);
-      }
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, []);
 
   // Check if user has early access to AI summaries
   useEffect(() => {
@@ -587,10 +404,8 @@ const VideoPlayer = () => {
     }
   };
 
-  const handleVideoAreaClick = () => {
-    const action = isPlaying ? 'pause' : 'play';
-    togglePlayPause();
-    
+  // PostHog tracking callbacks for UnifiedVideoPlayer
+  const handleVideoAreaClick = (action: 'play' | 'pause', currentTime: number) => {
     posthog.capture('video:click_toggle', {
       video_id: video?.id,
       action,
@@ -605,31 +420,7 @@ const VideoPlayer = () => {
     navigate('/browse');
   };
 
-  // Video controls handlers
-  const handleVolumeChange = (newVolume: number) => {
-    setVolume(newVolume);
-    setIsMuted(newVolume === 0);
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-      videoRef.current.muted = newVolume === 0;
-    }
-  };
-
-  const handleMuteToggle = () => {
-    const newMuted = !isMuted;
-    setIsMuted(newMuted);
-    if (videoRef.current) {
-      videoRef.current.muted = newMuted;
-      if (newMuted) {
-        setVolume(0);
-      } else {
-        setVolume(videoRef.current.volume);
-      }
-    }
-  };
-
   const handlePlaybackRateChange = (rate: number) => {
-    changePlaybackRate(rate);
     posthog.capture('video:playback_rate_changed', {
       video_id: videoId,
       playback_rate: rate,
@@ -638,153 +429,31 @@ const VideoPlayer = () => {
     });
   };
 
-  const handleSkipBackward = () => {
-    skipBackward(10);
+  const handleSkipBackward = (currentTimeValue: number) => {
     posthog.capture('video:skip_backward', {
       video_id: videoId,
-      current_time: currentTime,
+      current_time: currentTimeValue,
       profile_id: selectedProfile?.id,
       session_id: sessionId
     });
   };
 
-  const handleSkipForward = () => {
-    skipForward(10);
+  const handleSkipForward = (currentTimeValue: number) => {
     posthog.capture('video:skip_forward', {
       video_id: videoId,
-      current_time: currentTime,
+      current_time: currentTimeValue,
       profile_id: selectedProfile?.id,
       session_id: sessionId
     });
   };
 
-  const handlePiPToggle = () => {
-    togglePiP();
-    const willBeActive = !isPiPActive;
-    posthog.capture(willBeActive ? 'video:pip_enabled' : 'video:pip_disabled', {
+  const handlePiPToggle = (isActive: boolean) => {
+    posthog.capture(isActive ? 'video:pip_enabled' : 'video:pip_disabled', {
       video_id: videoId,
       profile_id: selectedProfile?.id,
       session_id: sessionId
     });
   };
-
-  const handleFullscreenToggle = () => {
-    if (!containerRef.current) return;
-
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen();
-    } else {
-      document.exitFullscreen();
-    }
-  };
-
-  // Controls visibility management
-  const resetControlsTimeout = () => {
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
-    
-    setShowControls(true);
-    
-    if (isPlaying) {
-      controlsTimeoutRef.current = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts if user is typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      switch (e.key.toLowerCase()) {
-        case ' ':
-        case 'k':
-          e.preventDefault();
-          togglePlayPause();
-          break;
-        case 'f':
-          e.preventDefault();
-          handleFullscreenToggle();
-          break;
-        case 'm':
-          e.preventDefault();
-          handleMuteToggle();
-          break;
-        case 'arrowup':
-          e.preventDefault();
-          handleVolumeChange(Math.min(1, volume + 0.05));
-          break;
-        case 'arrowdown':
-          e.preventDefault();
-          handleVolumeChange(Math.max(0, volume - 0.05));
-          break;
-        case 'arrowleft':
-        case 'j':
-          e.preventDefault();
-          handleSkipBackward();
-          break;
-        case 'arrowright':
-        case 'l':
-          e.preventDefault();
-          handleSkipForward();
-          break;
-        case 'p':
-          e.preventDefault();
-          if (isPiPSupported) {
-            handlePiPToggle();
-          }
-          break;
-        case '<':
-        case ',':
-          if (e.shiftKey) {
-            e.preventDefault();
-            const newRate = Math.max(0.25, playbackRate - 0.25);
-            handlePlaybackRateChange(newRate);
-          }
-          break;
-        case '>':
-        case '.':
-          if (e.shiftKey) {
-            e.preventDefault();
-            const newRate = Math.min(2, playbackRate + 0.25);
-            handlePlaybackRateChange(newRate);
-          }
-          break;
-        case 'escape':
-          if (document.fullscreenElement) {
-            document.exitFullscreen();
-          }
-          break;
-        default:
-          // Number keys for seeking to percentage (0-9 for 0%-90%)
-          const num = parseInt(e.key);
-          if (!isNaN(num) && num >= 0 && num <= 9 && videoRef.current) {
-            e.preventDefault();
-            const duration = videoRef.current.duration;
-            if (duration) {
-              seekTo((num / 10) * duration);
-            }
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, volume, playbackRate, isPiPSupported, currentTime]);
 
   if (loading) {
     return (
@@ -844,98 +513,28 @@ const VideoPlayer = () => {
 
         {/* Video Player Section */}
         <div className="max-w-6xl mx-auto">
-          <div 
-            ref={containerRef}
-            className="aspect-video bg-black rounded-lg overflow-hidden mb-8 relative group"
-            onMouseMove={resetControlsTimeout}
-            onMouseEnter={resetControlsTimeout}
-          >
+          <div className="mb-8">
             {videoUrl ? (
-              <>
-                <video
-                  {...videoProps}
-                  className="w-full h-full"
-                  controls={false}
-                  poster={video.thumbnail_url}
-                  preload="metadata"
-                >
-                  {!isHLS && <source src={videoUrl} type="video/mp4" />}
-                  Your browser does not support the video tag.
-                </video>
-                
-                {/* Click overlay for play/pause - excludes controls area */}
-                {!resumeMessage && (
-                  <div 
-                    className="absolute inset-0 bottom-16 cursor-pointer z-10"
-                    onClick={handleVideoAreaClick}
-                  />
-                )}
-                
-                {/* Resume Message Overlay */}
-                {resumeMessage && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                    <div className="bg-background-dark/90 p-6 rounded-lg border border-white/20 text-center">
-                      <p className="text-white text-lg mb-4 font-manrope">{resumeMessage}</p>
-                      <div className="flex gap-4 justify-center">
-                        <Button onClick={handleContinue} variant="default">
-                          Continue
-                        </Button>
-                        <Button onClick={handleStartOver} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20">
-                          Start Over
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Unified Video Controls */}
-                {!resumeMessage && (
-                  <>
-                    {/* Center Play Button */}
-                    {!isPlaying && isReady && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-                        <Button
-                          onClick={togglePlayPause}
-                          variant="ghost"
-                          size="lg"
-                          className="bg-white/20 hover:bg-white/30 text-white border-0 h-20 w-20 rounded-full pointer-events-auto backdrop-blur-sm"
-                        >
-                          <Play className="h-8 w-8 ml-1" />
-                        </Button>
-                      </div>
-                    )}
-                    
-            {/* Video Controls Bar */}
-            <div 
-              className={`relative z-30 transition-opacity duration-300 ${
-                showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-                      <VideoControls
-                        isPlaying={isPlaying}
-                        currentTime={currentTime}
-                        duration={videoRef.current?.duration || 0}
-                        volume={volume}
-                        isMuted={isMuted}
-                        playbackRate={playbackRate}
-                        isFullscreen={isFullscreen}
-                        isPiPSupported={isPiPSupported}
-                        onPlayPause={togglePlayPause}
-                        onSeek={seekTo}
-                        onVolumeChange={handleVolumeChange}
-                        onMuteToggle={handleMuteToggle}
-                        onPlaybackRateChange={handlePlaybackRateChange}
-                        onSkipBackward={handleSkipBackward}
-                        onSkipForward={handleSkipForward}
-                        onPiPToggle={handlePiPToggle}
-                        onFullscreenToggle={handleFullscreenToggle}
-                      />
-                    </div>
-                  </>
-                )}
-              </>
+              <UnifiedVideoPlayer
+                videoUrl={videoUrl}
+                thumbnailUrl={video.thumbnail_url}
+                duration={video.duration}
+                isHLS={isHLS}
+                resumeMessage={resumeMessage}
+                showStartOverButton={showStartOverButton}
+                onContinue={handleContinue}
+                onStartOver={handleStartOver}
+                onVideoAreaClick={handleVideoAreaClick}
+                onPlaybackRateChange={handlePlaybackRateChange}
+                onSkipBackward={handleSkipBackward}
+                onSkipForward={handleSkipForward}
+                onPiPToggle={handlePiPToggle}
+                onTimeUpdate={handleTimeUpdate}
+                onReady={handleVideoReady}
+                autoplay={false}
+              />
             ) : (
-              <div className="flex items-center justify-center h-full">
+              <div className="aspect-video bg-black rounded-lg flex items-center justify-center">
                 <div className="flex items-center gap-3 text-white">
                   <Loader2 className="h-6 w-6 animate-spin" />
                   <span className="font-manrope">Loading video player...</span>
