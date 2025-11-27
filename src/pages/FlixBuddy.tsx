@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Send, Bot, User, Play, Plus, ArrowLeft } from 'lucide-react';
+import { Send, Bot, User, Play, Plus, ArrowLeft, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WatchlistButton } from '@/components/WatchlistButton';
 
@@ -33,6 +33,7 @@ const FlixBuddy = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [recommendedVideos, setRecommendedVideos] = useState<Video[]>([]);
+  const [messageFeedback, setMessageFeedback] = useState<Record<string, 'positive' | 'negative'>>({});
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const posthog = usePostHog();
@@ -40,6 +41,7 @@ const FlixBuddy = () => {
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const sessionStartRef = useRef<Date>(new Date());
   
   const initialQuery = searchParams.get('q');
 
@@ -111,7 +113,7 @@ const FlixBuddy = () => {
           posthog.capture('$ai_trace', {
             $ai_trace_id: conversation.id,
             $ai_provider: 'google',
-            $ai_model: 'gemini-1.5-flash',
+            $ai_model: 'gemini-2.0-flash',
             profile_id: selectedProfile.id
           });
         } catch (e) {
@@ -144,6 +146,39 @@ const FlixBuddy = () => {
     initConversation();
   }, [selectedProfile, initialQuery]);
 
+  // Track session end, abandonment, and conversation length on unmount
+  useEffect(() => {
+    return () => {
+      if (!conversationId) return;
+      
+      const sessionDuration = Math.round(
+        (Date.now() - sessionStartRef.current.getTime()) / 1000
+      );
+      
+      // Count only user messages (excluding welcome message)
+      const userMessageCount = messages.filter(m => m.role === 'user').length;
+      
+      if (userMessageCount === 0) {
+        // User opened FlixBuddy but never sent a message = abandoned
+        posthog.capture('flixbuddy:abandoned', {
+          conversation_id: conversationId,
+          time_on_page_seconds: sessionDuration,
+          profile_id: selectedProfile?.id
+        });
+      } else {
+        // Normal session end with engagement data
+        posthog.capture('flixbuddy:session_ended', {
+          conversation_id: conversationId,
+          message_count: userMessageCount,
+          total_messages: messages.length,
+          session_duration_seconds: sessionDuration,
+          videos_recommended: recommendedVideos.length,
+          profile_id: selectedProfile?.id
+        });
+      }
+    };
+  }, [messages, conversationId, recommendedVideos, selectedProfile, posthog]);
+
   // Send message function
   const sendMessage = async (message: string) => {
     if (!message.trim() || !conversationId || !selectedProfile) return;
@@ -158,6 +193,14 @@ const FlixBuddy = () => {
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsLoading(true);
+
+    // Track message sent
+    posthog.capture('flixbuddy:message_sent', {
+      conversation_id: conversationId,
+      message_length: message.length,
+      message_number: messages.filter(m => m.role === 'user').length + 1,
+      profile_id: selectedProfile.id
+    });
 
     try {
       const { data, error } = await supabase.functions.invoke('flixbuddy-chat', {
@@ -195,7 +238,7 @@ const FlixBuddy = () => {
       try {
         posthog.capture('$ai_generation', {
           $ai_provider: 'google',
-          $ai_model: 'gemini-1.5-flash',
+          $ai_model: 'gemini-2.0-flash',
           $ai_input: message,
           $ai_output: data.message,
           $ai_input_tokens: data.metadata?.tokens?.input || 0,
@@ -217,7 +260,7 @@ const FlixBuddy = () => {
       try {
         posthog.capture('$ai_generation_complete', {
           $ai_provider: 'google',
-          $ai_model: 'gemini-1.5-flash',
+          $ai_model: 'gemini-2.0-flash',
           $ai_output: data.message,
           $ai_input_tokens: data.metadata?.tokens?.input || 0,
           $ai_output_tokens: data.metadata?.tokens?.output || 0,
@@ -250,7 +293,7 @@ const FlixBuddy = () => {
           $ai_error: errorMessage,
           $ai_is_rate_limit: isRateLimit,
           $ai_provider: 'google',
-          $ai_model: 'gemini-1.5-flash',
+          $ai_model: 'gemini-2.0-flash',
           $ai_conversation_id: conversationId,
           $ai_trace_id: conversationId,
           profile_id: selectedProfile.id
@@ -330,6 +373,23 @@ const FlixBuddy = () => {
     navigate(`/watch/${videoId}`);
   };
 
+  const handleFeedback = (messageId: string, feedback: 'positive' | 'negative') => {
+    setMessageFeedback(prev => ({ ...prev, [messageId]: feedback }));
+    
+    posthog.capture('flixbuddy:feedback', {
+      conversation_id: conversationId,
+      message_id: messageId,
+      feedback,
+      $ai_feedback: feedback === 'positive' ? 1 : -1,
+      profile_id: selectedProfile?.id
+    });
+
+    toast({
+      title: "Thanks for your feedback!",
+      description: feedback === 'positive' ? "Glad FlixBuddy helped! 🎬" : "We'll work on improving.",
+    });
+  };
+
   if (!selectedProfile) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -391,15 +451,48 @@ const FlixBuddy = () => {
                     }`}>
                       {message.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                     </div>
-                    <div className={`rounded-lg p-3 ${
-                      message.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground'
-                    }`}>
-                      <div className="whitespace-pre-wrap text-sm">{message.content}</div>
-                      <div className={`text-xs mt-1 opacity-70`}>
-                        {message.timestamp.toLocaleTimeString()}
+                    <div className="flex flex-col space-y-1">
+                      <div className={`rounded-lg p-3 ${
+                        message.role === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground'
+                      }`}>
+                        <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                        <div className={`text-xs mt-1 opacity-70`}>
+                          {message.timestamp.toLocaleTimeString()}
+                        </div>
                       </div>
+                      {/* Feedback buttons for assistant messages (skip welcome message) */}
+                      {message.role === 'assistant' && message.id !== 'welcome' && (
+                        <div className="flex items-center space-x-1 px-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleFeedback(message.id, 'positive')}
+                            disabled={messageFeedback[message.id] !== undefined}
+                            className={`h-6 px-2 ${
+                              messageFeedback[message.id] === 'positive'
+                                ? 'text-green-500'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            <ThumbsUp className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleFeedback(message.id, 'negative')}
+                            disabled={messageFeedback[message.id] !== undefined}
+                            className={`h-6 px-2 ${
+                              messageFeedback[message.id] === 'negative'
+                                ? 'text-red-500'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            <ThumbsDown className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
