@@ -1,12 +1,30 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
-import { PostHog } from 'https://esm.sh/posthog-node@4.0.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Helper to capture PostHog events via HTTP API (Deno compatible)
+async function capturePostHogEvent(apiKey: string, event: string, distinctId: string, properties: Record<string, any>) {
+  if (!apiKey) return;
+  try {
+    await fetch('https://eu.i.posthog.com/i/v0/e/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        event,
+        properties: { distinct_id: distinctId, ...properties },
+        timestamp: new Date().toISOString()
+      })
+    });
+  } catch (err) {
+    console.error('PostHog capture error:', err);
+  }
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -29,11 +47,6 @@ serve(async (req) => {
     }
 
     console.log('Environment variables loaded successfully');
-
-    // Initialize PostHog client for server-side LLM analytics
-    const phClient = new PostHog(POSTHOG_API_KEY || '', {
-      host: 'https://eu.i.posthog.com',
-    });
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -153,10 +166,11 @@ FlixBuddy:`;
       console.error('Gemini API error:', httpStatus, errorText);
       
       // Track error in PostHog
-      phClient.capture({
-        distinctId: userId,
-        event: '$ai_generation',
-        properties: {
+      await capturePostHogEvent(
+        POSTHOG_API_KEY || '',
+        '$ai_generation',
+        userId,
+        {
           $ai_model: 'gemini-1.5-flash',
           $ai_provider: 'google',
           $ai_input: message,
@@ -165,10 +179,8 @@ FlixBuddy:`;
           $ai_http_status: httpStatus,
           $ai_is_error: true,
           error_message: errorText,
-        },
-      });
-      
-      await phClient.shutdown();
+        }
+      );
 
       if (httpStatus === 429) {
         return new Response(
@@ -208,10 +220,11 @@ FlixBuddy:`;
     const totalCost = inputCost + outputCost;
 
     // Capture successful AI generation in PostHog
-    phClient.capture({
-      distinctId: userId,
-      event: '$ai_generation',
-      properties: {
+    await capturePostHogEvent(
+      POSTHOG_API_KEY || '',
+      '$ai_generation',
+      userId,
+      {
         $ai_model: 'gemini-1.5-flash',
         $ai_provider: 'google',
         $ai_input: message,
@@ -224,11 +237,8 @@ FlixBuddy:`;
         $ai_http_status: httpStatus,
         $ai_is_error: false,
         profile_id: profileId,
-      },
-    });
-
-    // Ensure PostHog events are sent
-    await phClient.shutdown();
+      }
+    );
 
     // Save user message
     await supabase
