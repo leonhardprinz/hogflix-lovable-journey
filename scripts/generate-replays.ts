@@ -74,7 +74,7 @@ async function smartClick(page: Page, selectorOrEl: string | ElementHandle) {
 
         if (element && await element.isVisible()) {
             await humanMove(page, element);
-            await delay(400 + Math.random() * 400);
+            await delay(800 + Math.random() * 500); // 800-1300ms for human-like delays
             await element.click({ timeout: 3000 });
             return true;
         }
@@ -266,28 +266,38 @@ async function journeyWatchWithAI(page: Page) {
             console.log('      ⚠️ AI failed to find movie. Trying manual fallback...');
             console.log(`      -> Current URL: ${page.url()}`);
 
-            // 1. Try Hero "Watch Now" Button (in hero section)
+            // 1. Try Hero "Watch Now" Button - WITH Y-COORDINATE FILTER
             const heroWatch = page.locator('a[href*="/watch"] button, button:has-text("Watch")').first();
-            const heroCount = await heroWatch.count();
-            console.log(`      -> Found ${heroCount} hero buttons`);
-            if (await heroWatch.isVisible()) {
-                console.log('      -> Clicking Hero Watch button');
+            const heroBox = await heroWatch.boundingBox();
+            // Only click if visible AND in top 800px (not footer)
+            if (heroBox && heroBox.y < 800 && await heroWatch.isVisible()) {
+                console.log(`      -> Clicking Hero Watch button (y=${heroBox.y})`);
                 const h = await heroWatch.elementHandle();
                 if (h) await smartClick(page, h);
             } else {
-                // 2. Try clicking any movie card link (anchor tag with /watch href)
-                const movieLink = page.locator('a[href*="/watch"]').first();
-                const linkCount = await movieLink.count();
-                console.log(`      -> Found ${linkCount} movie links`);
-                if (await movieLink.isVisible()) {
-                    console.log('      -> Clicking Movie Card link');
-                    await movieLink.click();
+                // 2. Try clicking any movie card link - WITH Y-COORDINATE FILTER
+                const movieLinks = await page.locator('a[href*="/watch"]').all();
+                let clicked = false;
+                for (const link of movieLinks) {
+                    const box = await link.boundingBox();
+                    if (box && box.y < 800 && await link.isVisible()) {
+                        console.log(`      -> Clicking Movie Card link (y=${box.y})`);
+                        await link.click();
+                        clicked = true;
+                        await delay(1000);
+                        break;
+                    }
+                }
+                
+                if (!clicked) {
+                    // 3. Last resort: scroll up and try hero again
+                    console.log('      -> No valid elements in viewport (y < 800), scrolling up');
+                    await page.mouse.wheel(0, -500);
                     await delay(1000);
-                } else {
-                    // 3. Last resort: click any image that looks like a poster
                     const poster = page.locator('img[alt*="poster"], img[class*="poster"]').first();
-                    if (await poster.isVisible()) {
-                        console.log('      -> Clicking Poster image fallback');
+                    const posterBox = await poster.boundingBox();
+                    if (posterBox && posterBox.y < 800 && await poster.isVisible()) {
+                        console.log(`      -> Clicking Poster image fallback (y=${posterBox.y})`);
                         const h = await poster.elementHandle();
                         if (h) await smartClick(page, h);
                     }
@@ -349,6 +359,145 @@ async function journeyWatchWithAI(page: Page) {
     }
     console.log('      -> Done. Going back.');
     await page.goBack();
+}
+
+async function journeyFlixBuddyWithAI(page: Page) {
+    console.log('   🦔 JOURNEY: FlixBuddy AI Chat');
+    await ensureDashboard(page);
+    
+    // 1. Navigate directly to FlixBuddy (avoids header click issues)
+    console.log('      -> Navigating to FlixBuddy...');
+    await page.goto(`${CONFIG.baseUrl}/flixbuddy`);
+    await delay(2500);
+    
+    // 2. Handle profile requirement if redirected
+    if (page.url().includes('profiles')) {
+        console.log('      -> Profile gate detected, selecting profile...');
+        await ensureDashboard(page);
+        await page.goto(`${CONFIG.baseUrl}/flixbuddy`);
+        await delay(2500);
+    }
+    
+    // 3. Check if we got "Profile Required" message
+    const profileRequired = page.locator('text=Profile Required, text=Please select a profile');
+    if (await profileRequired.isVisible()) {
+        console.log('      -> Profile Required screen, navigating to profiles...');
+        const selectBtn = page.locator('button:has-text("Select Profile")');
+        if (await selectBtn.isVisible()) {
+            await smartClick(page, await selectBtn.elementHandle());
+            await delay(2000);
+            await ensureDashboard(page);
+            await page.goto(`${CONFIG.baseUrl}/flixbuddy`);
+            await delay(2500);
+        }
+    }
+    
+    // 4. Wait for chat interface to load
+    try {
+        await page.waitForSelector('input[placeholder*="movie"], input[placeholder*="looking"], textarea', { timeout: 8000 });
+        console.log('      -> Chat interface loaded');
+        
+        // 5. Prepare questions with variety
+        const questions = [
+            "What movies are good for a family night?",
+            "I want something with space and sci-fi themes",
+            "Show me something funny to watch tonight",
+            "What's a good documentary about nature?",
+            "Recommend me something like Interstellar",
+            "I'm in the mood for action movies",
+            "Any good thrillers you can suggest?",
+            "What should I watch if I like comedy?"
+        ];
+        const question = questions[Math.floor(Math.random() * questions.length)];
+        
+        // 6. Find and focus the input
+        const inputField = page.locator('input[placeholder*="movie"], input[placeholder*="looking"], textarea').first();
+        const inputHandle = await inputField.elementHandle();
+        if (inputHandle) {
+            await humanMove(page, inputHandle);
+        }
+        await delay(800 + Math.random() * 400);
+        await inputField.click();
+        await delay(600);
+        
+        // 7. Type character by character for realistic session replay
+        console.log(`      -> Typing: "${question}"`);
+        for (const char of question) {
+            await page.keyboard.type(char, { delay: 0 });
+            await delay(60 + Math.random() * 80); // 60-140ms per character
+        }
+        await delay(1000 + Math.random() * 800);
+        
+        // 8. Find and click send button
+        const sendButton = page.locator('button[type="submit"], button:has(svg.lucide-send), button:has-text("Send")').first();
+        if (await sendButton.isVisible()) {
+            console.log('      -> Clicking Send button');
+            const sendHandle = await sendButton.elementHandle();
+            if (sendHandle) {
+                await humanMove(page, sendHandle);
+            }
+            await delay(400);
+            await sendButton.click();
+        } else {
+            console.log('      -> Pressing Enter to send');
+            await page.keyboard.press('Enter');
+        }
+        
+        console.log('      -> Message sent, waiting for AI response...');
+        
+        // 9. Wait for AI response with realistic "reading" time
+        await delay(8000 + Math.random() * 10000); // 8-18 seconds
+        
+        // 10. Optionally give feedback (30% chance)
+        if (Math.random() < 0.30) {
+            console.log('      -> Looking for feedback buttons...');
+            // Look for thumbs up/down buttons (skip welcome message feedback)
+            const thumbsUp = page.locator('button:has(svg.lucide-thumbs-up)').first();
+            const thumbsDown = page.locator('button:has(svg.lucide-thumbs-down)').first();
+            
+            await delay(1500);
+            
+            if (await thumbsUp.isVisible()) {
+                // 80% positive, 20% negative feedback
+                const target = Math.random() < 0.80 ? thumbsUp : thumbsDown;
+                const feedbackType = target === thumbsUp ? 'positive' : 'negative';
+                console.log(`      -> Giving ${feedbackType} feedback`);
+                const feedbackHandle = await target.elementHandle();
+                if (feedbackHandle) {
+                    await humanMove(page, feedbackHandle);
+                }
+                await delay(500);
+                await target.click();
+                console.log('      ✅ Feedback given');
+                await delay(1500);
+            }
+        }
+        
+        // 11. Maybe click a recommended video (25% chance)
+        if (Math.random() < 0.25) {
+            console.log('      -> Looking for recommended videos...');
+            const videoCard = page.locator('[class*="video"], [class*="card"]:has(img), a[href*="/watch"]').first();
+            if (await videoCard.isVisible()) {
+                const box = await videoCard.boundingBox();
+                if (box && box.y < 800) {
+                    console.log('      -> Clicking recommended video');
+                    const cardHandle = await videoCard.elementHandle();
+                    if (cardHandle) {
+                        await humanMove(page, cardHandle);
+                    }
+                    await delay(600);
+                    await videoCard.click();
+                    await delay(5000);
+                }
+            }
+        }
+        
+    } catch (e) {
+        console.log('      ⚠️ FlixBuddy interaction failed:', (e as Error).message?.substring(0, 60));
+    }
+    
+    await delay(2000);
+    console.log('      -> FlixBuddy journey complete');
 }
 
 async function journeySearchWithAI(page: Page) {
@@ -528,9 +677,9 @@ async function journeyPricingWithAI(page: Page) {
 
             const roll = Math.random();
             try {
-                // 40% Watch, 25% Search, 35% Pricing (increased for more rage click data)
-                if (roll < 0.35) await journeyPricingWithAI(page);
-                else if (roll < 0.60) await journeySearchWithAI(page);
+                // 20% Pricing+RageClick, 40% FlixBuddy AI Chat, 40% Watch Movies
+                if (roll < 0.20) await journeyPricingWithAI(page);
+                else if (roll < 0.60) await journeyFlixBuddyWithAI(page);
                 else await journeyWatchWithAI(page);
             } catch (e) {
                 console.log('   ⚠️ Journey Error:', (e as Error).message?.substring(0, 50));
