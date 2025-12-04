@@ -112,7 +112,8 @@ async function getPageSnapshot(page: Page) {
 
         // Ignore tiny/invisible/off-screen (footer)
         if (!box || box.width < 10 || box.height < 10) continue;
-        // if (viewport && box.y > viewport.height * 1.5) continue; 
+        // Filter out elements below 800px (footer area with hedgehog ratings)
+        if (box.y > 800) continue;
 
         const text = await el.textContent().catch(() => '') || '';
         const label = await el.getAttribute('aria-label').catch(() => '') || '';
@@ -676,6 +677,11 @@ async function journeyPricingWithAI(page: Page) {
             await ensureDashboard(page);
 
             const roll = Math.random();
+            console.log(`      📊 Roll: ${roll.toFixed(2)} → ${
+                roll < 0.20 ? 'Pricing (20%)' : 
+                roll < 0.60 ? 'FlixBuddy (40%)' : 
+                'Watch (40%)'
+            }`);
             try {
                 // 20% Pricing+RageClick, 40% FlixBuddy AI Chat, 40% Watch Movies
                 if (roll < 0.20) await journeyPricingWithAI(page);

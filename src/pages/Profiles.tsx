@@ -32,17 +32,32 @@ const Profiles = () => {
 
       if (error) {
         console.error('Error fetching profiles:', error);
-      } else {
-        const mapped = (data || []).map((row: any) => ({
-          id: row.id,
-          display_name: row.display_name,
-          email: null,
-          user_id: userId,
-          is_kids_profile: row.is_kids_profile,
-          early_access_features: row.early_access_features || []
-        }));
-        setProfiles(mapped);
+        setLoading(false);
+        return;
       }
+      
+      const mapped = (data || []).map((row: any) => ({
+        id: row.id,
+        display_name: row.display_name,
+        email: null,
+        user_id: userId,
+        is_kids_profile: row.is_kids_profile,
+        early_access_features: row.early_access_features || []
+      }));
+      
+      // AUTO-SELECT: If only one profile, select it and go to browse
+      if (mapped.length === 1) {
+        console.log('Single profile detected, auto-selecting...');
+        setSelectedProfile(mapped[0]);
+        posthog?.capture('profile:auto_selected', {
+          profile_id: mapped[0].id,
+          reason: 'single_profile'
+        });
+        navigate('/browse');
+        return;
+      }
+      
+      setProfiles(mapped);
     } catch (error) {
       console.error('Error fetching profiles:', error);
     } finally {
