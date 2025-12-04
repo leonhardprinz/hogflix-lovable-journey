@@ -348,17 +348,39 @@ async function journeyWatchWithAI(page: Page) {
         console.log('      ⚠️ Error checking video state:', (e as Error).message?.substring(0, 50));
     }
 
-    // If not playing, it's okay - we'll still watch and move mouse to generate activity
-    // This ensures PostHog doesn't mark as "inactive"
-    const duration = 30000 + Math.random() * 90000;
-    console.log(`      -> Watching for ${(duration / 1000).toFixed(0)}s (video playing=${isPlaying})`);
+    // Get video duration and simulate engagement milestones
+    let videoDuration = 60; // Default 60 seconds
+    try {
+        videoDuration = await page.evaluate(() => {
+            const v = document.querySelector('video');
+            return v?.duration || 60;
+        });
+        console.log(`      -> Video duration: ${videoDuration.toFixed(0)}s`);
+    } catch (e) {
+        console.log('      -> Could not get video duration, using default 60s');
+    }
+
+    // Pick a random engagement milestone (20%, 50%, 70%, 100%)
+    const milestones = [
+        { name: '20%', fraction: 0.20 },
+        { name: '50%', fraction: 0.50 },
+        { name: '70%', fraction: 0.70 },
+        { name: '100%', fraction: 1.00 }
+    ];
+    const milestone = milestones[Math.floor(Math.random() * milestones.length)];
+    const watchDuration = Math.min(videoDuration * milestone.fraction, 120); // Cap at 2 minutes
+    const watchMs = watchDuration * 1000;
+
+    console.log(`      -> 🎬 Simulating ${milestone.name} watch (${watchDuration.toFixed(0)}s of ${videoDuration.toFixed(0)}s)`);
+
+    // Watch loop with mouse activity to keep session active
     const start = Date.now();
-    while (Date.now() - start < duration) {
+    while (Date.now() - start < watchMs) {
         await delay(5000);
         const x = Math.random() * 300;
         try { await page.mouse.move(300 + x, 300 + x, { steps: 25 }); } catch (e) { }
     }
-    console.log('      -> Done. Going back.');
+    console.log(`      -> ✅ Completed ${milestone.name} watch milestone`);
     await page.goBack();
 }
 
@@ -366,34 +388,34 @@ async function journeyFlixBuddyWithAI(page: Page) {
     console.log('   🦔 JOURNEY: FlixBuddy AI Chat');
     await ensureDashboard(page);
     
-    // 1. Navigate directly to FlixBuddy (avoids header click issues)
-    console.log('      -> Navigating to FlixBuddy...');
-    await page.goto(`${CONFIG.baseUrl}/flixbuddy`);
-    await delay(2500);
+    // 1. Make sure we're on browse page first (profile context is set there)
+    if (!page.url().includes('/browse')) {
+        console.log('      -> Navigating to /browse first...');
+        await page.goto(`${CONFIG.baseUrl}/browse`);
+        await delay(2000);
+    }
     
-    // 2. Handle profile requirement if redirected
-    if (page.url().includes('profiles')) {
-        console.log('      -> Profile gate detected, selecting profile...');
-        await ensureDashboard(page);
+    // 2. Click FlixBuddy link in header (preserves React profile context)
+    console.log('      -> Looking for FlixBuddy link in header...');
+    const flixBuddyLink = page.locator('a[href="/flixbuddy"]').first();
+    
+    try {
+        await flixBuddyLink.waitFor({ timeout: 5000 });
+        const linkHandle = await flixBuddyLink.elementHandle();
+        if (linkHandle) {
+            await humanMove(page, linkHandle);
+        }
+        await delay(500);
+        await flixBuddyLink.click();
+        console.log('      -> Clicked FlixBuddy header link');
+        await delay(2500);
+    } catch (e) {
+        console.log('      ⚠️ FlixBuddy link not found in header, falling back to direct nav');
         await page.goto(`${CONFIG.baseUrl}/flixbuddy`);
         await delay(2500);
     }
     
-    // 3. Check if we got "Profile Required" message
-    const profileRequired = page.locator('text=Profile Required, text=Please select a profile');
-    if (await profileRequired.isVisible()) {
-        console.log('      -> Profile Required screen, navigating to profiles...');
-        const selectBtn = page.locator('button:has-text("Select Profile")');
-        if (await selectBtn.isVisible()) {
-            await smartClick(page, await selectBtn.elementHandle());
-            await delay(2000);
-            await ensureDashboard(page);
-            await page.goto(`${CONFIG.baseUrl}/flixbuddy`);
-            await delay(2500);
-        }
-    }
-    
-    // 4. Wait for chat interface to load
+    // 3. Wait for chat interface to load
     try {
         await page.waitForSelector('input[placeholder*="movie"], input[placeholder*="looking"], textarea', { timeout: 8000 });
         console.log('      -> Chat interface loaded');
