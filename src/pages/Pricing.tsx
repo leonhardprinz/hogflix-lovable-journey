@@ -20,7 +20,7 @@ const Pricing = () => {
   const { subscription } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [ctaVariant, setCtaVariant] = useState<string>('control');
-  const [ultimateButtonBroken, setUltimateButtonBroken] = useState(false);
+  const [ultimateButtonFixed, setUltimateButtonFixed] = useState(false);
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
 
   // Rage click detection for Ultimate button
@@ -50,17 +50,15 @@ const Pricing = () => {
         });
       }
 
-      // Check if Ultimate button should be broken
-      const buttonFailureVariant = posthog.getFeatureFlag('ultimate_subscription_button_failure');
-      setUltimateButtonBroken(buttonFailureVariant === 'broken');
+      // Check if Ultimate button fix is enabled
+      const ultimateFixEnabled = posthog.getFeatureFlag('Ultimate_button_subscription_fix');
+      setUltimateButtonFixed(ultimateFixEnabled === true);
 
-      if (buttonFailureVariant) {
-        posthog?.capture('feature_flag:ultimate_button_variant_assigned', {
-          variant: buttonFailureVariant,
-          user_plan: subscription?.plan_name || 'none',
-          timestamp: new Date().toISOString()
-        });
-      }
+      posthog?.capture('feature_flag:ultimate_button_fix_assigned', {
+        enabled: ultimateFixEnabled === true,
+        user_plan: subscription?.plan_name || 'none',
+        timestamp: new Date().toISOString()
+      });
     });
   }, [posthog, subscription]);
 
@@ -75,7 +73,6 @@ const Pricing = () => {
 
       case 'benefit_led':
         if (planName === 'standard') return 'Unlock Full HD & Downloads';
-        if (planName === 'premium') return 'Unlock 4K & Early Access';
         if (planName === 'ultimate') return 'Unlock 8K & Exclusive Content';
         return 'Preview Subscription (No Charge)';
 
@@ -124,24 +121,6 @@ const Pricing = () => {
       popular: true
     },
     {
-      name: 'premium',
-      displayName: 'Premium',
-      price: '$19.99',
-      priceDetail: '/month',
-      features: [
-        '4K + HDR quality',
-        '5 profiles',
-        'Priority support',
-        'Watch on any device',
-        'Ad-free experience',
-        'Download for offline viewing',
-        'Early access to new content',
-        'FlixBuddy AI assistant'
-      ],
-      cta: getCtaTextByVariant('premium', '$19.99', ctaVariant),
-      popular: false
-    },
-    {
       name: 'ultimate',
       displayName: 'Ultimate',
       price: '$29.99',
@@ -175,7 +154,7 @@ const Pricing = () => {
       return 'Current Plan ✓';
     }
 
-    const planOrder = { basic: 0, standard: 1, premium: 2, ultimate: 3 };
+    const planOrder = { basic: 0, standard: 1, ultimate: 2 };
     const currentOrder = planOrder[currentPlan as keyof typeof planOrder] || 0;
     const targetOrder = planOrder[plan.name as keyof typeof planOrder] || 0;
 
@@ -191,19 +170,30 @@ const Pricing = () => {
   const handlePlanSelect = async (planName: string) => {
     if (loading) return;
 
-    // Check if Ultimate button is broken (feature flag experiment)
-    // For the demo, we want this to ALWAYS throw an error to demonstrate Error Tracking
+    // Ultimate plan - behavior controlled by feature flag
     if (planName === 'ultimate') {
-      setLoading(true);
-
-      // Simulate processing delay then throw real error
-      setTimeout(() => {
-        setLoading(false);
-        // This error will be captured by PostHog Error Tracking
-        throw new Error("Payment Gateway Connection Failed: Timeout waiting for response from provider.");
-      }, 1000);
-
-      return;
+      if (ultimateButtonFixed) {
+        // Feature flag is ON - redirect to working Stripe checkout
+        posthog?.capture('pricing:ultimate_fixed_checkout', {
+          feature_flag: 'Ultimate_button_subscription_fix',
+          action: 'redirect_to_stripe'
+        });
+        window.open('https://buy.stripe.com/test_00w4gzbQR8dP5aC2VZ9Ve02', '_blank');
+        return;
+      } else {
+        // Feature flag is OFF - simulate broken button (rage click demo)
+        setLoading(true);
+        setTimeout(() => {
+          setLoading(false);
+          posthog?.capture('pricing:ultimate_payment_error', {
+            feature_flag: 'Ultimate_button_subscription_fix',
+            flag_value: false,
+            error: 'Payment Gateway Connection Failed'
+          });
+          throw new Error("Payment Gateway Connection Failed: Timeout waiting for response from provider.");
+        }, 1000);
+        return;
+      }
     }
 
     // Prevent selecting current plan
@@ -218,7 +208,7 @@ const Pricing = () => {
 
     // Track upgrade/downgrade
     const currentPlan = subscription?.plan_name;
-    const planOrder = { basic: 0, standard: 1, premium: 2, ultimate: 3 };
+    const planOrder = { basic: 0, standard: 1, ultimate: 2 };
     const currentOrder = planOrder[currentPlan as keyof typeof planOrder] || 0;
     const targetOrder = planOrder[planName as keyof typeof planOrder] || 0;
 
@@ -373,7 +363,7 @@ const Pricing = () => {
                   {loading && plan.name === 'ultimate' ? 'Processing...' : loading ? 'Processing...' : getButtonText(plan)}
                   {!isCurrent && subscription && (
                     <>
-                      {(plan.name === 'premium' || plan.name === 'ultimate') && subscription.plan_name !== plan.name && (
+                      {plan.name === 'ultimate' && subscription.plan_name !== plan.name && (
                         <ArrowRight className="w-4 h-4 ml-2" />
                       )}
                       {plan.name === 'basic' && subscription.plan_name !== 'basic' && (
