@@ -12,6 +12,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useRageClickDetection } from '@/hooks/useRageClickDetection';
+import PricingTableLayout from '@/components/PricingTableLayout';
 
 const Pricing = () => {
   const posthog = usePostHog();
@@ -20,8 +21,10 @@ const Pricing = () => {
   const { subscription } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [ctaVariant, setCtaVariant] = useState<string>('control');
+  const [layoutVariant, setLayoutVariant] = useState<string | null>(null);
   const ultimateButtonFixed = useFeatureFlagEnabled('Ultimate_button_subscription_fix');
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
+  const pageLoadTime = useRef(Date.now());
 
   // Rage click detection for Ultimate button
   useRageClickDetection(ultimateButtonRef, {
@@ -32,23 +35,44 @@ const Pricing = () => {
 
   useEffect(() => {
     document.title = "Pricing – HogFlix";
-    posthog?.capture('pricing:viewed', {
-      user_plan: subscription?.plan_name || 'none',
-      is_free_user: subscription?.plan_name === 'basic' || !subscription
-    });
+    
+    // Track time on page when leaving
+    return () => {
+      const timeOnPage = Date.now() - pageLoadTime.current;
+      posthog?.capture('pricing:time_on_page', {
+        duration_ms: timeOnPage,
+        duration_seconds: Math.round(timeOnPage / 1000),
+        layout: layoutVariant || 'card'
+      });
+    };
+  }, [posthog, layoutVariant]);
 
+  useEffect(() => {
     // Load feature flag variants
     posthog?.onFeatureFlags(() => {
+      // CTA experiment
       const ctaExperimentVariant = posthog.getFeatureFlag('pricing_upgrade_cta_experiment');
       if (ctaExperimentVariant && typeof ctaExperimentVariant === 'string') {
         setCtaVariant(ctaExperimentVariant);
-
-        posthog?.capture('pricing:cta_variant_assigned', {
-          variant: ctaExperimentVariant,
-          user_plan: subscription?.plan_name || 'none',
-          timestamp: new Date().toISOString()
-        });
       }
+
+      // Layout experiment
+      const pricingLayoutVariant = posthog.getFeatureFlag('pricing_page_layout_experiment');
+      const variant = pricingLayoutVariant === 'table-layout' ? 'table-layout' : 'control';
+      setLayoutVariant(variant);
+
+      // Track experiment assignment
+      posthog?.capture('experiment:pricing_layout_assigned', {
+        variant: variant,
+        user_plan: subscription?.plan_name || 'none',
+        timestamp: new Date().toISOString()
+      });
+
+      // Track layout viewed
+      posthog?.capture('pricing:layout_viewed', {
+        layout: variant === 'table-layout' ? 'table' : 'card',
+        user_plan: subscription?.plan_name || 'none'
+      });
     });
   }, [posthog, subscription]);
 
@@ -282,8 +306,13 @@ const Pricing = () => {
     navigate(`/checkout?plan=${planName}`);
   };
 
+  // Render table layout variant if assigned
+  if (layoutVariant === 'table-layout') {
+    return <PricingTableLayout onPlanSelect={handlePlanSelect} loading={loading} />;
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" data-layout="card">
       <Header />
 
       <main className="container mx-auto px-4 py-12 md:py-20">
