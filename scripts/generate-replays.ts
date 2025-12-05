@@ -626,18 +626,74 @@ async function journeyRageClickUltimate(page: Page) {
 }
 
 async function journeyPricingWithAI(page: Page) {
-    console.log('   💳 JOURNEY: Pricing');
+    console.log('   💳 JOURNEY: Pricing (Experiment-Aware)');
     await ensureDashboard(page);
 
-    // 1. Ask AI to find Pricing
-    await aiDriveJourney(page, "Navigate to the Pricing or Subscription page.");
-    await delay(2000);
+    // 1. Navigate to pricing page
+    await page.goto(`${CONFIG.baseUrl}/pricing`);
+    await delay(3000); // Wait for feature flags to load
 
-    // 2. Use dedicated rage click function
-    await journeyRageClickUltimate(page);
+    // 2. Detect which layout variant is displayed
+    const isTableLayout = await page.locator('[data-layout="table"], table[data-testid="pricing-table"]').count() > 0;
+    const layoutVariant = isTableLayout ? 'table' : 'card';
+    console.log(`      -> 🧪 Detected pricing layout: ${layoutVariant}`);
 
-    // 3. Ask AI to subscribe to another plan
-    await aiDriveJourney(page, "Click the Subscribe button for the Standard plan.");
+    // Track layout viewed in synthetic context
+    await page.evaluate((layout) => {
+        if ((window as any).posthog) {
+            (window as any).posthog.capture('synthetic:pricing_layout_detected', {
+                layout: layout,
+                is_synthetic: true
+            });
+        }
+    }, layoutVariant);
+
+    // 3. Adapt interaction based on layout
+    if (isTableLayout) {
+        console.log('      -> Table layout: Hovering over feature rows...');
+        
+        // Hover over feature rows to simulate comparison behavior
+        const featureRows = await page.locator('tr[data-feature]').all();
+        const rowsToHover = featureRows.slice(0, Math.min(5, featureRows.length));
+        
+        for (const row of rowsToHover) {
+            const handle = await row.elementHandle();
+            if (handle) {
+                await humanMove(page, handle);
+                await delay(800 + Math.random() * 400);
+            }
+        }
+
+        // Hover over plan columns (simulate comparing prices)
+        const planHeaders = await page.locator('th[data-plan]').all();
+        for (const header of planHeaders) {
+            const handle = await header.elementHandle();
+            if (handle) {
+                await humanMove(page, handle);
+                await delay(600 + Math.random() * 300);
+            }
+        }
+
+        // Click Standard plan CTA (most popular)
+        const standardCta = page.locator('[data-plan-cta="standard"]').first();
+        if (await standardCta.isVisible()) {
+            console.log('      -> Clicking Standard plan in table layout');
+            const ctaHandle = await standardCta.elementHandle();
+            if (ctaHandle) await smartClick(page, ctaHandle);
+        }
+    } else {
+        console.log('      -> Card layout: Scrolling through plan cards...');
+        
+        // Scroll to view all cards
+        await page.mouse.wheel(0, 300);
+        await delay(1000);
+        
+        // Rage click on Ultimate (existing behavior for demo)
+        await journeyRageClickUltimate(page);
+
+        // Then try Standard plan
+        await aiDriveJourney(page, "Click the Subscribe button for the Standard plan.");
+    }
 
     // 4. Handle Checkout Form (Manual because it's sensitive)
     await delay(2000);
