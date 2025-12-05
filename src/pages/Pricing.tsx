@@ -162,7 +162,15 @@ const Pricing = () => {
 
     // Ultimate plan - behavior controlled by feature flag
     if (planName === 'ultimate') {
-      if (ultimateButtonFixed === true) {
+      // Debug logging for feature flag
+      console.log('🚩 Ultimate button clicked. Hook value:', ultimateButtonFixed, 'Type:', typeof ultimateButtonFixed);
+      
+      // Check both the hook value AND direct PostHog check as fallback
+      const isFixEnabled = ultimateButtonFixed === true || posthog?.isFeatureEnabled('Ultimate_button_subscription_fix') === true;
+      console.log('🚩 Direct PostHog check:', posthog?.isFeatureEnabled('Ultimate_button_subscription_fix'));
+      console.log('🚩 Final isFixEnabled:', isFixEnabled);
+      
+      if (isFixEnabled) {
         // Feature flag is ON - redirect to working Stripe checkout
         posthog?.capture('pricing:ultimate_fixed_checkout', {
           feature_flag: 'Ultimate_button_subscription_fix',
