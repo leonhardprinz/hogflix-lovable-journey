@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Header from '@/components/Header';
-import { usePostHog } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,7 +20,7 @@ const Pricing = () => {
   const { subscription } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [ctaVariant, setCtaVariant] = useState<string>('control');
-  const [ultimateButtonFixed, setUltimateButtonFixed] = useState(false);
+  const ultimateButtonFixed = useFeatureFlagEnabled('Ultimate_button_subscription_fix');
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
 
   // Rage click detection for Ultimate button
@@ -49,16 +49,6 @@ const Pricing = () => {
           timestamp: new Date().toISOString()
         });
       }
-
-      // Check if Ultimate button fix is enabled
-      const ultimateFixEnabled = posthog.getFeatureFlag('Ultimate_button_subscription_fix');
-      setUltimateButtonFixed(ultimateFixEnabled === true);
-
-      posthog?.capture('feature_flag:ultimate_button_fix_assigned', {
-        enabled: ultimateFixEnabled === true,
-        user_plan: subscription?.plan_name || 'none',
-        timestamp: new Date().toISOString()
-      });
     });
   }, [posthog, subscription]);
 
@@ -172,7 +162,7 @@ const Pricing = () => {
 
     // Ultimate plan - behavior controlled by feature flag
     if (planName === 'ultimate') {
-      if (ultimateButtonFixed) {
+      if (ultimateButtonFixed === true) {
         // Feature flag is ON - redirect to working Stripe checkout
         posthog?.capture('pricing:ultimate_fixed_checkout', {
           feature_flag: 'Ultimate_button_subscription_fix',
