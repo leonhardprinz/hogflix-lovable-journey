@@ -347,23 +347,19 @@ const VideoPlayer = () => {
     setShowStartOverButton(false);
   };
 
-  // Check if user has early access to AI summaries
+  // Check if user has early access to AI summaries (use already-loaded profile data from context)
   useEffect(() => {
-    const checkEarlyAccess = async () => {
-      if (!selectedProfile?.id) return;
-      
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('early_access_features')
-        .eq('id', selectedProfile.id)
-        .single();
-      
-      const hasAccess = profile?.early_access_features?.includes('ai_summaries') || false;
-      setHasEarlyAccess(hasAccess);
-    };
+    const hasAccess = selectedProfile?.early_access_features?.includes('ai_summaries') || false;
+    setHasEarlyAccess(hasAccess);
     
-    checkEarlyAccess();
-  }, [selectedProfile, posthog]);
+    if (import.meta.env.DEV) {
+      console.log('🎯 Early access check:', {
+        profileId: selectedProfile?.id,
+        earlyAccessFeatures: selectedProfile?.early_access_features,
+        hasAccess
+      });
+    }
+  }, [selectedProfile]);
 
   const handleGenerateSummary = async () => {
     if (!video?.id || isGeneratingSummary) return;
