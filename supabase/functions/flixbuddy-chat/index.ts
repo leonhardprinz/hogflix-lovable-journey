@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
+import { log } from '../_shared/posthog-logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,9 +33,20 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+
   try {
     const { message, conversationId, userId, profileId } = await req.json();
     console.log('FlixBuddy chat request:', { conversationId, userId, profileId, messageLength: message?.length });
+    
+    // OTLP Log: Request started
+    await log.info('FlixBuddy request started', {
+      conversation_id: conversationId || 'unknown',
+      user_id: userId || 'anonymous',
+      profile_id: profileId || 'unknown',
+      message_length: message?.length || 0,
+      function_name: 'flixbuddy-chat'
+    });
     
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -43,6 +55,7 @@ serve(async (req) => {
 
     if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error('Missing environment variables');
+      await log.error('Missing environment variables', { function_name: 'flixbuddy-chat' });
       throw new Error('Missing required environment variables');
     }
 
@@ -133,7 +146,7 @@ FlixBuddy:`;
     console.log('Calling Gemini API with single prompt structure');
     
     // Track timing for analytics
-    const startTime = Date.now();
+    const aiStartTime = Date.now();
     
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -158,12 +171,22 @@ FlixBuddy:`;
       }
     );
 
-    const latency = Date.now() - startTime;
+    const aiLatency = Date.now() - aiStartTime;
     const httpStatus = geminiResponse.status;
 
     if (!geminiResponse.ok) {
       const errorText = await geminiResponse.text();
       console.error('Gemini API error:', httpStatus, errorText);
+      
+      // OTLP Log: AI error
+      await log.error('Gemini API error', {
+        conversation_id: conversationId || 'unknown',
+        http_status: httpStatus,
+        error_message: errorText.substring(0, 200),
+        latency_ms: aiLatency,
+        function_name: 'flixbuddy-chat',
+        model: 'gemini-2.0-flash'
+      });
       
       // Track error in PostHog
       await capturePostHogEvent(
@@ -175,7 +198,7 @@ FlixBuddy:`;
           $ai_provider: 'google',
           $ai_input: message,
           $ai_trace_id: conversationId,
-          $ai_latency: latency / 1000,
+          $ai_latency: aiLatency / 1000,
           $ai_http_status: httpStatus,
           $ai_is_error: true,
           error_message: errorText,
@@ -183,6 +206,12 @@ FlixBuddy:`;
       );
 
       if (httpStatus === 429) {
+        await log.warn('Rate limit exceeded', {
+          conversation_id: conversationId || 'unknown',
+          function_name: 'flixbuddy-chat',
+          model: 'gemini-2.0-flash'
+        });
+        
         return new Response(
           JSON.stringify({ 
             error: 'Rate limit exceeded. Please try again in a moment.',
@@ -199,7 +228,7 @@ FlixBuddy:`;
     }
 
     const geminiData = await geminiResponse.json();
-    console.log('Gemini API response received, latency:', latency, 'ms');
+    console.log('Gemini API response received, latency:', aiLatency, 'ms');
 
     // Parse response
     const assistantMessage = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
@@ -219,6 +248,23 @@ FlixBuddy:`;
     const outputCost = (tokenUsage.output / 1_000_000) * 0.30;
     const totalCost = inputCost + outputCost;
 
+    const totalLatency = Date.now() - startTime;
+
+    // OTLP Log: Successful response
+    await log.info('FlixBuddy response generated', {
+      conversation_id: conversationId || 'unknown',
+      user_id: userId || 'anonymous',
+      latency_ms: totalLatency,
+      ai_latency_ms: aiLatency,
+      tokens_input: tokenUsage.input,
+      tokens_output: tokenUsage.output,
+      tokens_total: tokenUsage.total,
+      response_length: assistantMessage.length,
+      model: 'gemini-2.0-flash',
+      function_name: 'flixbuddy-chat',
+      cost_usd_micro: Math.round(totalCost * 1_000_000) // microdollars for precision
+    });
+
     // Capture successful AI generation in PostHog
     await capturePostHogEvent(
       POSTHOG_API_KEY || '',
@@ -232,7 +278,7 @@ FlixBuddy:`;
         $ai_input_tokens: tokenUsage.input,
         $ai_output_tokens: tokenUsage.output,
         $ai_total_cost_usd: totalCost,
-        $ai_latency: latency / 1000,
+        $ai_latency: aiLatency / 1000,
         $ai_trace_id: conversationId,
         $ai_http_status: httpStatus,
         $ai_is_error: false,
@@ -269,7 +315,7 @@ FlixBuddy:`;
       conversationId,
       metadata: {
         tokens: tokenUsage,
-        latency,
+        latency: aiLatency,
         cost: {
           input: inputCost,
           output: outputCost,
@@ -282,7 +328,16 @@ FlixBuddy:`;
     });
 
   } catch (error) {
+    const totalLatency = Date.now() - startTime;
     console.error('Error in flixbuddy-chat function:', error);
+    
+    // OTLP Log: Unhandled error
+    await log.error('FlixBuddy unhandled error', {
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+      latency_ms: totalLatency,
+      function_name: 'flixbuddy-chat'
+    });
+    
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
