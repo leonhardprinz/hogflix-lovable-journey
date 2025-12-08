@@ -1,11 +1,11 @@
 /**
  * R2 Upload Script
- * Uploads generated marketing campaign data to Cloudflare R2 bucket
+ * Uploads generated marketing campaign data and customer profiles to Cloudflare R2 bucket
  * Uses S3-compatible API via AWS SDK
  */
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { generateCampaignData } from './generate-campaign-data';
+import { generateCampaignData, generateCustomerProfiles } from './generate-campaign-data';
 
 // Load credentials from environment
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
@@ -41,9 +41,7 @@ function createR2Client(): S3Client {
 }
 
 // Upload data to R2
-async function uploadToR2(data: object, key: string = 'marketing-costs.json'): Promise<void> {
-  const client = createR2Client();
-  
+async function uploadToR2(client: S3Client, data: object, key: string): Promise<void> {
   const jsonContent = JSON.stringify(data, null, 2);
   
   console.log(`📤 Uploading to R2: ${R2_BUCKET_NAME}/${key}`);
@@ -58,7 +56,7 @@ async function uploadToR2(data: object, key: string = 'marketing-costs.json'): P
   
   await client.send(command);
   
-  console.log('✅ Upload complete!');
+  console.log(`✅ ${key} uploaded successfully!`);
 }
 
 // Main execution
@@ -68,19 +66,37 @@ async function main(): Promise<void> {
   // Validate environment
   validateEnv();
   
-  // Generate fresh data
+  const client = createR2Client();
+  
+  // Generate and upload campaign data
   console.log('📊 Generating 90 days of campaign data...');
-  const data = generateCampaignData(90);
+  const campaignData = generateCampaignData(90);
+  console.log(`   Records: ${campaignData.length}`);
+  console.log(`   Date range: ${campaignData[0]?.date} to ${campaignData[campaignData.length - 1]?.date}`);
+  console.log(`   Total spend: $${campaignData.reduce((sum, d) => sum + d.cost, 0).toFixed(2)}\n`);
   
-  // Summary
-  console.log(`   Records: ${data.length}`);
-  console.log(`   Date range: ${data[0]?.date} to ${data[data.length - 1]?.date}`);
-  console.log(`   Total spend: $${data.reduce((sum, d) => sum + d.cost, 0).toFixed(2)}\n`);
+  await uploadToR2(client, campaignData, 'marketing-costs.json');
   
-  // Upload to R2
-  await uploadToR2(data);
+  // Generate and upload customer profiles
+  console.log('\n👥 Generating customer profiles...');
+  const customerProfiles = generateCustomerProfiles(50);
+  const vipCount = customerProfiles.filter(p => p.is_vip).length;
+  const atRiskCount = customerProfiles.filter(p => p.customer_health_score < 50).length;
+  const powerUserCount = customerProfiles.filter(p => ['gold', 'platinum'].includes(p.power_user_tier) && p.videos_watched_external > 100).length;
   
-  console.log('\n🎉 Done! Data is now available for PostHog Marketing Analytics.');
+  console.log(`   Total profiles: ${customerProfiles.length}`);
+  console.log(`   VIP customers: ${vipCount}`);
+  console.log(`   At-risk (health < 50): ${atRiskCount}`);
+  console.log(`   Power users (gold/platinum + 100+ videos): ${powerUserCount}`);
+  console.log(`   Demo users: leo@posthog.com, leonhardprinz@gmail.com\n`);
+  
+  await uploadToR2(client, customerProfiles, 'customer-profiles.json');
+  
+  console.log('\n🎉 Done! Data is now available for PostHog Active CDP demo.');
+  console.log('\nNext steps:');
+  console.log('1. Connect customer-profiles.json as a Data Warehouse source in PostHog');
+  console.log('2. Sync R2 data to person properties');
+  console.log('3. Create feature flags: vip_retention_offer, power_user_early_access');
 }
 
 main().catch(err => {

@@ -16,6 +16,17 @@ interface CampaignData {
   currency: string;
 }
 
+export interface CustomerProfile {
+  email: string;
+  customer_health_score: number;
+  lifetime_value: number;
+  is_vip: boolean;
+  power_user_tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  videos_watched_external: number;
+  subscription_months: number;
+  last_updated: string;
+}
+
 // Campaign configurations with budget tiers
 const CAMPAIGNS = [
   { name: 'holiday_promo', baseDaily: 150, sources: ['google_ads', 'facebook', 'youtube'] },
@@ -102,7 +113,7 @@ function generateDayData(date: Date): CampaignData[] {
   return dayData;
 }
 
-// Main generator function
+// Main generator function for campaign data
 export function generateCampaignData(days: number = 90): CampaignData[] {
   const allData: CampaignData[] = [];
   const today = new Date();
@@ -114,6 +125,91 @@ export function generateCampaignData(days: number = 90): CampaignData[] {
   }
 
   return allData;
+}
+
+// Demo user emails that should always be VIP power users
+const DEMO_USERS: CustomerProfile[] = [
+  {
+    email: 'leo@posthog.com',
+    customer_health_score: 35, // At risk (below 50)
+    lifetime_value: 2450,
+    is_vip: true,
+    power_user_tier: 'gold',
+    videos_watched_external: 156,
+    subscription_months: 18,
+    last_updated: format(new Date(), 'yyyy-MM-dd'),
+  },
+  {
+    email: 'leonhardprinz@gmail.com',
+    customer_health_score: 42, // At risk (below 50)
+    lifetime_value: 3200,
+    is_vip: true,
+    power_user_tier: 'platinum',
+    videos_watched_external: 203,
+    subscription_months: 24,
+    last_updated: format(new Date(), 'yyyy-MM-dd'),
+  },
+];
+
+// Random first names and domains for fake profiles
+const FIRST_NAMES = ['james', 'emma', 'michael', 'olivia', 'william', 'sophia', 'david', 'ava', 'john', 'mia', 'chris', 'luna', 'daniel', 'harper', 'matthew', 'ella', 'andrew', 'aria', 'joshua', 'chloe'];
+const DOMAINS = ['gmail.com', 'outlook.com', 'yahoo.com', 'hotmail.com', 'protonmail.com', 'icloud.com'];
+
+// Generate random customer profiles
+function generateRandomProfile(index: number): CustomerProfile {
+  const firstName = FIRST_NAMES[index % FIRST_NAMES.length];
+  const domain = DOMAINS[Math.floor(Math.random() * DOMAINS.length)];
+  const email = `${firstName}${Math.floor(Math.random() * 1000)}@${domain}`;
+  
+  // 10% chance of being at-risk (health score < 50)
+  const isAtRisk = Math.random() < 0.1;
+  const healthScore = isAtRisk 
+    ? Math.floor(Math.random() * 40) + 10 // 10-49
+    : Math.floor(Math.random() * 50) + 50; // 50-99
+  
+  const lifetimeValue = Math.floor(Math.random() * 800) + 50; // $50-$850
+  const isVip = lifetimeValue > 600; // Top spenders are VIP
+  
+  // Tier distribution: 40% bronze, 30% silver, 20% gold, 10% platinum
+  const tierRoll = Math.random();
+  let tier: CustomerProfile['power_user_tier'];
+  let videosWatched: number;
+  
+  if (tierRoll < 0.4) {
+    tier = 'bronze';
+    videosWatched = Math.floor(Math.random() * 30); // 0-29
+  } else if (tierRoll < 0.7) {
+    tier = 'silver';
+    videosWatched = Math.floor(Math.random() * 40) + 30; // 30-69
+  } else if (tierRoll < 0.9) {
+    tier = 'gold';
+    videosWatched = Math.floor(Math.random() * 50) + 70; // 70-119
+  } else {
+    tier = 'platinum';
+    videosWatched = Math.floor(Math.random() * 100) + 120; // 120-219
+  }
+  
+  return {
+    email,
+    customer_health_score: healthScore,
+    lifetime_value: lifetimeValue,
+    is_vip: isVip,
+    power_user_tier: tier,
+    videos_watched_external: videosWatched,
+    subscription_months: Math.floor(Math.random() * 36) + 1, // 1-36 months
+    last_updated: format(new Date(), 'yyyy-MM-dd'),
+  };
+}
+
+// Generate customer profiles including demo users
+export function generateCustomerProfiles(randomCount: number = 50): CustomerProfile[] {
+  const profiles: CustomerProfile[] = [...DEMO_USERS];
+  
+  for (let i = 0; i < randomCount; i++) {
+    profiles.push(generateRandomProfile(i));
+  }
+  
+  return profiles;
 }
 
 // CLI execution
