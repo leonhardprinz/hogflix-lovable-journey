@@ -21,11 +21,14 @@ import { VideoPerformanceTable } from "@/components/admin/VideoPerformanceTable"
 import { VideoAnalyticsModal } from "@/components/admin/VideoAnalyticsModal";
 import { VideoManagementGrid } from "@/components/admin/VideoManagementGrid";
 import { TagManagementSection } from "@/components/admin/TagManagementSection";
-import { RefreshCw, Video, Clock, TrendingUp, Users, Award, Loader2, CreditCard, Sparkles } from "lucide-react";
+import { RefreshCw, Video, Clock, TrendingUp, Users, Award, Loader2, CreditCard, Sparkles, Database } from "lucide-react";
+import { CDPDemoControls } from "@/components/admin/CDPDemoControls";
+import { useAuth } from "@/contexts/AuthContext";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
 export default function Admin() {
+  const { user } = useAuth();
   const [role, setRole] = useState<string | null>(null);
   const [checkingRole, setCheckingRole] = useState(true);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
@@ -226,6 +229,10 @@ export default function Admin() {
               <TabsTrigger value="content-analytics">Content Analytics</TabsTrigger>
               <TabsTrigger value="video-management">Video Management</TabsTrigger>
               <TabsTrigger value="subscriptions">Users & Subscriptions</TabsTrigger>
+              <TabsTrigger value="demo-controls" className="gap-1">
+                <Database className="h-3 w-3" />
+                Demo Controls
+              </TabsTrigger>
             </TabsList>
 
             {/* Dashboard Tab */}
@@ -464,6 +471,34 @@ export default function Admin() {
                   </div>
                 </Card>
               )}
+            </TabsContent>
+
+            {/* Demo Controls Tab */}
+            <TabsContent value="demo-controls" className="space-y-6">
+              <CDPDemoControls userEmail={user?.email || null} />
+              
+              <Card className="bg-card-background border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-text-primary">Demo Flow</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm text-text-secondary">
+                  <ol className="list-decimal list-inside space-y-2">
+                    <li>Click <strong className="text-text-primary">"Sync CDP Data"</strong> to write R2 customer properties to PostHog</li>
+                    <li>Go to <strong className="text-text-primary">Pricing page</strong> and click any Downgrade button to see the VIP retention modal</li>
+                    <li>Go to <strong className="text-text-primary">Browse page</strong> to see the Power User badge</li>
+                    <li>Return here and click <strong className="text-text-primary">"Clear CDP Data"</strong> to reset for another demo</li>
+                  </ol>
+                  <div className="pt-4 border-t border-gray-700">
+                    <p className="text-xs">
+                      <strong className="text-text-primary">Feature Flags Required:</strong>
+                    </p>
+                    <ul className="list-disc list-inside mt-2 space-y-1 text-xs font-mono">
+                      <li><code className="text-primary-red">vip_retention_offer</code> → is_vip = true AND customer_health_score &lt; 50</li>
+                      <li><code className="text-primary-red">power_user_early_access</code> → power_user_tier in [gold, platinum] AND videos_watched_external &gt; 100</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         )}
