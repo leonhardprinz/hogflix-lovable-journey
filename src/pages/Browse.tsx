@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { usePostHog } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import Header from '@/components/Header';
@@ -20,6 +20,7 @@ import { WatchlistButton } from '@/components/WatchlistButton';
 import { Play, Info } from 'lucide-react';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { videoHrefFor } from '@/lib/videoRouting';
+import { PowerUserBadge } from '@/components/PowerUserBadge';
 
 interface Video {
   id: string;
@@ -45,6 +46,10 @@ const Browse = () => {
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { selectedProfile } = useProfile();
+  
+  // Power User Early Access feature flag
+  // Enabled if: power_user_tier = "gold" or "platinum" AND videos_watched_external > 100
+  const powerUserEarlyAccess = useFeatureFlagEnabled('power_user_early_access');
 
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -195,6 +200,11 @@ const Browse = () => {
 
       {/* Content Carousels Container */}
       <div className="container-netflix py-12 space-y-12">
+        {/* Power User Early Access Badge */}
+        {powerUserEarlyAccess && (
+          <PowerUserBadge className="mb-4" />
+        )}
+        
         {/* Profile Welcome Message */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-text-primary font-manrope">

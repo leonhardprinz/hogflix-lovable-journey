@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useRageClickDetection } from '@/hooks/useRageClickDetection';
 import PricingTableLayout from '@/components/PricingTableLayout';
+import { RetentionOfferModal } from '@/components/RetentionOfferModal';
 
 const Pricing = () => {
   const posthog = usePostHog();
@@ -22,7 +23,10 @@ const Pricing = () => {
   const [loading, setLoading] = useState(false);
   const [ctaVariant, setCtaVariant] = useState<string>('control');
   const [layoutVariant, setLayoutVariant] = useState<string | null>(null);
+  const [showRetentionModal, setShowRetentionModal] = useState(false);
+  const [pendingDowngradePlan, setPendingDowngradePlan] = useState<string | null>(null);
   const ultimateButtonFixed = useFeatureFlagEnabled('Ultimate_button_subscription_fix');
+  const vipRetentionEnabled = useFeatureFlagEnabled('vip_retention_offer');
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
   const pageLoadTime = useRef(Date.now());
 
@@ -245,6 +249,21 @@ const Pricing = () => {
           from: currentPlan,
           to: planName
         });
+        
+        // Check if VIP retention offer should be shown
+        // Flag is enabled if: is_vip = true AND customer_health_score < 50
+        const isVipRetentionActive = vipRetentionEnabled === true || posthog?.isFeatureEnabled('vip_retention_offer') === true;
+        
+        if (isVipRetentionActive) {
+          posthog?.capture('subscription:downgrade_intercepted', {
+            from: currentPlan,
+            to: planName,
+            reason: 'vip_retention_offer'
+          });
+          setPendingDowngradePlan(planName);
+          setShowRetentionModal(true);
+          return; // Don't proceed with downgrade yet
+        }
       }
     }
 
@@ -306,9 +325,44 @@ const Pricing = () => {
     navigate(`/checkout?plan=${planName}`);
   };
 
+  // Handle retention offer acceptance
+  const handleRetentionAccept = () => {
+    setShowRetentionModal(false);
+    setPendingDowngradePlan(null);
+    toast.success('🎉 30% discount applied to your plan for the next 3 months!');
+  };
+
+  // Handle retention offer decline - proceed with downgrade
+  const handleRetentionDecline = () => {
+    setShowRetentionModal(false);
+    if (pendingDowngradePlan) {
+      // Continue with the original downgrade action
+      const planName = pendingDowngradePlan;
+      setPendingDowngradePlan(null);
+      
+      // For basic plan, activate it directly
+      if (planName === 'basic') {
+        handlePlanSelect(planName);
+      } else {
+        navigate(`/checkout?plan=${planName}`);
+      }
+    }
+  };
+
   // Render table layout variant if assigned
   if (layoutVariant === 'table-layout') {
-    return <PricingTableLayout onPlanSelect={handlePlanSelect} loading={loading} />;
+    return (
+      <>
+        <PricingTableLayout onPlanSelect={handlePlanSelect} loading={loading} />
+        <RetentionOfferModal
+          open={showRetentionModal}
+          onOpenChange={setShowRetentionModal}
+          onAccept={handleRetentionAccept}
+          onDecline={handleRetentionDecline}
+          currentPlan={subscription?.plan_display_name || subscription?.plan_name || 'Standard'}
+        />
+      </>
+    );
   }
 
   return (
@@ -429,6 +483,15 @@ const Pricing = () => {
           </div>
         </div>
       </main>
+
+      {/* VIP Retention Modal */}
+      <RetentionOfferModal
+        open={showRetentionModal}
+        onOpenChange={setShowRetentionModal}
+        onAccept={handleRetentionAccept}
+        onDecline={handleRetentionDecline}
+        currentPlan={subscription?.plan_display_name || subscription?.plan_name || 'Standard'}
+      />
     </div>
   );
 };
