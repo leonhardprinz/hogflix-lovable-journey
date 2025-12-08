@@ -72,12 +72,19 @@ export function syncCDPProperties(email: string): boolean {
     return false;
   }
 
+  // CRITICAL: Re-identify the user to ensure properties attach to the right person
+  posthog.identify(email, { email });
+
   const properties = {
     ...profile,
     cdp_synced_at: new Date().toISOString(),
   };
 
+  // Set person properties
   posthog.people.set(properties);
+  
+  // Register as super properties for immediate feature flag evaluation
+  posthog.register(properties);
   
   // Track the sync event
   posthog.capture('cdp_demo:synced', {
@@ -98,7 +105,12 @@ export function clearCDPProperties(): void {
     return;
   }
 
-  // Set all CDP properties to null to clear them
+  // Unregister super properties
+  CDP_PROPERTY_KEYS.forEach(key => {
+    posthog.unregister(key);
+  });
+
+  // Set all CDP properties to null to clear them from person
   const clearProperties: Record<string, null> = {};
   CDP_PROPERTY_KEYS.forEach(key => {
     clearProperties[key] = null;
