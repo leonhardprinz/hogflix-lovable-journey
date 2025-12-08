@@ -1,0 +1,44 @@
+name: Marketing Data Refresh
+
+on:
+  # Monthly on the 1st at 6am UTC
+  schedule:
+    - cron: '0 6 1 * *'
+  
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Number of days to generate (default: 90)'
+        required: false
+        default: '90'
+
+jobs:
+  generate-and-upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Generate and upload marketing data
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: npx tsx scripts/marketing/upload-to-r2.ts
+      
+      - name: Log completion
+        run: |
+          echo "✅ Marketing data refreshed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "📊 Data uploaded to R2 bucket: ${{ secrets.R2_BUCKET_NAME }}"
