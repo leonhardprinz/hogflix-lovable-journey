@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.generate-organic-journey]
 verify_jwt = false
+
+[functions.query-r2]
+verify_jwt = true
