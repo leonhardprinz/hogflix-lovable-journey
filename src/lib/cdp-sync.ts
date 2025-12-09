@@ -8,13 +8,13 @@ export interface CDPProperties {
   customer_health_score: number;
   lifetime_value: number;
   is_vip: boolean;
-  power_user_tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  power_user_tier: 'bronze' | 'silver' | 'gold' | 'platinum' | string;
   videos_watched_external: number;
   subscription_months: number;
-  cdp_synced_at: string;
+  cdp_synced_at?: string;
 }
 
-// Demo profiles matching R2 customer-profiles.json
+// Demo profiles as fallback (matching R2 customer-profiles.json)
 const CDP_DEMO_PROFILES: Record<string, CDPProperties> = {
   'leo@posthog.com': {
     customer_health_score: 35,
@@ -48,36 +48,30 @@ const CDP_PROPERTY_KEYS = [
 ];
 
 /**
- * Check if email has a demo profile
+ * Check if email has a demo profile (fallback)
  */
 export function hasDemoProfile(email: string): boolean {
   return email.toLowerCase() in CDP_DEMO_PROFILES;
 }
 
 /**
- * Get demo profile for email
+ * Get demo profile for email (fallback)
  */
 export function getDemoProfile(email: string): CDPProperties | null {
   return CDP_DEMO_PROFILES[email.toLowerCase()] || null;
 }
 
 /**
- * Sync CDP properties to PostHog person via direct Capture API
+ * Sync CDP properties from R2 data to PostHog person via direct Capture API
+ * This is the NEW function that takes actual data from HogQL query
  */
-export async function syncCDPProperties(email: string): Promise<boolean> {
-  const profile = getDemoProfile(email);
-  if (!profile) {
-    console.warn(`No CDP demo profile found for: ${email}`);
-    return false;
-  }
-
+export async function syncCDPPropertiesFromData(data: CDPProperties): Promise<boolean> {
   if (!POSTHOG_API_KEY) {
     console.error('PostHog API key not configured');
     return false;
   }
 
   // CRITICAL: Get the ACTUAL distinct_id from PostHog (Supabase UUID)
-  // NOT the email - email is only used to lookup the demo profile
   const distinctId = posthog.__loaded ? posthog.get_distinct_id() : null;
   
   if (!distinctId) {
@@ -86,12 +80,12 @@ export async function syncCDPProperties(email: string): Promise<boolean> {
   }
 
   const properties = {
-    is_vip: profile.is_vip,
-    customer_health_score: profile.customer_health_score,
-    power_user_tier: profile.power_user_tier,
-    lifetime_value: profile.lifetime_value,
-    videos_watched_external: profile.videos_watched_external,
-    subscription_months: profile.subscription_months,
+    is_vip: data.is_vip,
+    customer_health_score: data.customer_health_score,
+    power_user_tier: data.power_user_tier,
+    lifetime_value: data.lifetime_value,
+    videos_watched_external: data.videos_watched_external,
+    subscription_months: data.subscription_months,
     cdp_synced_at: new Date().toISOString(),
   };
 
@@ -102,7 +96,7 @@ export async function syncCDPProperties(email: string): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: POSTHOG_API_KEY,
-        distinct_id: distinctId,  // Use actual PostHog distinct_id (UUID)
+        distinct_id: distinctId,
         event: '$set',
         properties: {
           $set: properties
@@ -120,12 +114,25 @@ export async function syncCDPProperties(email: string): Promise<boolean> {
       posthog.register(properties);
     }
 
-    console.log('✅ CDP properties synced via Capture API:', properties);
+    console.log('✅ CDP properties synced via Capture API (from R2 data):', properties);
     return true;
   } catch (error) {
     console.error('Error syncing CDP properties:', error);
     return false;
   }
+}
+
+/**
+ * Sync CDP properties to PostHog person via direct Capture API (FALLBACK - uses hardcoded data)
+ */
+export async function syncCDPProperties(email: string): Promise<boolean> {
+  const profile = getDemoProfile(email);
+  if (!profile) {
+    console.warn(`No CDP demo profile found for: ${email}`);
+    return false;
+  }
+
+  return syncCDPPropertiesFromData(profile);
 }
 
 /**
@@ -184,7 +191,7 @@ export async function clearCDPProperties(): Promise<void> {
 }
 
 /**
- * Get list of available demo emails
+ * Get list of available demo emails (fallback)
  */
 export function getDemoEmails(): string[] {
   return Object.keys(CDP_DEMO_PROFILES);
