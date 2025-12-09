@@ -76,6 +76,15 @@ export async function syncCDPProperties(email: string): Promise<boolean> {
     return false;
   }
 
+  // CRITICAL: Get the ACTUAL distinct_id from PostHog (Supabase UUID)
+  // NOT the email - email is only used to lookup the demo profile
+  const distinctId = posthog.__loaded ? posthog.get_distinct_id() : null;
+  
+  if (!distinctId) {
+    console.error('No distinct_id found - user may not be identified in PostHog');
+    return false;
+  }
+
   const properties = {
     is_vip: profile.is_vip,
     customer_health_score: profile.customer_health_score,
@@ -93,7 +102,7 @@ export async function syncCDPProperties(email: string): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: POSTHOG_API_KEY,
-        distinct_id: email,
+        distinct_id: distinctId,  // Use actual PostHog distinct_id (UUID)
         event: '$set',
         properties: {
           $set: properties
