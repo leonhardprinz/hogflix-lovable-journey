@@ -34,7 +34,7 @@ export function CDPDemoControls({ userEmail }: CDPDemoControlsProps) {
 
     setSyncing(true);
     try {
-      const success = syncCDPProperties(userEmail);
+      const success = await syncCDPProperties(userEmail);
       if (success) {
         setIsSynced(true);
         toast.success('CDP data synced to PostHog!', {
@@ -53,7 +53,7 @@ export function CDPDemoControls({ userEmail }: CDPDemoControlsProps) {
   const handleClear = async () => {
     setClearing(true);
     try {
-      clearCDPProperties();
+      await clearCDPProperties();
       setIsSynced(false);
       toast.success('CDP data cleared from PostHog!', {
         description: 'Person properties have been removed. Feature flags will reset to default values.',
