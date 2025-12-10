@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.query-r2]
 verify_jwt = true
+
+[functions.enrich-user-from-r2]
+verify_jwt = false
