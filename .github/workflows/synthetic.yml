@@ -142,6 +142,33 @@ jobs:
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
         continue-on-error: false
       
+      # Pricing experiment funnel (drives traffic for pricing_page_layout_experiment)
+      - name: Run pricing experiment funnel
+        run: |
+          echo "🎯 Starting pricing experiment funnel journeys..."
+          node scripts/synthetic/pricing-experiment-funnel.js 2>&1 | tee pricing_funnel.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          EXPOSURES=$(grep -oP 'Exposures: \K\d+' pricing_funnel.log || echo "0")
+          SIGNUPS=$(grep -oP 'Signups: \K\d+' pricing_funnel.log || echo "0")
+          
+          echo "📊 Pricing Experiment Summary:"
+          echo "   - Exposures: $EXPOSURES"
+          echo "   - Signups: $SIGNUPS"
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Pricing experiment funnel completed"
+          else
+            echo "⚠️  Pricing funnel completed with warnings"
+          fi
+        env:
+          STATE_DIR: .synthetic_state
+          APP_URL: https://hogflix-demo.lovable.app
+          PRICING_FUNNEL_COUNT: 20
+          DEBUG: false
+          POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+        continue-on-error: false
+
       # Legacy lightweight bot (optional, for quick funnel events)
       - name: Run legacy bot (quick funnel events)
         run: |

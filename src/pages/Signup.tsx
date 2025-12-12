@@ -72,6 +72,14 @@ const Signup = () => {
           marketing_opt_in: marketingOptIn
         });
         
+        // Experiment conversion event - matches PostHog experiment metric
+        posthog.capture('user_signed_up', {
+          signup_method: 'email',
+          selected_plan: selectedPlan,
+          marketing_opt_in: marketingOptIn,
+          $set: { email: data.user.email }
+        });
+        
         posthog.capture('email:captured', {
           source: 'signup',
           marketing_opt_in: marketingOptIn
