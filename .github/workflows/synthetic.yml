@@ -169,6 +169,31 @@ jobs:
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
         continue-on-error: false
 
+      # FlixBuddy Welcome Experiment (drives traffic for flixbuddy_welcome_experiment)
+      - name: Run FlixBuddy experiment funnel
+        run: |
+          echo "🤖 Starting FlixBuddy welcome experiment funnel..."
+          node scripts/synthetic/flixbuddy-experiment-funnel.js 2>&1 | tee flixbuddy_funnel.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          if grep -q "Experiment ended" flixbuddy_funnel.log; then
+            echo "⏰ FlixBuddy experiment has ended, skipping traffic generation"
+          elif [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ FlixBuddy experiment funnel completed"
+            # Extract summary
+            grep -A 10 "FlixBuddy Experiment Summary" flixbuddy_funnel.log || true
+          else
+            echo "⚠️  FlixBuddy funnel completed with warnings"
+          fi
+        env:
+          STATE_DIR: .synthetic_state
+          FLIXBUDDY_FUNNEL_COUNT: 50
+          DEBUG: false
+          POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          # Auto-stop after 48 hours from deployment
+          EXPERIMENT_END_DATE: "2025-12-17T12:00:00Z"
+        continue-on-error: false
+
       # Legacy lightweight bot (optional, for quick funnel events)
       - name: Run legacy bot (quick funnel events)
         run: |
