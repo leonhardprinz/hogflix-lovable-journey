@@ -26,8 +26,8 @@ jobs:
 
       - name: Install deps (server + browser)
         run: |
-          npm i posthog-node playwright @supabase/supabase-js
-          npx playwright install --with-deps chromium
+          npm i posthog-node playwright@1.40.0 playwright-extra puppeteer-extra-plugin-stealth @supabase/supabase-js
+          npx playwright@1.40.0 install --with-deps chromium
 
       - name: Restore persona state
         uses: actions/cache@v4
@@ -83,7 +83,7 @@ jobs:
           PERSONA_POOL: 400
           ENABLE_ORGANIC_EXPLORATION: true
           APP_URL: https://hogflix-demo.lovable.app
-        continue-on-error: false
+        continue-on-error: true
 
       # --- BROWSER FLOWS ---
       # New user signup journeys (creates real users)
@@ -113,7 +113,7 @@ jobs:
           NEW_USER_COUNT: 10
           DEBUG: false
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
-        continue-on-error: false
+        continue-on-error: true
       
       # Returning user engagement sessions
       - name: Run returning user sessions
@@ -140,7 +140,7 @@ jobs:
           RETURNING_USER_COUNT: 30
           DEBUG: false
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
-        continue-on-error: false
+        continue-on-error: true
       
       # Pricing experiment funnel (drives traffic for pricing_page_layout_experiment)
       - name: Run pricing experiment funnel
@@ -167,7 +167,7 @@ jobs:
           PRICING_FUNNEL_COUNT: 20
           DEBUG: false
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
-        continue-on-error: false
+        continue-on-error: true
 
       # FlixBuddy Welcome Experiment (drives traffic for flixbuddy_welcome_experiment)
       - name: Run FlixBuddy experiment funnel

@@ -1,6 +1,5 @@
 import { chromium } from 'playwright-extra';
 import stealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { Page, ElementHandle } from '@playwright/test';
 
 chromium.use(stealthPlugin());
 
@@ -23,9 +22,9 @@ const USERS = [
 const CURRENT_USER = USERS[Math.floor(Math.random() * USERS.length)];
 
 // --- UTILS ---
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function humanMove(page: Page, selectorOrEl: string | ElementHandle) {
+async function humanMove(page, selectorOrEl) {
     let element;
     if (typeof selectorOrEl === 'string') {
         element = page.locator(selectorOrEl).first();
@@ -33,7 +32,6 @@ async function humanMove(page: Page, selectorOrEl: string | ElementHandle) {
     } else {
         element = selectorOrEl;
     }
-    // @ts-ignore
     const box = await element.boundingBox();
     if (!box) return;
 
@@ -42,15 +40,11 @@ async function humanMove(page: Page, selectorOrEl: string | ElementHandle) {
     await page.mouse.move(targetX, targetY, { steps: 35 });
 }
 
-async function forcePostHogStart(page: Page) {
+async function forcePostHogStart(page) {
     await page.evaluate(() => {
-        // @ts-ignore
         if (window.posthog) {
-            // @ts-ignore
             window.posthog.register({ $device_type: 'Desktop', $browser: 'Chrome', synthetic: true });
-            // @ts-ignore
             window.posthog.opt_in_capturing();
-            // @ts-ignore
             window.posthog.startSessionRecording();
         }
     });
@@ -58,7 +52,7 @@ async function forcePostHogStart(page: Page) {
 
 // --- JOURNEY LOGIC ---
 
-async function journeyPricingTest(page: Page) {
+async function journeyPricingTest(page) {
     console.log('   🏷️ Journey: PRICING EXPERIMENTS');
     await page.goto(`${BASE_URL}/pricing`);
     await delay(3000);
@@ -87,7 +81,7 @@ async function journeyPricingTest(page: Page) {
     }
 }
 
-async function journeyBrowseTest(page: Page) {
+async function journeyBrowseTest(page) {
     console.log('   🧭 Journey: BROWSE PRIORITY EXPERIMENT');
     await page.goto(`${BASE_URL}/browse`);
     await delay(4000);
@@ -120,7 +114,7 @@ async function journeyBrowseTest(page: Page) {
     await delay(5000);
 }
 
-async function journeyWatch(page: Page) {
+async function journeyWatch(page) {
     console.log('   📺 Journey: DEEP WATCH');
     // 1. Find a movie from Dashboard
     if (!page.url().includes('watch')) {
@@ -168,7 +162,7 @@ async function journeyWatch(page: Page) {
     }
 }
 
-async function journeyWidgetTest(page: Page) {
+async function journeyWidgetTest(page) {
     console.log('   🦔 Journey: HEDGEHOG WIDGET');
     await page.goto(BASE_URL);
     await delay(3000);
