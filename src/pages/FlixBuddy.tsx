@@ -1,16 +1,24 @@
 // FlixBuddy Chat Interface Page
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { usePostHog } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagVariantKey } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Send, Bot, User, Play, Plus, ArrowLeft, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Send, Bot, User, Play, Plus, ArrowLeft, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WatchlistButton } from '@/components/WatchlistButton';
+
+// Experiment prompt suggestions for 'suggested-prompts' variant
+const PROMPT_SUGGESTIONS = [
+  { emoji: '🎬', text: "What's trending?" },
+  { emoji: '😂', text: 'Something funny' },
+  { emoji: '🎭', text: 'Hidden gems' },
+  { emoji: '🍿', text: 'New releases' }
+];
 
 interface ChatMessage {
   id: string;
@@ -44,6 +52,22 @@ const FlixBuddy = () => {
   const sessionStartRef = useRef<Date>(new Date());
   
   const initialQuery = searchParams.get('q');
+  
+  // Feature flag for welcome message experiment
+  const welcomeVariant = useFeatureFlagVariantKey('flixbuddy_welcome_experiment') as string | undefined;
+  
+  // Get welcome message based on experiment variant
+  const getWelcomeMessage = (): string => {
+    switch (welcomeVariant) {
+      case 'personalized':
+        const profileName = selectedProfile?.display_name || 'there';
+        return `Hey ${profileName}! 👋 I'm FlixBuddy, your personal movie companion.\n\nBased on what others with similar tastes are loving right now, I've got some great recommendations. What are you in the mood for?`;
+      case 'suggested-prompts':
+        return "Hi! I'm FlixBuddy, your movie and series recommendation assistant! 🎬\n\nTap a suggestion below to get started, or tell me what you're in the mood for:";
+      default: // 'control' or undefined
+        return "Hi! I'm FlixBuddy, your movie and series recommendation assistant! 🎬\n\nTell me what you're in the mood for - any genre, mood, or specific type of content you'd like to discover today?";
+    }
+  };
 
   // Format duration helper
   const formatDuration = (seconds: number) => {
@@ -102,10 +126,17 @@ const FlixBuddy = () => {
         
         setConversationId(conversation.id);
         
-        // Track conversation start
+        // Track conversation start with experiment variant
         posthog.capture('flixbuddy:opened', {
           initial_query: initialQuery,
-          profile_id: selectedProfile.id
+          profile_id: selectedProfile.id,
+          experiment_variant: welcomeVariant || 'control'
+        });
+        
+        // Track feature flag exposure for experiment
+        posthog.capture('$feature_flag_called', {
+          $feature_flag: 'flixbuddy_welcome_experiment',
+          $feature_flag_response: welcomeVariant || 'control'
         });
 
         // Track AI trace for new conversation (PostHog LLM Analytics)
@@ -124,11 +155,11 @@ const FlixBuddy = () => {
         if (initialQuery) {
           await sendMessage(initialQuery);
         } else {
-          // Add welcome message
+          // Add welcome message based on experiment variant
           const welcomeMessage: ChatMessage = {
             id: 'welcome',
             role: 'assistant',
-            content: "Hi! I'm FlixBuddy, your movie and series recommendation assistant! 🎬\n\nTell me what you're in the mood for - any genre, mood, or specific type of content you'd like to discover today?",
+            content: getWelcomeMessage(),
             timestamp: new Date()
           };
           setMessages([welcomeMessage]);
@@ -144,7 +175,7 @@ const FlixBuddy = () => {
     };
 
     initConversation();
-  }, [selectedProfile, initialQuery]);
+  }, [selectedProfile, initialQuery, welcomeVariant]);
 
   // Track session end, abandonment, and conversation length on unmount
   useEffect(() => {
@@ -194,12 +225,13 @@ const FlixBuddy = () => {
     setInputMessage('');
     setIsLoading(true);
 
-    // Track message sent
+    // Track message sent with experiment variant
     posthog.capture('flixbuddy:message_sent', {
       conversation_id: conversationId,
       message_length: message.length,
       message_number: messages.filter(m => m.role === 'user').length + 1,
-      profile_id: selectedProfile.id
+      profile_id: selectedProfile.id,
+      experiment_variant: welcomeVariant || 'control'
     });
 
     try {
@@ -368,9 +400,20 @@ const FlixBuddy = () => {
   const handleVideoClick = (videoId: string) => {
     posthog.capture('flixbuddy:clicked', {
       video_id: videoId,
-      conversation_id: conversationId
+      conversation_id: conversationId,
+      experiment_variant: welcomeVariant || 'control'
     });
     navigate(`/watch/${videoId}`);
+  };
+  
+  // Handle clicking a suggested prompt (for 'suggested-prompts' variant)
+  const handlePromptSuggestionClick = (promptText: string) => {
+    posthog.capture('flixbuddy:prompt_suggestion_clicked', {
+      prompt: promptText,
+      experiment_variant: 'suggested-prompts',
+      conversation_id: conversationId
+    });
+    sendMessage(promptText);
   };
 
   const handleFeedback = (messageId: string, feedback: 'positive' | 'negative') => {
@@ -381,7 +424,8 @@ const FlixBuddy = () => {
       message_id: messageId,
       feedback,
       $ai_feedback: feedback === 'positive' ? 1 : -1,
-      profile_id: selectedProfile?.id
+      profile_id: selectedProfile?.id,
+      experiment_variant: welcomeVariant || 'control'
     });
 
     toast({
@@ -515,6 +559,27 @@ const FlixBuddy = () => {
               )}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Prompt Suggestions for 'suggested-prompts' variant */}
+            {welcomeVariant === 'suggested-prompts' && messages.length === 1 && messages[0].id === 'welcome' && (
+              <div className="border-t border-border p-3 bg-muted/30">
+                <div className="flex flex-wrap gap-2">
+                  {PROMPT_SUGGESTIONS.map((suggestion) => (
+                    <Button
+                      key={suggestion.text}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePromptSuggestionClick(suggestion.text)}
+                      className="text-sm hover:bg-primary hover:text-primary-foreground transition-colors"
+                      disabled={isLoading}
+                    >
+                      <Sparkles className="h-3 w-3 mr-1.5" />
+                      {suggestion.emoji} {suggestion.text}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Input Area */}
             <div className="border-t border-border p-4">
