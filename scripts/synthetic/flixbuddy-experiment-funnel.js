@@ -9,10 +9,19 @@ const FUNNEL_COUNT = parseInt(process.env.FLIXBUDDY_FUNNEL_COUNT || '50', 10)
 const EXPERIMENT_END_DATE = process.env.EXPERIMENT_END_DATE || null
 
 // Initialize PostHog
-const posthog = new PostHog(
-  process.env.POSTHOG_KEY || 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
-  { host: 'https://eu.i.posthog.com' }
-)
+const apiKey = process.env.POSTHOG_KEY
+const host = process.env.PH_HOST || 'https://eu.i.posthog.com'
+
+if (!apiKey) {
+  console.error('❌ POSTHOG_KEY environment variable is required')
+  process.exit(1)
+}
+
+console.log(`🔑 PostHog Config:`)
+console.log(`   API Key: ${apiKey.slice(0, 10)}...${apiKey.slice(-4)}`)
+console.log(`   Host: ${host}`)
+
+const posthog = new PostHog(apiKey, { host })
 
 // Experiment variants
 const VARIANTS = ['control', 'suggested-prompts', 'personalized']
@@ -116,14 +125,15 @@ async function simulateFlixBuddySession(variant, index, total) {
   
   console.log(`[${index + 1}/${total}] ${variant} variant | ${device.type}/${device.browser}`)
   
-  // 1. Track feature flag exposure
+  // 1. Track feature flag exposure (with $feature_flag_id for experiment linking)
   posthog.capture({
     distinctId,
     event: '$feature_flag_called',
     properties: {
       ...commonProps,
       $feature_flag: 'flixbuddy_welcome_experiment',
-      $feature_flag_response: variant
+      $feature_flag_response: variant,
+      $feature_flag_id: 'flixbuddy_welcome_experiment'
     }
   })
   
@@ -336,9 +346,12 @@ async function runFlixBuddyExperimentFunnel() {
     console.log(`      personalized: +${personalizedLift}%`)
     
     console.log(`\n   Flushing PostHog events...`)
+    await posthog.flush()
+    console.log(`   ✓ Events flushed`)
     await posthog.shutdown()
+    console.log(`   ✓ PostHog shutdown complete`)
     
-    console.log(`   ✓ Complete. Check PostHog experiment for new data.\n`)
+    console.log(`\n   ✓ Complete. Check PostHog experiment for new data.\n`)
     
   } catch (error) {
     console.error('Fatal error:', error)
