@@ -24,10 +24,8 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install deps (server + browser)
-        run: |
-          npm i posthog-node playwright@1.40.0 playwright-extra puppeteer-extra-plugin-stealth @supabase/supabase-js
-          npx playwright@1.40.0 install --with-deps chromium
+      - name: Install server-side deps
+        run: npm i posthog-node @supabase/supabase-js
 
       - name: Restore persona state
         uses: actions/cache@v4
@@ -43,16 +41,50 @@ jobs:
             echo "❌ Missing PH_PROJECT_API_KEY"
             exit 1
           fi
+          if [ -z "$PH_HOST" ]; then
+            echo "❌ Missing PH_HOST"
+            exit 1
+          fi
           if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
             echo "❌ Missing SUPABASE_SERVICE_ROLE_KEY"
             exit 1
           fi
           echo "✅ All required secrets are configured"
+          echo "   PH_HOST: $PH_HOST"
         env:
           PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          PH_HOST: ${{ secrets.PH_HOST }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      # --- SERVER EVENTS ---
+      # --- SERVER-SIDE EVENTS (NO PLAYWRIGHT NEEDED) ---
+      
+      # FlixBuddy Welcome Experiment (server-side only, runs first!)
+      - name: Run FlixBuddy experiment funnel
+        run: |
+          echo "🤖 Starting FlixBuddy welcome experiment funnel..."
+          node scripts/synthetic/flixbuddy-experiment-funnel.js 2>&1 | tee flixbuddy_funnel.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          if grep -q "Experiment ended" flixbuddy_funnel.log; then
+            echo "⏰ FlixBuddy experiment has ended, skipping traffic generation"
+          elif [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ FlixBuddy experiment funnel completed"
+            # Extract summary
+            grep -A 10 "FlixBuddy Experiment Summary" flixbuddy_funnel.log || true
+          else
+            echo "⚠️  FlixBuddy funnel completed with warnings"
+            cat flixbuddy_funnel.log
+          fi
+        env:
+          STATE_DIR: .synthetic_state
+          FLIXBUDDY_FUNNEL_COUNT: 50
+          DEBUG: false
+          POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          PH_HOST: ${{ secrets.PH_HOST }}
+          EXPERIMENT_END_DATE: "2025-12-17T12:00:00Z"
+        continue-on-error: false
+
+      # Server events 
       - name: Run synthetic server events
         run: |
           echo "🚀 Starting server-side synthetic traffic..."
@@ -85,7 +117,13 @@ jobs:
           APP_URL: https://hogflix-demo.lovable.app
         continue-on-error: true
 
-      # --- BROWSER FLOWS ---
+      # --- BROWSER FLOWS (PLAYWRIGHT REQUIRED) ---
+      - name: Install Playwright
+        run: |
+          npm i playwright@1.49.0
+          npx playwright@1.49.0 install --with-deps chromium
+        continue-on-error: true
+
       # New user signup journeys (creates real users)
       - name: Run new user signup journeys
         run: |
@@ -168,31 +206,6 @@ jobs:
           DEBUG: false
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
         continue-on-error: true
-
-      # FlixBuddy Welcome Experiment (drives traffic for flixbuddy_welcome_experiment)
-      - name: Run FlixBuddy experiment funnel
-        run: |
-          echo "🤖 Starting FlixBuddy welcome experiment funnel..."
-          node scripts/synthetic/flixbuddy-experiment-funnel.js 2>&1 | tee flixbuddy_funnel.log
-          EXIT_CODE=${PIPESTATUS[0]}
-          
-          if grep -q "Experiment ended" flixbuddy_funnel.log; then
-            echo "⏰ FlixBuddy experiment has ended, skipping traffic generation"
-          elif [ $EXIT_CODE -eq 0 ]; then
-            echo "✅ FlixBuddy experiment funnel completed"
-            # Extract summary
-            grep -A 10 "FlixBuddy Experiment Summary" flixbuddy_funnel.log || true
-          else
-            echo "⚠️  FlixBuddy funnel completed with warnings"
-          fi
-        env:
-          STATE_DIR: .synthetic_state
-          FLIXBUDDY_FUNNEL_COUNT: 50
-          DEBUG: false
-          POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
-          # Auto-stop after 48 hours from deployment
-          EXPERIMENT_END_DATE: "2025-12-17T12:00:00Z"
-        continue-on-error: false
 
       # Legacy lightweight bot (optional, for quick funnel events)
       - name: Run legacy bot (quick funnel events)
