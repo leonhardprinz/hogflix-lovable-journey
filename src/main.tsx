@@ -11,10 +11,11 @@ if (typeof window !== 'undefined') {
     import.meta.env.VITE_POSTHOG_KEY || 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
     {
       api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
-      person_profiles: 'identified_only',
-      autocapture: true,
-      capture_pageview: true,
-      capture_pageleave: true,
+    person_profiles: 'identified_only',
+    autocapture: true,
+    capture_pageview: true,
+    capture_pageleave: true,
+    disable_web_experiments: false,
       
       // Enable session recording (session replay)
       session_recording: {
