@@ -1,62 +1,62 @@
 // Floating Hedgehog Widget for Global FlixBuddy Access
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { usePostHog } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagVariantKey } from 'posthog-js/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Bot, MessageCircle, X } from 'lucide-react';
+import { Bot, MessageCircle } from 'lucide-react';
 
 const FloatingHedgehog = () => {
   const [isHovered, setIsHovered] = useState(false);
   const [isClicked, setIsClicked] = useState(false);
-  const [shouldShow, setShouldShow] = useState<boolean | null>(null);
-  const [flagVariant, setFlagVariant] = useState<string>('control');
   const navigate = useNavigate();
   const location = useLocation();
   const posthog = usePostHog();
+  const { user } = useAuth();
+  
+  // Use React hook instead of callback - fires once when flags load
+  const flagVariant = useFeatureFlagVariantKey('FloatingHedgehog_Widget_Visibility_UXUI_Test') as string | undefined;
+  
+  // Track impressions to prevent duplicates
+  const hasTrackedImpression = useRef<string | null>(null);
 
-  // Feature Flag: Control widget visibility - ALL HOOKS MUST BE CALLED BEFORE ANY RETURNS
-  useEffect(() => {
-    // Don't evaluate flag on FlixBuddy page
-    if (location.pathname === '/flixbuddy') {
-      setShouldShow(false);
-      return;
-    }
+  // Only show for logged-in users
+  if (!user) {
+    return null;
+  }
 
-    posthog.onFeatureFlags(() => {
-      const flagKey = 'FloatingHedgehog_Widget_Visibility_UXUI_Test';
-      const variant = posthog.getFeatureFlag(flagKey) as string;
-      setFlagVariant(variant || 'control');
+  // Don't show on FlixBuddy page
+  if (location.pathname === '/flixbuddy') {
+    return null;
+  }
 
-      // Determine if widget should show based on variant
-      let showWidget = false;
-      if (variant === 'show_all') {
-        showWidget = true;
-      } else if (variant === 'show_on_pages') {
-        // Show only on Browse, MyList, and Index pages
-        const allowedPages = ['/', '/browse', '/mylist'];
-        showWidget = allowedPages.includes(location.pathname);
-      } else if (variant === 'hide_all') {
-        showWidget = false;
-      } else {
-        // Control/default: show on all pages
-        showWidget = true;
-      }
+  // Determine visibility based on flag variant
+  const variant = flagVariant || 'control';
+  let shouldShow = false;
+  
+  if (variant === 'show_all') {
+    shouldShow = true;
+  } else if (variant === 'show_on_pages') {
+    const allowedPages = ['/', '/browse', '/mylist'];
+    shouldShow = allowedPages.includes(location.pathname);
+  } else if (variant === 'hide_all') {
+    shouldShow = false;
+  } else {
+    // Control/default: show on all pages
+    shouldShow = true;
+  }
 
-      setShouldShow(showWidget);
-
-      // Fire impression event when widget is shown
-      if (showWidget) {
-        posthog.capture('floatinghedgehog:impression', {
-          variant: variant || 'control',
-          current_page: location.pathname,
-          timestamp: new Date().toISOString()
-        });
-      }
+  // Fire impression event once per page (not on every render/flag reload)
+  if (shouldShow && hasTrackedImpression.current !== location.pathname) {
+    hasTrackedImpression.current = location.pathname;
+    posthog.capture('floatinghedgehog:impression', {
+      variant,
+      current_page: location.pathname,
+      timestamp: new Date().toISOString()
     });
-  }, [location.pathname, posthog]);
+  }
 
-  // Don't render until flag is evaluated or if flag determined we shouldn't
-  if (shouldShow === null || !shouldShow) {
+  if (!shouldShow) {
     return null;
   }
 
