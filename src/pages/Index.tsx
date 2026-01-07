@@ -7,7 +7,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import ContentPreviewCarousel from '@/components/ContentPreviewCarousel';
 import { Play, Star, Users, BarChart3, Eye, Zap } from 'lucide-react';
-
+import posthog from 'posthog-js';
 const Index = () => {
   const navigate = useNavigate();
   const { selectedProfile } = useProfile();
@@ -16,6 +16,11 @@ const Index = () => {
   const [featuredVideo, setFeaturedVideo] = useState<any>(null);
   const [videoLoading, setVideoLoading] = useState(true);
   const [videoError, setVideoError] = useState(false);
+
+  // Fire a manual PostHog event on page load
+  useEffect(() => {
+    posthog.capture('This is an event 👋 🦔', { ts: Date.now() });
+  }, []);
 
   // Fetch featured video for background with signed URL
   useEffect(() => {
