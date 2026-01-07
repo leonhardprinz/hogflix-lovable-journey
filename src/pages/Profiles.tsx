@@ -87,6 +87,24 @@ const Profiles = () => {
     // Store in global state
     setSelectedProfile(profile);
 
+    // PostHog: Normal identify call (links events to this user)
+    if (posthog && user) {
+      posthog.identify(user.id, {
+        email: user.email,
+        profile_id: profile.id,
+        profile_name: profile.display_name
+      });
+    }
+
+    // PostHog: Group identify (associates user with profile group)
+    if (posthog) {
+      posthog.group('profile', profile.id, {
+        display_name: profile.display_name,
+        is_kids_profile: profile.is_kids_profile,
+        user_id: profile.user_id
+      });
+    }
+
     // Initialize PostHog person properties for early access features
     if (posthog) {
       posthog.setPersonProperties({
