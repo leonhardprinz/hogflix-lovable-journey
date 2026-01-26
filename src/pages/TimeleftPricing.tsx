@@ -9,19 +9,15 @@ const TimeleftPricing: React.FC = () => {
         posthog.capture('subscription_plan_selected', { plan_id: planId });
     };
 
-    const handleContinue = () => {
-        posthog.capture('checkout_started', { plan_id: selectedPlan });
-    };
+    // Stop propagation so text elements are selectable in visual editor
+    const stopProp = (e: React.MouseEvent) => e.stopPropagation();
 
     return (
         <div style={styles.container}>
-            {/* Close button */}
             <button style={styles.closeButton} onClick={() => window.history.back()}>✕</button>
 
-            {/* Headline */}
-            <h1 id="pricing-headline" style={styles.title}>Your future awaits</h1>
+            <h1 id="pricing-headline" onClick={stopProp} style={styles.title}>Your future awaits</h1>
 
-            {/* Hero image */}
             <img
                 id="pricing-hero-image"
                 src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&h=200&fit=crop"
@@ -29,57 +25,54 @@ const TimeleftPricing: React.FC = () => {
                 style={styles.heroImage}
             />
 
-            {/* Value prop */}
-            <p id="pricing-value-prop" style={styles.valueProp}>
+            <p id="pricing-value-prop" onClick={stopProp} style={styles.valueProp}>
                 Members are up to 93% more likely to find long lasting connections
             </p>
 
-            {/* Plan 1 */}
+            {/* Plan 1 - One-time Explorer */}
             <div style={{ ...styles.card, ...(selectedPlan === '1-month' ? styles.cardSelected : {}) }} onClick={() => handlePlanSelect('1-month')}>
                 <input type="radio" checked={selectedPlan === '1-month'} readOnly style={styles.radio} />
                 <div style={styles.planContent}>
-                    <span id="plan-1-type" style={styles.planType}>One-time Explorer</span>
-                    <span id="plan-1-name" style={styles.planName}>1 Month</span>
-                    <span id="plan-1-price" style={styles.planPrice}>€16.99</span>
+                    <button id="plan-1-type" onClick={stopProp} style={styles.planTypeBtn}>One-time Explorer</button>
+                    <button id="plan-1-name" onClick={stopProp} style={styles.planNameBtn}>1 Month</button>
+                    <button id="plan-1-price" onClick={stopProp} style={styles.planPriceBtn}>€16.99</button>
                 </div>
-                <span id="plan-1-weekly" style={styles.weeklyPrice}>€4.25/week</span>
+                <button id="plan-1-weekly" onClick={stopProp} style={styles.weeklyPriceBtn}>€4.25/week</button>
             </div>
 
-            {/* Plan 2 */}
+            {/* Plan 2 - Most Popular */}
             <div style={{ ...styles.card, ...(selectedPlan === '3-months' ? styles.cardSelected : {}) }} onClick={() => handlePlanSelect('3-months')}>
                 <input type="radio" checked={selectedPlan === '3-months'} readOnly style={styles.radio} />
                 <div style={styles.planContent}>
-                    <span id="plan-2-type" style={styles.planType}>Most Popular</span>
-                    <span id="plan-2-name" style={styles.planName}>3 Months</span>
-                    <span id="plan-2-price" style={styles.planPrice}><s style={styles.strikethrough}>€50.97</s> €39.99</span>
+                    <button id="plan-2-type" onClick={stopProp} style={styles.planTypeBtn}>Most Popular</button>
+                    <button id="plan-2-name" onClick={stopProp} style={styles.planNameBtn}>3 Months</button>
+                    <button id="plan-2-price" onClick={stopProp} style={styles.planPriceBtn}>€39.99</button>
                 </div>
                 <div style={styles.rightSide}>
-                    <span id="plan-2-savings" style={styles.savingsBadge}>Save 22%</span>
-                    <span id="plan-2-weekly" style={styles.weeklyPrice}>€3.33/week</span>
+                    <button id="plan-2-savings" onClick={stopProp} style={styles.savingsBtn}>Save 22%</button>
+                    <button id="plan-2-weekly" onClick={stopProp} style={styles.weeklyPriceBtn}>€3.33/week</button>
                 </div>
             </div>
 
-            {/* Plan 3 */}
+            {/* Plan 3 - Long-term */}
             <div style={{ ...styles.card, ...(selectedPlan === '6-months' ? styles.cardSelected : {}) }} onClick={() => handlePlanSelect('6-months')}>
                 <input type="radio" checked={selectedPlan === '6-months'} readOnly style={styles.radio} />
                 <div style={styles.planContent}>
-                    <span id="plan-3-type" style={styles.planType}>Long-term Commitment</span>
-                    <span id="plan-3-name" style={styles.planName}>6 Months</span>
-                    <span id="plan-3-price" style={styles.planPrice}><s style={styles.strikethrough}>€101.94</s> €54.99</span>
+                    <button id="plan-3-type" onClick={stopProp} style={styles.planTypeBtn}>Long-term Commitment</button>
+                    <button id="plan-3-name" onClick={stopProp} style={styles.planNameBtn}>6 Months</button>
+                    <button id="plan-3-price" onClick={stopProp} style={styles.planPriceBtn}>€54.99</button>
                 </div>
                 <div style={styles.rightSide}>
-                    <span id="plan-3-savings" style={styles.savingsBadge}>Save 46%</span>
-                    <span id="plan-3-weekly" style={styles.weeklyPrice}>€2.29/week</span>
+                    <button id="plan-3-savings" onClick={stopProp} style={styles.savingsBtn}>Save 46%</button>
+                    <button id="plan-3-weekly" onClick={stopProp} style={styles.weeklyPriceBtn}>€2.29/week</button>
                 </div>
             </div>
 
-            {/* Promo */}
-            <p id="promo-text" style={styles.promoText}>Got a promo code? <u>Enter here</u></p>
+            <p id="promo-text" onClick={stopProp} style={styles.promoText}>Got a promo code? <u>Enter here</u></p>
 
-            {/* Footer */}
             <div style={styles.footer}>
                 <p id="summary-text" style={styles.summaryText}>€39.99 every 3 months</p>
-                <button id="cta-button" style={styles.ctaButton} onClick={handleContinue}>Continue</button>
+                <button id="cta-button" style={styles.ctaButton}>Continue</button>
             </div>
         </div>
     );
@@ -102,7 +95,6 @@ const styles: { [key: string]: React.CSSProperties } = {
         border: 'none',
         fontSize: '20px',
         cursor: 'pointer',
-        color: '#666',
     },
     title: {
         fontSize: '28px',
@@ -110,6 +102,7 @@ const styles: { [key: string]: React.CSSProperties } = {
         textAlign: 'center',
         fontFamily: 'Georgia, serif',
         marginBottom: '16px',
+        cursor: 'pointer',
     },
     heroImage: {
         width: '100%',
@@ -123,6 +116,7 @@ const styles: { [key: string]: React.CSSProperties } = {
         color: '#666',
         fontSize: '14px',
         marginBottom: '20px',
+        cursor: 'pointer',
     },
     card: {
         backgroundColor: '#fff',
@@ -141,32 +135,44 @@ const styles: { [key: string]: React.CSSProperties } = {
         width: '20px',
         height: '20px',
         marginRight: '12px',
-        accentColor: '#111',
     },
     planContent: {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'flex-start',
         gap: '2px',
     },
-    planType: {
+    // Button styles that look like text but are independently selectable
+    planTypeBtn: {
+        background: 'none',
+        border: 'none',
+        padding: 0,
         fontSize: '11px',
         color: '#888',
         textTransform: 'uppercase',
         letterSpacing: '0.5px',
+        cursor: 'pointer',
+        textAlign: 'left',
     },
-    planName: {
+    planNameBtn: {
+        background: 'none',
+        border: 'none',
+        padding: 0,
         fontSize: '17px',
         fontWeight: '600',
         color: '#111',
+        cursor: 'pointer',
+        textAlign: 'left',
     },
-    planPrice: {
+    planPriceBtn: {
+        background: 'none',
+        border: 'none',
+        padding: 0,
         fontSize: '14px',
         color: '#666',
-    },
-    strikethrough: {
-        color: '#999',
-        marginRight: '4px',
+        cursor: 'pointer',
+        textAlign: 'left',
     },
     rightSide: {
         display: 'flex',
@@ -174,24 +180,31 @@ const styles: { [key: string]: React.CSSProperties } = {
         alignItems: 'flex-end',
         gap: '4px',
     },
-    savingsBadge: {
+    savingsBtn: {
         backgroundColor: '#aceec1',
         color: '#111',
         borderRadius: '10px',
         padding: '4px 8px',
         fontSize: '11px',
         fontWeight: '600',
+        border: 'none',
+        cursor: 'pointer',
     },
-    weeklyPrice: {
+    weeklyPriceBtn: {
+        background: 'none',
+        border: 'none',
+        padding: 0,
         fontSize: '15px',
         fontWeight: '600',
         color: '#111',
+        cursor: 'pointer',
     },
     promoText: {
         textAlign: 'center',
         color: '#666',
         fontSize: '14px',
         marginBottom: '80px',
+        cursor: 'pointer',
     },
     footer: {
         position: 'fixed',
