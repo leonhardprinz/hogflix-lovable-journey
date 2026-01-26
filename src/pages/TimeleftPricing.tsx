@@ -4,6 +4,7 @@ import posthog from 'posthog-js';
 interface PricingPlan {
     id: string;
     name: string;
+    planType: string;
     duration: string;
     originalPrice: number;
     price: number;
@@ -18,6 +19,7 @@ const TimeleftPricing: React.FC = () => {
         {
             id: '1-month',
             name: '1 Month',
+            planType: 'One-time Explorer',
             duration: '1 month',
             originalPrice: 16.99,
             price: 16.99,
@@ -26,6 +28,7 @@ const TimeleftPricing: React.FC = () => {
         {
             id: '3-months',
             name: '3 Months',
+            planType: 'Most Popular',
             duration: '3 months',
             originalPrice: 50.97,
             price: 39.99,
@@ -35,6 +38,7 @@ const TimeleftPricing: React.FC = () => {
         {
             id: '6-months',
             name: '6 Months',
+            planType: 'Long-term Commitment',
             duration: '6 months',
             originalPrice: 101.94,
             price: 54.99,
@@ -69,25 +73,34 @@ const TimeleftPricing: React.FC = () => {
                 </svg>
             </button>
 
-            <h1 style={styles.title}>Our plans</h1>
+            {/* Editable headline */}
+            <h1 id="pricing-headline" data-ph-capture-attribute-text="headline" style={styles.title}>
+                Your future awaits
+            </h1>
 
-            <div style={styles.emoticonContainer}>
-                <div style={{ ...styles.emoticon, ...styles.emoticonPink, top: '0%', left: '25%' }}>😊</div>
-                <div style={{ ...styles.emoticon, ...styles.emoticonYellow, top: '10%', right: '20%' }}>😉</div>
-                <div style={{ ...styles.emoticon, ...styles.emoticonBlue, top: '30%', left: '15%' }}>😌</div>
-                <div style={{ ...styles.emoticon, ...styles.emoticonGreen, bottom: '10%', left: '35%' }}>😊</div>
-                <div style={{ ...styles.emoticon, ...styles.emoticonPeach, top: '25%', right: '15%' }}>🙂</div>
-                <div style={styles.diamond}>💎</div>
+            {/* Hero image - easily swappable in experiments */}
+            <div style={styles.heroImageContainer}>
+                <img
+                    id="pricing-hero-image"
+                    data-ph-capture-attribute-image="hero"
+                    src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&h=200&fit=crop"
+                    alt="Happy people connecting"
+                    style={styles.heroImage}
+                />
             </div>
 
-            <p style={styles.valueProp}>
+            {/* Editable value proposition */}
+            <p id="pricing-value-prop" data-ph-capture-attribute-text="value-prop" style={styles.valueProp}>
                 Members are up to 93% more likely to find long lasting connections
             </p>
 
+            {/* Pricing cards */}
             <div style={styles.cardsContainer}>
                 {plans.map((plan) => (
                     <div
                         key={plan.id}
+                        id={`plan-card-${plan.id}`}
+                        data-ph-capture-attribute-plan={plan.id}
                         style={{
                             ...styles.card,
                             ...(selectedPlan === plan.id ? styles.cardSelected : {}),
@@ -104,33 +117,81 @@ const TimeleftPricing: React.FC = () => {
                                 {selectedPlan === plan.id && <div style={styles.radioButtonInner} />}
                             </div>
                             <div style={styles.planInfo}>
-                                <div style={styles.planName}>{plan.name}</div>
+                                {/* Plan type label - editable */}
+                                <span
+                                    id={`plan-type-${plan.id}`}
+                                    data-ph-capture-attribute-text={`plan-type-${plan.id}`}
+                                    style={styles.planType}
+                                >
+                                    {plan.planType}
+                                </span>
+                                {/* Plan name - editable */}
+                                <span
+                                    id={`plan-name-${plan.id}`}
+                                    data-ph-capture-attribute-text={`plan-name-${plan.id}`}
+                                    style={styles.planName}
+                                >
+                                    {plan.name}
+                                </span>
+                                {/* Price display */}
                                 <div style={styles.priceRow}>
                                     {plan.originalPrice !== plan.price && (
-                                        <span style={styles.originalPrice}>€{plan.originalPrice.toFixed(2)}</span>
+                                        <span
+                                            id={`plan-original-price-${plan.id}`}
+                                            style={styles.originalPrice}
+                                        >
+                                            €{plan.originalPrice.toFixed(2)}
+                                        </span>
                                     )}
-                                    <span style={styles.currentPrice}>€{plan.price.toFixed(2)}</span>
+                                    <span
+                                        id={`plan-price-${plan.id}`}
+                                        data-ph-capture-attribute-text={`price-${plan.id}`}
+                                        style={styles.currentPrice}
+                                    >
+                                        €{plan.price.toFixed(2)}
+                                    </span>
                                 </div>
                             </div>
                         </div>
                         <div style={styles.cardRight}>
-                            {plan.savings && <div style={styles.savingsBadge}>{plan.savings}</div>}
-                            <div style={styles.weeklyPrice}>{plan.weeklyPrice}</div>
+                            {plan.savings && (
+                                <span
+                                    id={`plan-savings-${plan.id}`}
+                                    data-ph-capture-attribute-text={`savings-${plan.id}`}
+                                    style={styles.savingsBadge}
+                                >
+                                    {plan.savings}
+                                </span>
+                            )}
+                            <span
+                                id={`plan-weekly-${plan.id}`}
+                                data-ph-capture-attribute-text={`weekly-${plan.id}`}
+                                style={styles.weeklyPrice}
+                            >
+                                {plan.weeklyPrice}
+                            </span>
                         </div>
                     </div>
                 ))}
             </div>
 
+            {/* Promo section */}
             <div style={styles.promoSection}>
-                <span style={styles.promoText}>Got a promo code?</span>
-                <button style={styles.promoLink}>Enter here</button>
+                <span id="promo-text" style={styles.promoText}>Got a promo code?</span>
+                <button id="promo-link" style={styles.promoLink}>Enter here</button>
             </div>
 
+            {/* Bottom CTA section */}
             <div style={styles.bottomSection}>
-                <p style={styles.summaryText}>
+                <p id="pricing-summary" style={styles.summaryText}>
                     €{selectedPlanData?.price.toFixed(2)} every {selectedPlanData?.duration}
                 </p>
-                <button style={styles.continueButton} onClick={handleContinue}>
+                <button
+                    id="cta-button"
+                    data-ph-capture-attribute-text="cta-button"
+                    style={styles.continueButton}
+                    onClick={handleContinue}
+                >
                     Continue
                 </button>
             </div>
@@ -158,44 +219,30 @@ const styles: { [key: string]: React.CSSProperties } = {
         padding: '8px',
     },
     title: {
-        fontSize: '32px',
+        fontSize: '28px',
         fontWeight: '400',
         color: '#111',
-        marginBottom: '20px',
+        marginBottom: '16px',
         fontFamily: 'Georgia, serif',
+        textAlign: 'center',
     },
-    emoticonContainer: {
-        position: 'relative',
+    heroImageContainer: {
+        width: '100%',
         height: '140px',
-        marginBottom: '20px',
+        marginBottom: '16px',
+        borderRadius: '16px',
+        overflow: 'hidden',
     },
-    emoticon: {
-        position: 'absolute',
-        fontSize: '28px',
-        width: '44px',
-        height: '44px',
-        borderRadius: '50%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    emoticonPink: { backgroundColor: '#ffc0cb' },
-    emoticonYellow: { backgroundColor: '#ffe4b5' },
-    emoticonBlue: { backgroundColor: '#b0e0e6' },
-    emoticonGreen: { backgroundColor: '#98d8c8' },
-    emoticonPeach: { backgroundColor: '#ffdab9' },
-    diamond: {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        fontSize: '48px',
+    heroImage: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
     },
     valueProp: {
         textAlign: 'center',
         color: '#666',
-        fontSize: '16px',
-        marginBottom: '24px',
+        fontSize: '15px',
+        marginBottom: '20px',
         lineHeight: '1.4',
     },
     cardsContainer: {
@@ -206,50 +253,100 @@ const styles: { [key: string]: React.CSSProperties } = {
     },
     card: {
         backgroundColor: '#fff',
-        borderRadius: '20px',
+        borderRadius: '16px',
         padding: '16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         cursor: 'pointer',
-        border: '1.5px solid transparent',
+        border: '2px solid transparent',
         transition: 'border-color 0.2s',
     },
-    cardSelected: { border: '1.5px solid #111' },
-    cardLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
+    cardSelected: {
+        border: '2px solid #111',
+    },
+    cardLeft: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+    },
     radioButton: {
-        width: '20px',
-        height: '20px',
+        width: '22px',
+        height: '22px',
         borderRadius: '50%',
-        border: '1.5px solid #111',
+        border: '2px solid #111',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        flexShrink: 0,
     },
-    radioButtonSelected: { backgroundColor: '#111' },
+    radioButtonSelected: {
+        backgroundColor: '#111',
+    },
     radioButtonInner: {
         width: '8px',
         height: '8px',
         borderRadius: '50%',
         backgroundColor: '#fff',
     },
-    planInfo: { display: 'flex', flexDirection: 'column', gap: '4px' },
-    planName: { fontSize: '16px', fontWeight: '600', color: '#111' },
-    priceRow: { display: 'flex', gap: '8px', alignItems: 'center' },
-    originalPrice: { fontSize: '14px', color: '#999', textDecoration: 'line-through' },
-    currentPrice: { fontSize: '14px', color: '#666' },
-    cardRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' },
+    planInfo: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+    },
+    planType: {
+        fontSize: '11px',
+        fontWeight: '500',
+        color: '#888',
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+    },
+    planName: {
+        fontSize: '17px',
+        fontWeight: '600',
+        color: '#111',
+    },
+    priceRow: {
+        display: 'flex',
+        gap: '8px',
+        alignItems: 'center',
+    },
+    originalPrice: {
+        fontSize: '14px',
+        color: '#999',
+        textDecoration: 'line-through',
+    },
+    currentPrice: {
+        fontSize: '14px',
+        color: '#666',
+    },
+    cardRight: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        gap: '4px',
+    },
     savingsBadge: {
         backgroundColor: '#aceec1',
         color: '#111',
         borderRadius: '12px',
-        padding: '4px 8px',
+        padding: '4px 10px',
         fontSize: '12px',
-        fontWeight: '500',
+        fontWeight: '600',
     },
-    weeklyPrice: { fontSize: '16px', fontWeight: '600', color: '#111' },
-    promoSection: { textAlign: 'center', marginBottom: '80px' },
-    promoText: { color: '#666', fontSize: '14px' },
+    weeklyPrice: {
+        fontSize: '16px',
+        fontWeight: '600',
+        color: '#111',
+    },
+    promoSection: {
+        textAlign: 'center',
+        marginBottom: '100px',
+    },
+    promoText: {
+        color: '#666',
+        fontSize: '14px',
+    },
     promoLink: {
         background: 'none',
         border: 'none',
@@ -269,12 +366,16 @@ const styles: { [key: string]: React.CSSProperties } = {
         background: 'linear-gradient(to top, #f7f3ed 80%, transparent)',
         textAlign: 'center',
     },
-    summaryText: { color: '#111', fontSize: '14px', marginBottom: '12px' },
+    summaryText: {
+        color: '#111',
+        fontSize: '14px',
+        marginBottom: '12px',
+    },
     continueButton: {
         backgroundColor: '#111',
         color: '#fff',
         border: 'none',
-        borderRadius: '65px',
+        borderRadius: '30px',
         height: '52px',
         width: '100%',
         maxWidth: '360px',
