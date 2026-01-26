@@ -24,6 +24,7 @@ import FlixBuddy from "./pages/FlixBuddy";
 import NotFound from "./pages/NotFound";
 import Pricing from "./pages/Pricing";
 import TimeleftPricing from "./pages/TimeleftPricing";
+import DevLinks from "./pages/DevLinks";
 import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import NewsletterPreferences from "./pages/NewsletterPreferences";
@@ -115,6 +116,7 @@ const AppContent = () => {
           <Route path="/terms" element={<Terms />} />
           <Route path="/faq" element={<FAQ />} />
           <Route path="/help" element={<Help />} />
+          <Route path="/dev" element={<DevLinks />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
