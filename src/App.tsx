@@ -23,6 +23,7 @@ import SubmitContent from "./pages/SubmitContent";
 import FlixBuddy from "./pages/FlixBuddy";
 import NotFound from "./pages/NotFound";
 import Pricing from "./pages/Pricing";
+import TimeleftPricing from "./pages/TimeleftPricing";
 import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import NewsletterPreferences from "./pages/NewsletterPreferences";
@@ -38,7 +39,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const location = useLocation();
-  const hideFooter = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/flixbuddy';
+  const hideFooter = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/flixbuddy' || location.pathname === '/timeleft-pricing';
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -46,6 +47,7 @@ const AppContent = () => {
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/timeleft-pricing" element={<TimeleftPricing />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/profiles" element={
