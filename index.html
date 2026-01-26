@@ -1,37 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HogFlix - Premium Streaming Experience</title>
-    <meta name="description" content="Netflix-style streaming platform built with PostHog analytics" />
-    <meta name="author" content="HogFlix" />
-    
-    <!-- Security Headers -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.posthog.com https://eu.i.posthog.com https://eu-assets.i.posthog.com https://internal-j.posthog.com https://cdn.jsdelivr.net blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.posthog.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co https://lovable.dev https://picsum.photos https://*.posthog.com; media-src 'self' blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co https://*.posthog.com wss://*.supabase.co; frame-src 'self' https://*.posthog.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';">
-    <meta http-equiv="X-Frame-Options" content="DENY">
-    <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
-    <meta name="referrer" content="strict-origin-when-cross-origin">
-    <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=()">
-  
-    <!-- Google Fonts - Manrope -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
 
-    <meta property="og:title" content="HogFlix - Premium Streaming" />
-    <meta property="og:description" content="Netflix-style streaming platform with PostHog analytics" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HogFlix - Premium Streaming Experience</title>
+  <meta name="description" content="Netflix-style streaming platform built with PostHog analytics" />
+  <meta name="author" content="HogFlix" />
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@lovable_dev" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-  </head>
+  <!-- Security Headers -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.posthog.com https://eu.i.posthog.com https://eu-assets.i.posthog.com https://internal-j.posthog.com https://cdn.jsdelivr.net blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.posthog.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co https://lovable.dev https://picsum.photos https://images.unsplash.com https://*.posthog.com; media-src 'self' blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co https://*.posthog.com wss://*.supabase.co; frame-src 'self' https://*.posthog.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=()">
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <!-- Google Fonts - Manrope -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <meta property="og:title" content="HogFlix - Premium Streaming" />
+  <meta property="og:description" content="Netflix-style streaming platform with PostHog analytics" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@lovable_dev" />
+  <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>
