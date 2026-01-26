@@ -1,52 +1,262 @@
 import React from 'react';
 
+/**
+ * Timeleft-style pricing page optimized for PostHog Web Experiments
+ * 
+ * Key: Every editable element uses data-ph-capture for stable selector targeting
+ * Reference: https://posthog.com/docs/toolbar
+ */
 const TimeleftPricing: React.FC = () => {
     return (
-        <div style={{ backgroundColor: '#1a1a2e', minHeight: '100vh', padding: '24px', maxWidth: '420px', margin: '0 auto', fontFamily: 'system-ui', color: '#fff' }}>
+        <main style={styles.page}>
 
-            <h1 id="headline" data-attr="headline" style={{ fontSize: '32px', textAlign: 'center', fontWeight: '300', marginBottom: '20px' }}>
+            {/* HEADLINE - editable */}
+            <h1
+                id="headline"
+                data-ph-capture="headline"
+                style={styles.headline}
+            >
                 Your future awaits
             </h1>
 
+            {/* HERO IMAGE - editable */}
             <img
-                id="hero-image"
+                id="hero-img"
+                data-ph-capture="hero-image"
                 src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&h=200&fit=crop"
-                style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '16px', marginBottom: '20px' }}
+                alt="People connecting"
+                style={styles.heroImg}
             />
 
-            <p id="value-prop" data-attr="value-prop" style={{ textAlign: 'center', color: '#aaa', fontSize: '15px', marginBottom: '32px' }}>
+            {/* VALUE PROPOSITION - editable */}
+            <p
+                id="value-prop"
+                data-ph-capture="value-proposition"
+                style={styles.valueProp}
+            >
                 Members are up to 93% more likely to find long lasting connections
             </p>
 
-            {/* PLAN 1 - NO wrapper div, direct elements */}
-            <p id="plan1-label" data-attr="plan1-label" style={{ fontSize: '12px', color: '#666', textTransform: 'uppercase', marginBottom: '6px' }}>ONE-TIME EXPLORER</p>
-            <p id="plan1-name" data-attr="plan1-name" style={{ fontSize: '22px', fontWeight: '600', marginBottom: '6px' }}>1 Month</p>
-            <p id="plan1-price" data-attr="plan1-price" style={{ fontSize: '16px', color: '#aaa', marginBottom: '24px' }}>€16.99 — €4.25/week</p>
+            {/* PLAN 1 LABEL */}
+            <h2
+                id="plan1-label"
+                data-ph-capture="plan1-label"
+                style={styles.planLabel}
+            >
+                ONE-TIME EXPLORER
+            </h2>
 
-            {/* PLAN 2 - NO wrapper div */}
-            <p id="plan2-label" data-attr="plan2-label" style={{ fontSize: '12px', color: '#4CAF50', textTransform: 'uppercase', marginBottom: '6px' }}>MOST POPULAR ⭐</p>
-            <p id="plan2-name" data-attr="plan2-name" style={{ fontSize: '22px', fontWeight: '600', marginBottom: '6px' }}>3 Months</p>
-            <p id="plan2-price" data-attr="plan2-price" style={{ fontSize: '16px', color: '#aaa', marginBottom: '8px' }}>€39.99 — €3.33/week</p>
-            <p id="plan2-savings" data-attr="plan2-savings" style={{ display: 'inline-block', backgroundColor: '#4CAF50', color: '#000', padding: '6px 14px', borderRadius: '20px', fontSize: '14px', fontWeight: '600', marginBottom: '24px' }}>Save 22%</p>
+            {/* PLAN 1 NAME */}
+            <h3
+                id="plan1-name"
+                data-ph-capture="plan1-name"
+                style={styles.planName}
+            >
+                1 Month
+            </h3>
 
-            {/* PLAN 3 - NO wrapper div */}
-            <p id="plan3-label" data-attr="plan3-label" style={{ fontSize: '12px', color: '#666', textTransform: 'uppercase', marginBottom: '6px' }}>LONG-TERM COMMITMENT</p>
-            <p id="plan3-name" data-attr="plan3-name" style={{ fontSize: '22px', fontWeight: '600', marginBottom: '6px' }}>6 Months</p>
-            <p id="plan3-price" data-attr="plan3-price" style={{ fontSize: '16px', color: '#aaa', marginBottom: '8px' }}>€54.99 — €2.29/week</p>
-            <p id="plan3-savings" data-attr="plan3-savings" style={{ display: 'inline-block', backgroundColor: '#4CAF50', color: '#000', padding: '6px 14px', borderRadius: '20px', fontSize: '14px', fontWeight: '600', marginBottom: '24px' }}>Save 46%</p>
+            {/* PLAN 1 PRICE */}
+            <p
+                id="plan1-price"
+                data-ph-capture="plan1-price"
+                style={styles.planPrice}
+            >
+                €16.99 — €4.25/week
+            </p>
 
-            <p id="promo" data-attr="promo" style={{ textAlign: 'center', color: '#888', marginBottom: '100px' }}>Got a promo code? <u style={{ color: '#fff' }}>Enter here</u></p>
+            <hr style={styles.divider} />
 
-            <button id="cta" data-attr="cta" style={{
-                position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)',
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                color: '#fff', border: 'none', borderRadius: '30px',
-                height: '56px', width: '90%', maxWidth: '380px', fontSize: '18px', fontWeight: '600', cursor: 'pointer'
-            }}>
+            {/* PLAN 2 LABEL */}
+            <h2
+                id="plan2-label"
+                data-ph-capture="plan2-label"
+                style={{ ...styles.planLabel, color: '#4CAF50' }}
+            >
+                MOST POPULAR ⭐
+            </h2>
+
+            {/* PLAN 2 NAME */}
+            <h3
+                id="plan2-name"
+                data-ph-capture="plan2-name"
+                style={styles.planName}
+            >
+                3 Months
+            </h3>
+
+            {/* PLAN 2 PRICE */}
+            <p
+                id="plan2-price"
+                data-ph-capture="plan2-price"
+                style={styles.planPrice}
+            >
+                €39.99 — €3.33/week
+            </p>
+
+            {/* PLAN 2 SAVINGS BADGE */}
+            <span
+                id="plan2-savings"
+                data-ph-capture="plan2-savings"
+                style={styles.savingsBadge}
+            >
+                Save 22%
+            </span>
+
+            <hr style={styles.divider} />
+
+            {/* PLAN 3 LABEL */}
+            <h2
+                id="plan3-label"
+                data-ph-capture="plan3-label"
+                style={styles.planLabel}
+            >
+                LONG-TERM COMMITMENT
+            </h2>
+
+            {/* PLAN 3 NAME */}
+            <h3
+                id="plan3-name"
+                data-ph-capture="plan3-name"
+                style={styles.planName}
+            >
+                6 Months
+            </h3>
+
+            {/* PLAN 3 PRICE */}
+            <p
+                id="plan3-price"
+                data-ph-capture="plan3-price"
+                style={styles.planPrice}
+            >
+                €54.99 — €2.29/week
+            </p>
+
+            {/* PLAN 3 SAVINGS BADGE */}
+            <span
+                id="plan3-savings"
+                data-ph-capture="plan3-savings"
+                style={styles.savingsBadge}
+            >
+                Save 46%
+            </span>
+
+            <hr style={styles.divider} />
+
+            {/* PROMO TEXT */}
+            <p
+                id="promo"
+                data-ph-capture="promo-text"
+                style={styles.promoText}
+            >
+                Got a promo code? Enter here
+            </p>
+
+            {/* CTA BUTTON */}
+            <button
+                id="cta"
+                data-ph-capture="cta-button"
+                style={styles.ctaButton}
+            >
                 Continue
             </button>
-        </div>
+
+        </main>
     );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+    page: {
+        backgroundColor: '#1a1a2e',
+        minHeight: '100vh',
+        padding: '32px 24px 120px',
+        maxWidth: '400px',
+        margin: '0 auto',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        color: '#ffffff',
+    },
+    headline: {
+        fontSize: '28px',
+        fontWeight: 300,
+        textAlign: 'center',
+        marginBottom: '24px',
+        cursor: 'pointer',
+    },
+    heroImg: {
+        width: '100%',
+        height: '140px',
+        objectFit: 'cover',
+        borderRadius: '12px',
+        marginBottom: '24px',
+        display: 'block',
+    },
+    valueProp: {
+        textAlign: 'center',
+        color: '#aaaaaa',
+        fontSize: '15px',
+        lineHeight: 1.5,
+        marginBottom: '32px',
+        cursor: 'pointer',
+    },
+    planLabel: {
+        fontSize: '12px',
+        fontWeight: 500,
+        color: '#666666',
+        textTransform: 'uppercase',
+        letterSpacing: '1px',
+        marginBottom: '8px',
+        cursor: 'pointer',
+    },
+    planName: {
+        fontSize: '24px',
+        fontWeight: 600,
+        marginBottom: '8px',
+        cursor: 'pointer',
+    },
+    planPrice: {
+        fontSize: '16px',
+        color: '#aaaaaa',
+        marginBottom: '12px',
+        cursor: 'pointer',
+    },
+    savingsBadge: {
+        display: 'inline-block',
+        backgroundColor: '#4CAF50',
+        color: '#000000',
+        padding: '8px 16px',
+        borderRadius: '20px',
+        fontSize: '14px',
+        fontWeight: 600,
+        marginBottom: '16px',
+        cursor: 'pointer',
+    },
+    divider: {
+        border: 'none',
+        borderTop: '1px solid #333',
+        margin: '24px 0',
+    },
+    promoText: {
+        textAlign: 'center',
+        color: '#888888',
+        fontSize: '14px',
+        marginBottom: '32px',
+        cursor: 'pointer',
+    },
+    ctaButton: {
+        position: 'fixed',
+        bottom: '32px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: '#ffffff',
+        border: 'none',
+        borderRadius: '28px',
+        height: '56px',
+        width: 'calc(100% - 48px)',
+        maxWidth: '352px',
+        fontSize: '18px',
+        fontWeight: 600,
+        cursor: 'pointer',
+    },
 };
 
 export default TimeleftPricing;
