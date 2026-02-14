@@ -11,13 +11,13 @@ interface UnifiedVideoPlayerProps {
   thumbnailUrl: string;
   duration: number;
   isHLS?: boolean;
-  
+
   // Resume watching (optional)
   resumeMessage?: string | null;
   showStartOverButton?: boolean;
   onContinue?: () => void;
   onStartOver?: () => void;
-  
+
   // Callbacks for custom tracking
   onVideoAreaClick?: (action: 'play' | 'pause', currentTime: number) => void;
   onPlaybackRateChange?: (rate: number) => void;
@@ -29,7 +29,7 @@ interface UnifiedVideoPlayerProps {
   onPause?: () => void;
   onEnded?: () => void;
   onReady?: () => void;
-  
+
   // Optional autoplay
   autoplay?: boolean;
 }
@@ -100,6 +100,10 @@ export const UnifiedVideoPlayer = ({
     autoplay,
   });
 
+  // Store onReady in a ref to avoid it causing effect re-runs
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+
   // Setup HLS or direct video source
   useEffect(() => {
     if (!videoRef.current || !videoUrl) return;
@@ -112,7 +116,7 @@ export const UnifiedVideoPlayer = ({
         hls.attachMedia(videoRef.current);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          onReady?.();
+          onReadyRef.current?.();
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -132,10 +136,13 @@ export const UnifiedVideoPlayer = ({
         videoRef.current.src = videoUrl;
       }
     } else {
-      // Regular MP4 video
-      videoRef.current.src = videoUrl;
+      // Regular MP4 video — only set src if it actually changed
+      if (videoRef.current.src !== videoUrl) {
+        videoRef.current.src = videoUrl;
+      }
     }
-  }, [videoUrl, isHLS, onReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoUrl, isHLS]);
 
   // Handle video ended event
   useEffect(() => {
@@ -216,9 +223,9 @@ export const UnifiedVideoPlayer = ({
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
     }
-    
+
     setShowControls(true);
-    
+
     if (isPlaying) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
@@ -303,7 +310,7 @@ export const UnifiedVideoPlayer = ({
       />
 
       {/* Click overlay for play/pause - excludes controls area */}
-      <div 
+      <div
         className="absolute inset-0 bottom-16 cursor-pointer z-10"
         onClick={handleVideoAreaClick}
       />
@@ -338,12 +345,11 @@ export const UnifiedVideoPlayer = ({
           </Button>
         </div>
       )}
-      
+
       {/* Video Controls Bar */}
-      <div 
-        className={`relative z-30 transition-opacity duration-300 ${
-          showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
-        }`}
+      <div
+        className={`relative z-30 transition-opacity duration-300 ${showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
+          }`}
       >
         <VideoControls
           isPlaying={isPlaying}
