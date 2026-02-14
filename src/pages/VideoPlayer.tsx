@@ -50,7 +50,7 @@ const VideoPlayer = () => {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [hasEarlyAccess, setHasEarlyAccess] = useState(false);
   const aiSummariesFlagEnabled = useFeatureFlagEnabled('early_access_ai_summaries');
-  
+
   const hasAppliedResume = useRef(false);
   const initialProgressRef = useRef<typeof progress | null>(null);
   const navigate = useNavigate();
@@ -62,7 +62,7 @@ const VideoPlayer = () => {
   // Handle time updates with progress tracking
   const handleTimeUpdate = (currentTimeValue: number, duration: number) => {
     setCurrentTime(currentTimeValue);
-    
+
     if (video && selectedProfile) {
       const progressPercentage = (currentTimeValue / duration) * 100;
       const now = Date.now();
@@ -110,7 +110,7 @@ const VideoPlayer = () => {
       // Track completion
       if (progressPercentage >= 95) {
         const sourceSection = sessionStorage.getItem('video_source_section') || 'unknown';
-        
+
         posthog.capture('video:completed', {
           video_id: video.id,
           category: categoryName,
@@ -118,7 +118,7 @@ const VideoPlayer = () => {
           profile_id: selectedProfile.id,
           total_duration: duration
         });
-        
+
         // Video completed event for A/B test tracking
         posthog.capture('video:completed', {
           content_id: video.id,
@@ -129,7 +129,7 @@ const VideoPlayer = () => {
           profile_id: selectedProfile.id,
           session_id: sessionId
         });
-        
+
         // Update user properties
         setTimeout(async () => {
           const { count: completedCount } = await supabase
@@ -137,16 +137,16 @@ const VideoPlayer = () => {
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user?.id)
             .eq('completed', true);
-          
+
           const { data: watchData } = await supabase
             .from('watch_progress')
             .select('progress_seconds')
             .eq('user_id', user?.id);
-          
+
           const totalMinutes = Math.round(
             (watchData?.reduce((sum, w) => sum + (w.progress_seconds || 0), 0) || 0) / 60
           );
-          
+
           trackVideoCompletion(completedCount || 0, totalMinutes);
         }, 0);
       }
@@ -157,7 +157,7 @@ const VideoPlayer = () => {
     const initializePlayer = async () => {
       // Check authentication
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session?.user) {
         navigate('/login');
         return;
@@ -178,7 +178,7 @@ const VideoPlayer = () => {
         if (import.meta.env.DEV) {
           console.log('🎬 Initializing video player for:', videoId);
         }
-        
+
         // Step 1: Load video metadata
         const { data: videoData, error: videoError } = await supabase
           .from('videos')
@@ -197,7 +197,7 @@ const VideoPlayer = () => {
         }
         setVideo(videoData);
         setAiSummary(videoData.ai_summary);
-        
+
         // Fetch category name separately (no FK relationship exists)
         let fetchedCategoryName = 'Unknown';
         if (videoData.category_id) {
@@ -206,7 +206,7 @@ const VideoPlayer = () => {
             .select('name')
             .eq('id', videoData.category_id)
             .single();
-          
+
           fetchedCategoryName = categoryData?.name || 'Unknown';
         }
         setCategoryName(fetchedCategoryName);
@@ -260,7 +260,7 @@ const VideoPlayer = () => {
         // Get source section from session storage
         const sourceSection = sessionStorage.getItem('video_source_section') || 'unknown';
         const sectionPriorityVariant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test') || 'unknown';
-        
+
         // PostHog analytics
         posthog.capture('video:session_started', {
           video_id: videoId,
@@ -272,7 +272,7 @@ const VideoPlayer = () => {
           source_section: sourceSection,
           source_section_variant: sectionPriorityVariant
         });
-        
+
         // Video started event for A/B test tracking
         posthog.capture('video:started', {
           content_id: videoId,
@@ -282,14 +282,14 @@ const VideoPlayer = () => {
           profile_id: selectedProfile?.id,
           session_id: sessionId
         });
-        
+
         // Update user properties - query for total videos watched count
         setTimeout(async () => {
           const { count: watchedCount } = await supabase
             .from('watch_progress')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user?.id);
-          
+
           trackVideoStarted(watchedCount || 0);
         }, 0);
 
@@ -302,7 +302,8 @@ const VideoPlayer = () => {
     };
 
     initializePlayer();
-  }, [navigate, selectedProfile, videoId, loadProgress, sessionId, posthog, video, categoryName, milestone25, milestone50, milestone75, user, saveProgress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoId, selectedProfile, navigate]);
 
   const loadRatingData = async () => {
     if (!videoId) return;
@@ -311,15 +312,15 @@ const VideoPlayer = () => {
       // Get average rating and count
       const { data: avgData } = await supabase.rpc('get_video_average_rating', { video_id_param: videoId });
       const { data: countData } = await supabase.rpc('get_video_rating_count', { video_id_param: videoId });
-      
+
       setAverageRating(avgData || 0);
       setTotalRatings(countData || 0);
 
       // Get user's rating if authenticated and profile selected
       if (user && selectedProfile) {
-        const { data: userRatingData } = await supabase.rpc('get_user_video_rating', { 
+        const { data: userRatingData } = await supabase.rpc('get_user_video_rating', {
           video_id_param: videoId,
-          profile_id_param: selectedProfile.id 
+          profile_id_param: selectedProfile.id
         });
         setUserRating(userRatingData || null);
       }
@@ -351,7 +352,7 @@ const VideoPlayer = () => {
   useEffect(() => {
     const hasAccess = selectedProfile?.early_access_features?.includes('ai_summaries') || false;
     setHasEarlyAccess(hasAccess);
-    
+
     if (import.meta.env.DEV) {
       console.log('🎯 Early access check:', {
         profileId: selectedProfile?.id,
@@ -363,31 +364,31 @@ const VideoPlayer = () => {
 
   const handleGenerateSummary = async () => {
     if (!video?.id || isGeneratingSummary) return;
-    
+
     setIsGeneratingSummary(true);
-    
+
     try {
       const { data, error } = await supabase.functions.invoke('generate-video-summary', {
         body: { videoId: video.id }
       });
-      
+
       if (error) throw error;
-      
+
       setAiSummary(data.summary);
-      
+
       // Track summary generation
       posthog.capture('ai_summary:generated', {
         video_id: video.id,
         video_title: video.title,
         cached: data.cached || false
       });
-      
+
       // Track summary viewed
       posthog.capture('ai_summary:viewed', {
         video_id: video.id,
         video_title: video.title
       });
-      
+
       toast.success('✨ AI Summary generated!');
       if (import.meta.env.DEV) {
         console.log('✅ AI Summary generated');
@@ -478,7 +479,7 @@ const VideoPlayer = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Browse
           </Button>
-          
+
           <div className="text-center py-20">
             <h1 className="text-2xl font-bold text-text-primary font-manrope mb-4">
               {error || 'Video not found'}
@@ -495,7 +496,7 @@ const VideoPlayer = () => {
   return (
     <div className="min-h-screen bg-background-dark">
       <Header />
-      
+
       <div className="container-netflix py-8">
         {/* Back Button */}
         <Button
@@ -555,13 +556,13 @@ const VideoPlayer = () => {
             <h1 className="text-3xl lg:text-4xl font-bold text-text-primary font-manrope">
               {video.title}
             </h1>
-            
+
             {video.description && (
               <p className="text-text-secondary font-manrope text-lg leading-relaxed max-w-4xl">
                 {video.description}
               </p>
             )}
-            
+
             <div className="text-text-tertiary font-manrope mb-6">
               Duration: {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
             </div>

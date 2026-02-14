@@ -110,11 +110,11 @@ jobs:
           PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.PH_HOST }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_URL: https://kawxtrzyllgzmmwfddil.supabase.co
+          SUPABASE_URL: https://ygbftctnpvxhflpamjrt.supabase.co
           STATE_DIR: .synthetic_state
           PERSONA_POOL: 400
           ENABLE_ORGANIC_EXPLORATION: true
-          APP_URL: https://hogflix-demo.lovable.app
+          APP_URL: https://hogflix-project-n1lumcb0k-leonhards-projects-8233f326.vercel.app
         continue-on-error: true
 
       # --- BROWSER FLOWS (PLAYWRIGHT REQUIRED) ---
@@ -147,7 +147,7 @@ jobs:
           fi
         env:
           STATE_DIR: .synthetic_state
-          APP_URL: https://hogflix-demo.lovable.app
+          APP_URL: https://hogflix-project-n1lumcb0k-leonhards-projects-8233f326.vercel.app
           NEW_USER_COUNT: 10
           DEBUG: false
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
@@ -174,7 +174,7 @@ jobs:
           fi
         env:
           STATE_DIR: .synthetic_state
-          APP_URL: https://hogflix-demo.lovable.app
+          APP_URL: https://hogflix-project-n1lumcb0k-leonhards-projects-8233f326.vercel.app
           RETURNING_USER_COUNT: 30
           DEBUG: false
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
@@ -201,7 +201,7 @@ jobs:
           fi
         env:
           STATE_DIR: .synthetic_state
-          APP_URL: https://hogflix-demo.lovable.app
+          APP_URL: https://hogflix-project-n1lumcb0k-leonhards-projects-8233f326.vercel.app
           PRICING_FUNNEL_COUNT: 20
           DEBUG: false
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
@@ -214,7 +214,7 @@ jobs:
           node scripts/playwright-bot.js || echo "⚠️  Legacy bot completed with warnings"
         env:
           STATE_DIR: .synthetic_state
-          APP_URL: https://hogflix-demo.lovable.app
+          APP_URL: https://hogflix-project-n1lumcb0k-leonhards-projects-8233f326.vercel.app
         continue-on-error: true
 
       # --- SESSION REPLAY DEMO ---
@@ -235,7 +235,7 @@ jobs:
             exit 1
           fi
         env:
-          APP_URL: https://hogflix-demo.lovable.app
+          APP_URL: https://hogflix-project-n1lumcb0k-leonhards-projects-8233f326.vercel.app
           DEBUG: true
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
         continue-on-error: false

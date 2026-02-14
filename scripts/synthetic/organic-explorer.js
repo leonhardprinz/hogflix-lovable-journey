@@ -7,7 +7,7 @@ import { discoverRoutes, getRouteMetadata, getNavigationSuggestions } from './ro
 import { generateSessionTimestamp, generateEventTimestamp } from './temporal-distribution.js'
 
 const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
-const SUPABASE_URL = 'https://kawxtrzyllgzmmwfddil.supabase.co'
+const SUPABASE_URL = 'https://ygbftctnpvxhflpamjrt.supabase.co'
 const DEBUG = process.env.DEBUG === 'true'
 
 // Initialize PostHog
@@ -28,9 +28,9 @@ async function extractLinks(page, currentUrl) {
         className: a.className,
         isNav: a.closest('nav') !== null,
         isButton: a.classList.contains('button') || a.closest('button') !== null,
-      })).filter(link => 
-        link.href && 
-        link.href.startsWith('/') && 
+      })).filter(link =>
+        link.href &&
+        link.href.startsWith('/') &&
         !link.href.startsWith('/#') &&
         link.text.length > 0 &&
         link.text.length < 100
@@ -40,7 +40,7 @@ async function extractLinks(page, currentUrl) {
     // Deduplicate and prioritize
     const unique = []
     const seen = new Set()
-    
+
     for (const link of links) {
       if (!seen.has(link.href)) {
         seen.add(link.href)
@@ -86,7 +86,7 @@ async function getJourneyDecision(persona, currentPage, availableLinks, visitedP
     }
 
     const result = await response.json()
-    
+
     if (!result.success) {
       throw new Error(result.error || 'Decision failed')
     }
@@ -95,7 +95,7 @@ async function getJourneyDecision(persona, currentPage, availableLinks, visitedP
 
   } catch (error) {
     console.error('  ❌ AI decision error:', error.message)
-    
+
     // Fallback: random link with preference for navigation
     const navLinks = availableLinks.filter(l => l.type === 'navigation')
     if (navLinks.length > 0) {
@@ -107,7 +107,7 @@ async function getJourneyDecision(persona, currentPage, availableLinks, visitedP
         estimatedDuration: 3000,
       }
     }
-    
+
     // End session if no good options
     return {
       action: 'end',
@@ -157,12 +157,12 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
   try {
     // Start at home page
     let currentUrl = '/'
-    
+
     while (currentDepth < maxDepth) {
       const fullUrl = `${APP_URL}${currentUrl}`
-      
+
       console.log(`\n  [${currentDepth + 1}/${maxDepth}] Navigating to: ${currentUrl}`)
-      
+
       // Navigate to page
       await page.goto(fullUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
       await page.waitForTimeout(1500 + Math.random() * 1500)
@@ -189,14 +189,14 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
 
       // Get page metadata
       const metadata = getRouteMetadata(currentUrl)
-      
+
       // Wait for typical duration on this page type
       const dwell = metadata.typicalDuration * (0.7 + Math.random() * 0.6) // Randomize ±30%
       await page.waitForTimeout(Math.min(dwell, 10000)) // Cap at 10s for speed
 
       // Extract available links
       const availableLinks = await extractLinks(page, currentUrl)
-      
+
       if (DEBUG) {
         console.log(`  📍 Found ${availableLinks.length} navigation options`)
       }
@@ -235,7 +235,7 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
       } else if (decision.action === 'navigate') {
         // Update current URL and continue loop
         currentUrl = decision.target
-        
+
         // Update goal if provided
         if (decision.nextGoal) {
           sessionGoal = decision.nextGoal
@@ -244,7 +244,7 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
         // Simulate interaction on current page
         console.log(`  🎯 Interacting: ${decision.target}`)
         await page.waitForTimeout(decision.estimatedDuration || 2000)
-        
+
         // Track interaction with timestamp
         await capture('organic:page_interaction', {
           page: currentUrl,
@@ -262,7 +262,7 @@ export async function runOrganicExploration(persona, maxDepth = 10) {
     }
 
     console.log(`\n  ✅ Session complete: visited ${visitedPages.length} pages`)
-    
+
     // Track session summary with timestamp
     await capture('organic:session_complete', {
       pages_visited: visitedPages.length,
@@ -354,11 +354,11 @@ export async function runOrganicExplorers(personas, count = 10) {
   for (let i = 0; i < selectedPersonas.length; i++) {
     const persona = selectedPersonas[i]
     console.log(`\n[${i + 1}/${selectedPersonas.length}] Persona: ${persona.distinct_id}`)
-    
+
     // Determine exploration depth based on persona
     const maxDepth = persona.activity_pattern === 'DAILY' ? 8 :
-                     persona.activity_pattern === 'CASUAL' ? 3 :
-                     persona.activity_pattern === 'BINGE' ? 5 : 5
+      persona.activity_pattern === 'CASUAL' ? 3 :
+        persona.activity_pattern === 'BINGE' ? 5 : 5
 
     const result = await runOrganicExploration(persona, maxDepth)
     results.push({

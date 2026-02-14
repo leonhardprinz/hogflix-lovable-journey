@@ -8,7 +8,7 @@ import path from 'node:path'
 const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const AI_BEHAVIORS_FILE = path.join(STATE_DIR, 'ai_behaviors.json')
-const SUPABASE_URL = 'https://kawxtrzyllgzmmwfddil.supabase.co'
+const SUPABASE_URL = 'https://ygbftctnpvxhflpamjrt.supabase.co'
 const DEBUG = process.env.DEBUG === 'true'
 
 // Pages to analyze
@@ -46,11 +46,11 @@ function saveAIBehaviors(behaviors) {
 
 function shouldRefreshAnalysis(lastAnalyzedAt) {
   if (!lastAnalyzedAt) return true
-  
+
   const lastDate = new Date(lastAnalyzedAt)
   const now = new Date()
   const daysSince = (now - lastDate) / (1000 * 60 * 60 * 24)
-  
+
   return daysSince >= ANALYSIS_REFRESH_DAYS
 }
 
@@ -60,12 +60,12 @@ async function capturePageDOM(page, url, selector) {
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 })
     await page.waitForTimeout(2000) // Let page settle
-    
+
     const html = await page.evaluate((sel) => {
       const element = document.querySelector(sel)
       return element ? element.outerHTML : document.body.outerHTML
     }, selector)
-    
+
     return html
   } catch (error) {
     console.error(`  ❌ Error capturing ${url}:`, error.message)
@@ -78,7 +78,7 @@ async function capturePageDOM(page, url, selector) {
 async function analyzePageWithAI(pageName, pageUrl, pageHtml, existingBehaviors = []) {
   try {
     console.log(`  🤖 Analyzing ${pageName} with Gemini AI...`)
-    
+
     const response = await fetch(`${SUPABASE_URL}/functions/v1/analyze-page-structure`, {
       method: 'POST',
       headers: {
@@ -98,7 +98,7 @@ async function analyzePageWithAI(pageName, pageUrl, pageHtml, existingBehaviors 
     }
 
     const result = await response.json()
-    
+
     if (!result.success) {
       throw new Error(result.error || 'Analysis failed')
     }
@@ -117,7 +117,7 @@ async function analyzePageWithAI(pageName, pageUrl, pageHtml, existingBehaviors 
 async function generateBehaviors(analysis, pageName, pageUrl, personaType = 'general') {
   try {
     console.log(`  🎬 Generating behaviors for ${pageName} (${personaType} persona)...`)
-    
+
     const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-synthetic-behaviors`, {
       method: 'POST',
       headers: {
@@ -137,7 +137,7 @@ async function generateBehaviors(analysis, pageName, pageUrl, personaType = 'gen
     }
 
     const result = await response.json()
-    
+
     if (!result.success) {
       throw new Error(result.error || 'Generation failed')
     }
@@ -166,7 +166,7 @@ export async function runPhase4Analysis() {
   for (const pageConfig of PAGES_TO_ANALYZE) {
     const pageKey = pageConfig.name.toLowerCase()
     const existingData = allBehaviors[pageKey] || {}
-    
+
     console.log(`\n📄 ${pageConfig.name} (${pageConfig.url})`)
 
     // Check if analysis needed
@@ -181,7 +181,7 @@ export async function runPhase4Analysis() {
     // Capture DOM
     const fullUrl = `${APP_URL}${pageConfig.url}`
     const pageHtml = await capturePageDOM(page, fullUrl, pageConfig.selector)
-    
+
     if (!pageHtml) {
       console.log(`  ⚠️  Could not capture DOM, skipping`)
       continue
@@ -197,7 +197,7 @@ export async function runPhase4Analysis() {
 
     if (!analysis || !analysis.newElementsFound || analysis.newElementsFound.length === 0) {
       console.log(`  ℹ️  No new elements found`)
-      
+
       // Update timestamp even if no new elements
       allBehaviors[pageKey] = {
         ...existingData,
@@ -245,7 +245,7 @@ export async function runPhase4Analysis() {
     }
 
     console.log(`  ✨ Added ${newBehaviors.length} new behaviors to ${pageConfig.name}`)
-    
+
     // Add throttling delay between pages to avoid rate limits
     const pageIndex = PAGES_TO_ANALYZE.indexOf(pageConfig)
     if (pageIndex < PAGES_TO_ANALYZE.length - 1) {
@@ -284,10 +284,10 @@ export function getBehaviorsForPage(pageName) {
  */
 export function shouldExecuteBehavior(behavior, persona) {
   if (!behavior.enabled) return false
-  
+
   // Get probability adjusted for persona
   let probability = behavior.baseProbability || 0.1
-  
+
   if (behavior.personaAdjustments && persona.activity_pattern) {
     const pattern = persona.activity_pattern.toLowerCase()
     probability = behavior.personaAdjustments[pattern] || probability
@@ -329,7 +329,7 @@ export async function executeBehavior(behavior, page, persona, posthog) {
     // Track event if specified
     if (behavior.posthogEvent && posthog) {
       const properties = { ...behavior.posthogEvent.properties }
-      
+
       // Replace placeholders
       for (const [key, value] of Object.entries(properties)) {
         if (typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')) {
