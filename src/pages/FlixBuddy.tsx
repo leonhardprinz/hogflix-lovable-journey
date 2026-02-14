@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { usePostHog, useFeatureFlagVariantKey } from 'posthog-js/react';
+import { useThumbSurvey } from 'posthog-js/react/surveys';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,46 @@ import { Badge } from '@/components/ui/badge';
 import { Send, Bot, User, Play, Plus, ArrowLeft, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WatchlistButton } from '@/components/WatchlistButton';
+
+// Thumb survey feedback component for assistant messages
+const ThumbFeedback = ({ traceId, conversationId }: { traceId: string; conversationId: string }) => {
+  const { respond, response, triggerRef } = useThumbSurvey({
+    surveyId: '019c5de4-91ff-0000-7c7c-a0ec59602dc7',
+    properties: {
+      $ai_trace_id: traceId,
+      $ai_conversation_id: conversationId,
+    },
+  });
+
+  return (
+    <div ref={triggerRef} className="flex items-center space-x-1 px-2">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => respond('up')}
+        disabled={response !== undefined}
+        className={`h-6 px-2 ${response === 'up'
+            ? 'text-green-500'
+            : 'text-muted-foreground hover:text-foreground'
+          }`}
+      >
+        <ThumbsUp className="h-3 w-3" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => respond('down')}
+        disabled={response !== undefined}
+        className={`h-6 px-2 ${response === 'down'
+            ? 'text-red-500'
+            : 'text-muted-foreground hover:text-foreground'
+          }`}
+      >
+        <ThumbsDown className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+};
 
 // Experiment prompt suggestions for 'suggested-prompts' variant
 const PROMPT_SUGGESTIONS = [
@@ -41,7 +82,7 @@ const FlixBuddy = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [recommendedVideos, setRecommendedVideos] = useState<Video[]>([]);
-  const [messageFeedback, setMessageFeedback] = useState<Record<string, 'positive' | 'negative'>>({});
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const posthog = usePostHog();
@@ -50,12 +91,12 @@ const FlixBuddy = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const sessionStartRef = useRef<Date>(new Date());
-  
+
   const initialQuery = searchParams.get('q');
-  
+
   // Feature flag for welcome message experiment
   const welcomeVariant = useFeatureFlagVariantKey('flixbuddy_welcome_experiment') as string | undefined;
-  
+
   // Get welcome message based on experiment variant
   const getWelcomeMessage = (): string => {
     switch (welcomeVariant) {
@@ -88,11 +129,11 @@ const FlixBuddy = () => {
   const shouldAutoScroll = () => {
     const element = messagesContainerRef.current;
     if (!element) return true; // Auto-scroll if ref not available yet
-    
+
     const threshold = 100; // pixels from bottom
-    const isNearBottom = 
+    const isNearBottom =
       element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
-    
+
     return isNearBottom;
   };
 
@@ -123,16 +164,16 @@ const FlixBuddy = () => {
           .single();
 
         if (error) throw error;
-        
+
         setConversationId(conversation.id);
-        
+
         // Track conversation start with experiment variant
         posthog.capture('flixbuddy:opened', {
           initial_query: initialQuery,
           profile_id: selectedProfile.id,
           experiment_variant: welcomeVariant || 'control'
         });
-        
+
         // Track feature flag exposure for experiment
         posthog.capture('$feature_flag_called', {
           $feature_flag: 'flixbuddy_welcome_experiment',
@@ -181,14 +222,14 @@ const FlixBuddy = () => {
   useEffect(() => {
     return () => {
       if (!conversationId) return;
-      
+
       const sessionDuration = Math.round(
         (Date.now() - sessionStartRef.current.getTime()) / 1000
       );
-      
+
       // Count only user messages (excluding welcome message)
       const userMessageCount = messages.filter(m => m.role === 'user').length;
-      
+
       if (userMessageCount === 0) {
         // User opened FlixBuddy but never sent a message = abandoned
         posthog.capture('flixbuddy:abandoned', {
@@ -313,12 +354,12 @@ const FlixBuddy = () => {
       console.error('Error sending message:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Detailed error:', errorMessage);
-      
+
       // Check if it's a rate limit error
-      const isRateLimit = error?.status === 429 || 
-                          error?.message?.includes('rate limit') || 
-                          error?.message?.includes('429');
-      
+      const isRateLimit = error?.status === 429 ||
+        error?.message?.includes('rate limit') ||
+        error?.message?.includes('429');
+
       // Track LLM generation error (PostHog LLM Analytics)
       try {
         posthog.capture('$ai_generation_error', {
@@ -333,17 +374,17 @@ const FlixBuddy = () => {
       } catch (e) {
         console.error('PostHog tracking error:', e);
       }
-      
+
       // Show user-friendly error message
       if (isRateLimit) {
         toast({
-          title: "FlixBuddy is Busy", 
+          title: "FlixBuddy is Busy",
           description: "FlixBuddy is experiencing high demand right now. Please wait a moment and try again.",
           variant: "destructive",
         });
       } else {
         toast({
-          title: "FlixBuddy Error", 
+          title: "FlixBuddy Error",
           description: `Failed to get response: ${errorMessage}. Please try again.`,
           variant: "destructive",
         });
@@ -363,7 +404,7 @@ const FlixBuddy = () => {
 
       if (!allVideos) return;
 
-      const mentionedVideos = allVideos.filter(video => 
+      const mentionedVideos = allVideos.filter(video =>
         response.toLowerCase().includes(video.title.toLowerCase())
       ).slice(0, 6);
 
@@ -405,7 +446,7 @@ const FlixBuddy = () => {
     });
     navigate(`/watch/${videoId}`);
   };
-  
+
   // Handle clicking a suggested prompt (for 'suggested-prompts' variant)
   const handlePromptSuggestionClick = (promptText: string) => {
     posthog.capture('flixbuddy:prompt_suggestion_clicked', {
@@ -416,23 +457,7 @@ const FlixBuddy = () => {
     sendMessage(promptText);
   };
 
-  const handleFeedback = (messageId: string, feedback: 'positive' | 'negative') => {
-    setMessageFeedback(prev => ({ ...prev, [messageId]: feedback }));
-    
-    posthog.capture('flixbuddy:feedback', {
-      conversation_id: conversationId,
-      message_id: messageId,
-      feedback,
-      $ai_feedback: feedback === 'positive' ? 1 : -1,
-      profile_id: selectedProfile?.id,
-      experiment_variant: welcomeVariant || 'control'
-    });
 
-    toast({
-      title: "Thanks for your feedback!",
-      description: feedback === 'positive' ? "Glad FlixBuddy helped! 🎬" : "We'll work on improving.",
-    });
-  };
 
   if (!selectedProfile) {
     return (
@@ -485,57 +510,30 @@ const FlixBuddy = () => {
                   key={message.id}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`flex items-start space-x-2 max-w-[80%] ${
-                    message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-                  }`}>
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                      message.role === 'user' 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'bg-secondary text-secondary-foreground'
+                  <div className={`flex items-start space-x-2 max-w-[80%] ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
                     }`}>
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${message.role === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground'
+                      }`}>
                       {message.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                     </div>
                     <div className="flex flex-col space-y-1">
-                      <div className={`rounded-lg p-3 ${
-                        message.role === 'user'
+                      <div className={`rounded-lg p-3 ${message.role === 'user'
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-secondary text-secondary-foreground'
-                      }`}>
+                        }`}>
                         <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                         <div className={`text-xs mt-1 opacity-70`}>
                           {message.timestamp.toLocaleTimeString()}
                         </div>
                       </div>
                       {/* Feedback buttons for assistant messages (skip welcome message) */}
-                      {message.role === 'assistant' && message.id !== 'welcome' && (
-                        <div className="flex items-center space-x-1 px-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleFeedback(message.id, 'positive')}
-                            disabled={messageFeedback[message.id] !== undefined}
-                            className={`h-6 px-2 ${
-                              messageFeedback[message.id] === 'positive'
-                                ? 'text-green-500'
-                                : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                          >
-                            <ThumbsUp className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleFeedback(message.id, 'negative')}
-                            disabled={messageFeedback[message.id] !== undefined}
-                            className={`h-6 px-2 ${
-                              messageFeedback[message.id] === 'negative'
-                                ? 'text-red-500'
-                                : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                          >
-                            <ThumbsDown className="h-3 w-3" />
-                          </Button>
-                        </div>
+                      {message.role === 'assistant' && message.id !== 'welcome' && conversationId && (
+                        <ThumbFeedback
+                          traceId={`${conversationId}-${message.id}`}
+                          conversationId={conversationId}
+                        />
                       )}
                     </div>
                   </div>
@@ -550,8 +548,8 @@ const FlixBuddy = () => {
                     <div className="bg-secondary rounded-lg p-3">
                       <div className="flex space-x-1">
                         <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                     </div>
                   </div>
@@ -592,7 +590,7 @@ const FlixBuddy = () => {
                   disabled={isLoading}
                   className="flex-1"
                 />
-                <Button 
+                <Button
                   onClick={handleSend}
                   disabled={!inputMessage.trim() || isLoading}
                   size="sm"
@@ -609,7 +607,7 @@ const FlixBuddy = () => {
               <Play className="h-4 w-4 mr-2 text-primary" />
               Recommended for You
             </h3>
-            
+
             {recommendedVideos.length > 0 ? (
               <div className="space-y-3">
                 {recommendedVideos.map((video) => (
@@ -629,8 +627,8 @@ const FlixBuddy = () => {
                             {formatDuration(video.duration)}
                           </p>
                           <div className="flex items-center justify-between mt-2">
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="secondary"
                               className="text-xs h-6 px-2"
                               onClick={(e) => {
