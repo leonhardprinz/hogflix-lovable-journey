@@ -18,14 +18,14 @@ serve(async (req) => {
 
   try {
     const { query } = await req.json();
-    
+
     if (!query) {
       await log.warn('AI search missing query', { function_name: 'ai-search' });
       return new Response(
         JSON.stringify({ error: 'Query parameter is required' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -44,9 +44,9 @@ serve(async (req) => {
       await log.error('GEMINI_API_KEY not configured', { function_name: 'ai-search' });
       return new Response(
         JSON.stringify({ error: 'AI service configuration error' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -60,7 +60,7 @@ serve(async (req) => {
     const { data: videos, error: videosError } = await supabase
       .from('videos')
       .select('title, description');
-    
+
     if (videosError) {
       console.error('Error fetching videos:', videosError);
       await log.error('Database error fetching videos', {
@@ -69,9 +69,9 @@ serve(async (req) => {
       });
       return new Response(
         JSON.stringify({ error: 'Database error' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -96,72 +96,117 @@ User query: ${query}
 
 Response:`;
 
-    // Make API call to Gemini
+    // Model fallback chain: newest → most capable
+    const MODELS = [
+      'gemini-3.0-flash',    // Primary: latest, fastest
+      'gemini-2.5-flash',    // Fallback 1: proven, fast
+      'gemini-2.5-pro',      // Fallback 2: most capable
+    ];
+
+    // Make API call to Gemini with fallback
     const aiStartTime = Date.now();
-    
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.3,
-            topK: 1,
-            topP: 1,
-            maxOutputTokens: 2048,
-          },
-        }),
+
+    const requestBody = JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.3,
+        topK: 1,
+        topP: 1,
+        maxOutputTokens: 2048,
+      },
+    });
+
+    let geminiResponse: Response | null = null;
+    let modelUsed = MODELS[0];
+
+    for (const model of MODELS) {
+      modelUsed = model;
+      console.log(`Trying model: ${model}`);
+
+      try {
+        geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: requestBody,
+          }
+        );
+
+        if (geminiResponse.ok) {
+          console.log(`Model ${model} succeeded`);
+          break;
+        }
+
+        const errorText = await geminiResponse.text();
+        console.warn(`Model ${model} failed (${geminiResponse.status}): ${errorText.substring(0, 200)}`);
+        geminiResponse = null;
+      } catch (fetchError) {
+        console.error(`Model ${model} fetch error:`, fetchError);
+        geminiResponse = null;
       }
-    );
+    }
 
     const aiLatency = Date.now() - aiStartTime;
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error('Gemini API error:', errorText);
-      
-      // OTLP Log: AI error
-      await log.error('Gemini API error', {
+    if (!geminiResponse || !geminiResponse.ok) {
+      await log.error('All Gemini models failed', {
         query_text: query.substring(0, 100),
-        http_status: geminiResponse.status,
-        error_message: errorText.substring(0, 200),
         ai_latency_ms: aiLatency,
         function_name: 'ai-search',
-        model: 'gemini-1.5-flash'
+        models_tried: MODELS.join(', ')
       });
-      
+
+      // Track error in PostHog
+      const posthogApiKey = Deno.env.get('POSTHOG_API_KEY');
+      if (posthogApiKey) {
+        try {
+          await fetch('https://eu.i.posthog.com/i/v0/e/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: posthogApiKey,
+              event: '$ai_generation',
+              properties: {
+                distinct_id: 'ai-search-system',
+                $ai_model: modelUsed,
+                $ai_provider: 'google',
+                $ai_input: query,
+                $ai_latency: aiLatency / 1000,
+                $ai_is_error: true,
+                $ai_http_status: geminiResponse?.status || 0,
+              },
+              timestamp: new Date().toISOString()
+            })
+          });
+        } catch (_) { /* ignore tracking errors */ }
+      }
+
       return new Response(
         JSON.stringify({ error: 'AI service error' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const geminiData = await geminiResponse.json();
     console.log('Gemini response:', geminiData);
 
+    // Extract token usage for PostHog LLM Analytics
+    const usageMetadata = geminiData.usageMetadata || {};
+    const tokenUsage = {
+      input: usageMetadata.promptTokenCount || 0,
+      output: usageMetadata.candidatesTokenCount || 0,
+      total: usageMetadata.totalTokenCount || 0
+    };
+
     // Parse Gemini response
     let recommendedTitles: string[] = [];
     let usedFallback = false;
-    
+
     try {
       const aiResponse = geminiData.candidates[0].content.parts[0].text;
       console.log('AI response text:', aiResponse);
-      
+
       // Extract JSON from the response
       const jsonMatch = aiResponse.match(/\[.*\]/s);
       if (jsonMatch) {
@@ -177,7 +222,7 @@ Response:`;
       // Fallback to first few videos if parsing fails
       recommendedTitles = videos?.slice(0, 3).map(v => v.title) || [];
       usedFallback = true;
-      
+
       await log.warn('AI response parse error, using fallback', {
         query_text: query.substring(0, 100),
         error_message: parseError instanceof Error ? parseError.message : 'Parse error',
@@ -201,20 +246,20 @@ Response:`;
       });
       return new Response(
         JSON.stringify({ error: 'Database query error' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
 
     // Sort results to match the order from AI recommendations
-    const sortedVideos = recommendedTitles.map(title => 
+    const sortedVideos = recommendedTitles.map(title =>
       recommendedVideos?.find(video => video.title === title)
     ).filter(Boolean);
 
     console.log('Final sorted videos:', sortedVideos);
-    
+
     const totalLatency = Date.now() - startTime;
 
     // OTLP Log: Success
@@ -226,14 +271,46 @@ Response:`;
       ai_latency_ms: aiLatency,
       used_fallback: usedFallback,
       function_name: 'ai-search',
-      model: 'gemini-1.5-flash'
+      model: modelUsed
     });
 
+    // Track successful $ai_generation in PostHog for LLM Analytics
+    const posthogApiKey = Deno.env.get('POSTHOG_API_KEY');
+    if (posthogApiKey) {
+      try {
+        const inputCost = (tokenUsage.input / 1_000_000) * 0.075;
+        const outputCost = (tokenUsage.output / 1_000_000) * 0.30;
+        await fetch('https://eu.i.posthog.com/i/v0/e/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            api_key: posthogApiKey,
+            event: '$ai_generation',
+            properties: {
+              distinct_id: 'ai-search-system',
+              $ai_model: modelUsed,
+              $ai_provider: 'google',
+              $ai_input: query,
+              $ai_output_choices: [recommendedTitles.join(', ')],
+              $ai_input_tokens: tokenUsage.input,
+              $ai_output_tokens: tokenUsage.output,
+              $ai_total_cost_usd: inputCost + outputCost,
+              $ai_latency: aiLatency / 1000,
+              $ai_trace_id: `ai-search-${Date.now()}`,
+              $ai_http_status: 200,
+              $ai_is_error: false,
+            },
+            timestamp: new Date().toISOString()
+          })
+        });
+      } catch (_) { /* ignore tracking errors */ }
+    }
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         videos: sortedVideos,
         query: query,
-        aiRecommendations: recommendedTitles 
+        aiRecommendations: recommendedTitles
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -243,14 +320,14 @@ Response:`;
   } catch (error) {
     const totalLatency = Date.now() - startTime;
     console.error('Error in ai-search function:', error);
-    
+
     // OTLP Log: Unhandled error
     await log.error('AI search unhandled error', {
       error_message: error instanceof Error ? error.message : 'Unknown error',
       latency_ms: totalLatency,
       function_name: 'ai-search'
     });
-    
+
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       {

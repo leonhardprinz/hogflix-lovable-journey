@@ -38,7 +38,7 @@ serve(async (req) => {
   try {
     const { message, conversationId, userId, profileId } = await req.json();
     console.log('FlixBuddy chat request:', { conversationId, userId, profileId, messageLength: message?.length });
-    
+
     // OTLP Log: Request started
     await log.info('FlixBuddy request started', {
       conversation_id: conversationId || 'unknown',
@@ -47,7 +47,7 @@ serve(async (req) => {
       message_length: message?.length || 0,
       function_name: 'flixbuddy-chat'
     });
-    
+
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -90,7 +90,7 @@ serve(async (req) => {
       .eq('profile_id', profileId);
 
     // Create system prompt with video context
-    const videoContext = videos?.map(v => 
+    const videoContext = videos?.map(v =>
       `${v.title}: ${v.description || 'No description'} (${Math.floor(v.duration / 60)}min)`
     ).join('\n') || '';
 
@@ -101,7 +101,7 @@ serve(async (req) => {
     }, {} as Record<string, number>) || {};
 
     // Build conversation history as formatted text
-    const conversationText = messages?.map(msg => 
+    const conversationText = messages?.map(msg =>
       `${msg.role === 'user' ? 'User' : 'FlixBuddy'}: ${msg.content}`
     ).join('\n\n') || '';
 
@@ -143,89 +143,118 @@ User: ${message}
 
 FlixBuddy:`;
 
-    console.log('Calling Gemini API with single prompt structure');
-    
+    // Model fallback chain: newest → most capable
+    const MODELS = [
+      'gemini-3.0-flash',    // Primary: latest, fastest
+      'gemini-2.5-flash',    // Fallback 1: proven, fast
+      'gemini-2.5-pro',      // Fallback 2: most capable
+    ];
+
+    console.log('Calling Gemini API with model fallback chain:', MODELS);
+
     // Track timing for analytics
     const aiStartTime = Date.now();
-    
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: fullPrompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 1024,
-          },
-        }),
+
+    const requestBody = JSON.stringify({
+      contents: [{
+        parts: [{
+          text: fullPrompt
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      },
+    });
+
+    let geminiResponse: Response | null = null;
+    let modelUsed = MODELS[0];
+
+    for (const model of MODELS) {
+      modelUsed = model;
+      console.log(`Trying model: ${model}`);
+
+      try {
+        geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: requestBody,
+          }
+        );
+
+        if (geminiResponse.ok) {
+          console.log(`Model ${model} succeeded`);
+          break;
+        }
+
+        const errorText = await geminiResponse.text();
+        console.warn(`Model ${model} failed (${geminiResponse.status}): ${errorText.substring(0, 200)}`);
+
+        // Don't retry on 429 rate limit — return immediately
+        if (geminiResponse.status === 429) {
+          await log.warn('Rate limit exceeded', {
+            conversation_id: conversationId || 'unknown',
+            function_name: 'flixbuddy-chat',
+            model
+          });
+
+          return new Response(
+            JSON.stringify({
+              error: 'Rate limit exceeded. Please try again in a moment.',
+              isRateLimit: true
+            }),
+            {
+              status: 429,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          );
+        }
+
+        geminiResponse = null; // Mark as failed so we try next model
+      } catch (fetchError) {
+        console.error(`Model ${model} fetch error:`, fetchError);
+        geminiResponse = null;
       }
-    );
+    }
 
     const aiLatency = Date.now() - aiStartTime;
-    const httpStatus = geminiResponse.status;
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error('Gemini API error:', httpStatus, errorText);
-      
-      // OTLP Log: AI error
-      await log.error('Gemini API error', {
+    if (!geminiResponse || !geminiResponse.ok) {
+      const httpStatus = geminiResponse?.status || 0;
+      console.error('All Gemini models failed');
+
+      await log.error('All Gemini models failed', {
         conversation_id: conversationId || 'unknown',
         http_status: httpStatus,
-        error_message: errorText.substring(0, 200),
         latency_ms: aiLatency,
         function_name: 'flixbuddy-chat',
-        model: 'gemini-2.0-flash'
+        models_tried: MODELS.join(', ')
       });
-      
-      // Track error in PostHog
+
       await capturePostHogEvent(
         POSTHOG_API_KEY || '',
         '$ai_generation',
         userId,
         {
-          $ai_model: 'gemini-2.0-flash',
+          $ai_model: modelUsed,
           $ai_provider: 'google',
           $ai_input: message,
           $ai_trace_id: conversationId,
           $ai_latency: aiLatency / 1000,
           $ai_http_status: httpStatus,
           $ai_is_error: true,
-          error_message: errorText,
+          error_message: 'All models failed',
         }
       );
 
-      if (httpStatus === 429) {
-        await log.warn('Rate limit exceeded', {
-          conversation_id: conversationId || 'unknown',
-          function_name: 'flixbuddy-chat',
-          model: 'gemini-2.0-flash'
-        });
-        
-        return new Response(
-          JSON.stringify({ 
-            error: 'Rate limit exceeded. Please try again in a moment.',
-            isRateLimit: true 
-          }), 
-          {
-            status: 429,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-
-      throw new Error(`Gemini API error: ${httpStatus} - ${errorText}`);
+      throw new Error(`All Gemini models failed after trying: ${MODELS.join(', ')}`);
     }
+
+    const httpStatus = geminiResponse.status;
 
     const geminiData = await geminiResponse.json();
     console.log('Gemini API response received, latency:', aiLatency, 'ms');
@@ -260,7 +289,7 @@ FlixBuddy:`;
       tokens_output: tokenUsage.output,
       tokens_total: tokenUsage.total,
       response_length: assistantMessage.length,
-      model: 'gemini-2.0-flash',
+      model: modelUsed,
       function_name: 'flixbuddy-chat',
       cost_usd_micro: Math.round(totalCost * 1_000_000) // microdollars for precision
     });
@@ -271,7 +300,7 @@ FlixBuddy:`;
       '$ai_generation',
       userId,
       {
-        $ai_model: 'gemini-2.0-flash',
+        $ai_model: modelUsed,
         $ai_provider: 'google',
         $ai_input: message,
         $ai_output_choices: [assistantMessage],
@@ -303,7 +332,7 @@ FlixBuddy:`;
         role: 'assistant',
         content: assistantMessage,
         metadata: {
-          model: 'gemini-2.0-flash',
+          model: modelUsed,
           timestamp: new Date().toISOString()
         }
       });
@@ -330,14 +359,14 @@ FlixBuddy:`;
   } catch (error) {
     const totalLatency = Date.now() - startTime;
     console.error('Error in flixbuddy-chat function:', error);
-    
+
     // OTLP Log: Unhandled error
     await log.error('FlixBuddy unhandled error', {
       error_message: error instanceof Error ? error.message : 'Unknown error',
       latency_ms: totalLatency,
       function_name: 'flixbuddy-chat'
     });
-    
+
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

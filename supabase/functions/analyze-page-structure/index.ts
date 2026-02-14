@@ -18,10 +18,10 @@ async function callGeminiWithRetry(
   body: any,
   maxRetries = 2
 ): Promise<{ response: Response; modelUsed: string }> {
-  
+
   for (const model of modelPriority) {
     console.log(`[AI] Attempting with model: ${model}`);
-    
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const response = await fetch(
@@ -32,12 +32,12 @@ async function callGeminiWithRetry(
             body: JSON.stringify(body)
           }
         );
-        
+
         if (response.ok) {
           console.log(`[AI] ✓ Success with ${model}`);
           return { response, modelUsed: model };
         }
-        
+
         if (response.status === 429) {
           console.log(`[AI] ⚠️ Rate limited on ${model} (attempt ${attempt + 1}/${maxRetries})`);
           if (attempt === 0) {
@@ -45,23 +45,23 @@ async function callGeminiWithRetry(
           }
           break;
         }
-        
+
         if (response.status === 404) {
           console.log(`[AI] ⚠️ Model ${model} not found, trying next`);
           break;
         }
-        
+
         const errorText = await response.text();
         console.error(`[AI] Error with ${model}:`, response.status, errorText);
         await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-        
+
       } catch (error) {
         console.error(`[AI] Network error with ${model}:`, error);
         if (attempt === maxRetries - 1) break;
       }
     }
   }
-  
+
   throw new Error('All models exhausted - rate limits exceeded on all available models');
 }
 
@@ -72,9 +72,9 @@ serve(async (req) => {
 
   try {
     const { pageUrl, pageHtml, pageName, existingBehaviors = [] }: AnalyzeRequest = await req.json();
-    
+
     console.log(`[PHASE 4] Analyzing page structure for: ${pageName}`);
-    
+
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY not configured');
@@ -88,10 +88,9 @@ serve(async (req) => {
     const prompt = buildAnalysisPrompt(pageName, pageUrl, interactiveElements, existingBehaviors);
 
     const MODEL_PRIORITY = [
-      'gemini-2.5-flash-lite',
-      'gemini-2.0-flash-lite',
-      'gemini-2.0-flash',
+      'gemini-3.0-flash',
       'gemini-2.5-flash',
+      'gemini-2.5-pro',
     ];
 
     const { response, modelUsed } = await callGeminiWithRetry(
@@ -118,7 +117,7 @@ serve(async (req) => {
 
     const data = await response.json();
     const analysisText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+
     if (!analysisText) {
       throw new Error('No analysis returned from Gemini');
     }
@@ -159,11 +158,11 @@ serve(async (req) => {
 
 function extractInteractiveElements(html: string): any[] {
   const elements: any[] = [];
-  
+
   // Match buttons with various attributes
   const buttonRegex = /<button[^>]*?(?:data-testid=["']([^"']+)["'])?[^>]*?(?:class=["']([^"']+)["'])?[^>]*?>([^<]*)<\/button>/gi;
   let match;
-  
+
   while ((match = buttonRegex.exec(html)) !== null) {
     elements.push({
       type: 'button',
@@ -273,7 +272,7 @@ function parseGeminiResponse(text: string): any {
   } else if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
   }
-  
+
   try {
     return JSON.parse(cleaned);
   } catch (error) {
