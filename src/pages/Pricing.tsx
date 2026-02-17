@@ -20,7 +20,7 @@ const Pricing = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { subscription } = useSubscription();
-  const [loading, setLoading] = useState(false);
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [ctaVariant, setCtaVariant] = useState<string>('control');
   const [layoutVariant, setLayoutVariant] = useState<string | null>(null);
   const [showRetentionModal, setShowRetentionModal] = useState(false);
@@ -186,17 +186,12 @@ const Pricing = () => {
   };
 
   const handlePlanSelect = async (planName: string) => {
-    if (loading) return;
+    if (loadingPlan) return;
 
     // Ultimate plan - behavior controlled by feature flag
     if (planName === 'ultimate') {
-      // Debug logging for feature flag
-      console.log('🚩 Ultimate button clicked. Hook value:', ultimateButtonFixed, 'Type:', typeof ultimateButtonFixed);
-      
       // Check both the hook value AND direct PostHog check as fallback
       const isFixEnabled = ultimateButtonFixed === true || posthog?.isFeatureEnabled('Ultimate_button_subscription_fix') === true;
-      console.log('🚩 Direct PostHog check:', posthog?.isFeatureEnabled('Ultimate_button_subscription_fix'));
-      console.log('🚩 Final isFixEnabled:', isFixEnabled);
       
       if (isFixEnabled) {
         // Feature flag is ON - redirect to working Stripe checkout
@@ -207,16 +202,16 @@ const Pricing = () => {
         window.open('https://buy.stripe.com/test_00w4gzbQR8dP5aC2VZ9Ve02', '_blank');
         return;
       } else {
-        // Feature flag is OFF - simulate broken button (rage click demo)
-        setLoading(true);
+        // Feature flag is OFF - show payment error
+        setLoadingPlan('ultimate');
         setTimeout(() => {
-          setLoading(false);
+          setLoadingPlan(null);
           posthog?.capture('pricing:ultimate_payment_error', {
             feature_flag: 'Ultimate_button_subscription_fix',
             flag_value: false,
             error: 'Payment Gateway Connection Failed'
           });
-          throw new Error("Payment Gateway Connection Failed: Timeout waiting for response from provider.");
+          toast.error('Payment Gateway Connection Failed: Timeout waiting for response from provider.');
         }, 1000);
         return;
       }
@@ -286,7 +281,7 @@ const Pricing = () => {
 
     // If logged in and selecting Basic plan, auto-assign it
     if (planName === 'basic') {
-      setLoading(true);
+      setLoadingPlan('basic');
       try {
         // Fetch the Basic plan ID
         const { data: planData, error: planError } = await supabase
@@ -316,7 +311,7 @@ const Pricing = () => {
         console.error('Error activating Basic plan:', error);
         toast.error('Failed to activate plan. Please try again.');
       } finally {
-        setLoading(false);
+        setLoadingPlan(null);
       }
       return;
     }
@@ -353,7 +348,7 @@ const Pricing = () => {
   if (layoutVariant === 'table-layout') {
     return (
       <>
-        <PricingTableLayout onPlanSelect={handlePlanSelect} loading={loading} />
+        <PricingTableLayout onPlanSelect={handlePlanSelect} loading={!!loadingPlan} />
         <RetentionOfferModal
           open={showRetentionModal}
           onOpenChange={setShowRetentionModal}
@@ -439,9 +434,9 @@ const Pricing = () => {
                   variant={isCurrent ? 'outline' : plan.popular ? 'default' : 'outline'}
                   size="lg"
                   onClick={() => handlePlanSelect(plan.name)}
-                  disabled={loading || isCurrent}
+                  disabled={!!loadingPlan || isCurrent}
                 >
-                  {loading && plan.name === 'ultimate' ? 'Processing...' : loading ? 'Processing...' : getButtonText(plan)}
+                  {loadingPlan === plan.name ? 'Processing...' : getButtonText(plan)}
                   {!isCurrent && subscription && (
                     <>
                       {plan.name === 'ultimate' && subscription.plan_name !== plan.name && (
