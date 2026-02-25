@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Header from '@/components/Header';
-import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagEnabled, useFeatureFlagVariantKey } from 'posthog-js/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,8 +27,22 @@ const Pricing = () => {
   const [pendingDowngradePlan, setPendingDowngradePlan] = useState<string | null>(null);
   const ultimateButtonFixed = useFeatureFlagEnabled('Ultimate_button_subscription_fix');
   const vipRetentionEnabled = useFeatureFlagEnabled('vip_retention_offer');
+  const pricingLayoutVariant = useFeatureFlagVariantKey('pricing_layout_experiment');
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
   const pageLoadTime = useRef(Date.now());
+  const layoutExposureTracked = useRef(false);
+
+  // Track pricing layout experiment exposure (once per page view)
+  useEffect(() => {
+    if (pricingLayoutVariant && !layoutExposureTracked.current) {
+      layoutExposureTracked.current = true;
+      posthog?.capture('experiment:pricing_layout_assigned', {
+        variant: pricingLayoutVariant,
+        user_plan: subscription?.plan_name || 'none',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [pricingLayoutVariant, posthog, subscription]);
 
   // Rage click detection for Ultimate button
   useRageClickDetection(ultimateButtonRef, {
@@ -349,8 +363,24 @@ const Pricing = () => {
     }
   };
 
-  // Render table layout variant if assigned
+  // Render table layout variant if assigned (existing experiment)
   if (layoutVariant === 'table-layout') {
+    return (
+      <>
+        <PricingTableLayout onPlanSelect={handlePlanSelect} loading={loading} />
+        <RetentionOfferModal
+          open={showRetentionModal}
+          onOpenChange={setShowRetentionModal}
+          onAccept={handleRetentionAccept}
+          onDecline={handleRetentionDecline}
+          currentPlan={subscription?.plan_display_name || subscription?.plan_name || 'Standard'}
+        />
+      </>
+    );
+  }
+
+  // Render horizontal comparison table for pricing_layout_experiment
+  if (pricingLayoutVariant === 'horizontal') {
     return (
       <>
         <PricingTableLayout onPlanSelect={handlePlanSelect} loading={loading} />
