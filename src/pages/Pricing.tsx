@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Header from '@/components/Header';
-import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagEnabled, useFeatureFlagVariantKey } from 'posthog-js/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +29,20 @@ const Pricing = () => {
   const vipRetentionEnabled = useFeatureFlagEnabled('vip_retention_offer');
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
   const pageLoadTime = useRef(Date.now());
+
+  // Pricing layout experiment v2: 'control' (card grid) vs 'horizontal' (comparison table)
+  const layoutExperimentVariant = useFeatureFlagVariantKey('pricing_layout_experiment_v2');
+  const [layoutExperimentExposureTracked, setLayoutExperimentExposureTracked] = useState(false);
+
+  useEffect(() => {
+    if (layoutExperimentVariant && !layoutExperimentExposureTracked) {
+      posthog?.capture('experiment:pricing_layout_v2_assigned', {
+        variant: layoutExperimentVariant,
+        user_plan: subscription?.plan_name || 'none',
+      });
+      setLayoutExperimentExposureTracked(true);
+    }
+  }, [layoutExperimentVariant, layoutExperimentExposureTracked, posthog, subscription]);
 
   // Rage click detection for Ultimate button
   useRageClickDetection(ultimateButtonRef, {
@@ -366,7 +380,7 @@ const Pricing = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background" data-layout="card">
+    <div className="min-h-screen bg-background" data-layout={layoutExperimentVariant === 'horizontal' ? 'table' : 'card'}>
       <Header />
 
       <main className="container mx-auto px-4 py-12 md:py-20">
@@ -388,75 +402,144 @@ const Pricing = () => {
           </AlertDescription>
         </Alert>
 
-        {/* Pricing Cards */}
-        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {plans.map((plan) => {
-            const isCurrent = isCurrentPlan(plan.name);
+        {/* Pricing Cards — layout depends on experiment variant */}
+        {layoutExperimentVariant === 'horizontal' ? (
+          /* ── VARIANT: Horizontal comparison table ── */
+          <div className="max-w-6xl mx-auto overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="p-4 text-left text-muted-foreground font-medium border-b border-border">Features</th>
+                  {plans.map((plan) => {
+                    const isCurrent = isCurrentPlan(plan.name);
+                    return (
+                      <th key={plan.name} className={`p-4 text-center border-b min-w-[180px] ${isCurrent ? 'border-green-500 bg-green-500/5' : plan.popular ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                        {isCurrent && <Badge className="mb-2 bg-green-500">Current</Badge>}
+                        {!isCurrent && plan.popular && <Badge className="mb-2 bg-primary">Most Popular</Badge>}
+                        <div className="text-xl font-bold">{plan.displayName}</div>
+                        <div className="mt-1">
+                          <span className="text-2xl font-bold">{plan.price}</span>
+                          <span className="text-muted-foreground text-sm ml-1">{plan.priceDetail}</span>
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from(new Set(plans.flatMap(p => p.features))).map((feature, idx) => (
+                  <tr key={idx} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                    <td className="p-4 text-sm">{feature}</td>
+                    {plans.map((plan) => {
+                      const isCurrent = isCurrentPlan(plan.name);
+                      return (
+                        <td key={plan.name} className={`p-4 text-center ${isCurrent ? 'bg-green-500/5' : plan.popular ? 'bg-primary/5' : ''}`}>
+                          {plan.features.includes(feature) ? (
+                            <Check className="w-5 h-5 text-primary mx-auto" />
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="p-4"></td>
+                  {plans.map((plan) => {
+                    const isCurrent = isCurrentPlan(plan.name);
+                    return (
+                      <td key={plan.name} className={`p-4 text-center ${isCurrent ? 'bg-green-500/5' : plan.popular ? 'bg-primary/5' : ''}`}>
+                        <Button
+                          ref={plan.name === 'ultimate' ? ultimateButtonRef : undefined}
+                          className={`w-full ${plan.name === 'ultimate' ? 'ultimate-subscribe-button' : ''}`}
+                          variant={isCurrent ? 'outline' : plan.popular ? 'default' : 'outline'}
+                          size="lg"
+                          onClick={() => handlePlanSelect(plan.name)}
+                          disabled={loading || isCurrent}
+                        >
+                          {loading ? 'Processing...' : getButtonText(plan)}
+                        </Button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : (
+          /* ── CONTROL: Original vertical card grid ── */
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {plans.map((plan) => {
+              const isCurrent = isCurrentPlan(plan.name);
 
-            return (
-              <Card
-                key={plan.name}
-                className={`relative p-8 flex flex-col ${isCurrent
-                    ? 'border-green-500 shadow-lg shadow-green-500/20 scale-105'
-                    : plan.popular
-                      ? 'border-primary shadow-lg scale-105 md:scale-110'
-                      : 'border-border'
-                  }`}
-              >
-                {isCurrent && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500">
-                    ✓ Current Plan
-                  </Badge>
-                )}
-                {!isCurrent && plan.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">
-                    Most Popular
-                  </Badge>
-                )}
-
-                <div className="text-center mb-6">
-                  <h3 className="text-2xl font-bold mb-2">{plan.displayName}</h3>
-                  <div className="mb-4">
-                    <span className="text-4xl font-bold">{plan.price}</span>
-                    <span className="text-muted-foreground ml-2">
-                      {plan.priceDetail}
-                    </span>
-                  </div>
-                </div>
-
-                <ul className="space-y-3 mb-8 flex-grow">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className="flex items-start gap-3">
-                      <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                      <span className="text-sm">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  ref={plan.name === 'ultimate' ? ultimateButtonRef : undefined}
-                  className={`w-full ${plan.name === 'ultimate' ? 'ultimate-subscribe-button' : ''}`}
-                  variant={isCurrent ? 'outline' : plan.popular ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => handlePlanSelect(plan.name)}
-                  disabled={loading || isCurrent}
+              return (
+                <Card
+                  key={plan.name}
+                  className={`relative p-8 flex flex-col ${isCurrent
+                      ? 'border-green-500 shadow-lg shadow-green-500/20 scale-105'
+                      : plan.popular
+                        ? 'border-primary shadow-lg scale-105 md:scale-110'
+                        : 'border-border'
+                    }`}
                 >
-                  {loading && plan.name === 'ultimate' ? 'Processing...' : loading ? 'Processing...' : getButtonText(plan)}
-                  {!isCurrent && subscription && (
-                    <>
-                      {plan.name === 'ultimate' && subscription.plan_name !== plan.name && (
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      )}
-                      {plan.name === 'basic' && subscription.plan_name !== 'basic' && (
-                        <ArrowDown className="w-4 h-4 ml-2" />
-                      )}
-                    </>
+                  {isCurrent && (
+                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500">
+                      ✓ Current Plan
+                    </Badge>
                   )}
-                </Button>
-              </Card>
-            );
-          })}
-        </div>
+                  {!isCurrent && plan.popular && (
+                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">
+                      Most Popular
+                    </Badge>
+                  )}
+
+                  <div className="text-center mb-6">
+                    <h3 className="text-2xl font-bold mb-2">{plan.displayName}</h3>
+                    <div className="mb-4">
+                      <span className="text-4xl font-bold">{plan.price}</span>
+                      <span className="text-muted-foreground ml-2">
+                        {plan.priceDetail}
+                      </span>
+                    </div>
+                  </div>
+
+                  <ul className="space-y-3 mb-8 flex-grow">
+                    {plan.features.map((feature, index) => (
+                      <li key={index} className="flex items-start gap-3">
+                        <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                        <span className="text-sm">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Button
+                    ref={plan.name === 'ultimate' ? ultimateButtonRef : undefined}
+                    className={`w-full ${plan.name === 'ultimate' ? 'ultimate-subscribe-button' : ''}`}
+                    variant={isCurrent ? 'outline' : plan.popular ? 'default' : 'outline'}
+                    size="lg"
+                    onClick={() => handlePlanSelect(plan.name)}
+                    disabled={loading || isCurrent}
+                  >
+                    {loading && plan.name === 'ultimate' ? 'Processing...' : loading ? 'Processing...' : getButtonText(plan)}
+                    {!isCurrent && subscription && (
+                      <>
+                        {plan.name === 'ultimate' && subscription.plan_name !== plan.name && (
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        )}
+                        {plan.name === 'basic' && subscription.plan_name !== 'basic' && (
+                          <ArrowDown className="w-4 h-4 ml-2" />
+                        )}
+                      </>
+                    )}
+                  </Button>
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
         {/* FAQ Section */}
         <div className="mt-20 max-w-3xl mx-auto text-center">
