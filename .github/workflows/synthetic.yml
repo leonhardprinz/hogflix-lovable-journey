@@ -81,41 +81,8 @@ jobs:
           DEBUG: false
           POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.PH_HOST }}
-          EXPERIMENT_END_DATE: "2025-12-17T12:00:00Z"
+          EXPERIMENT_END_DATE: "2026-09-01T12:00:00Z"
         continue-on-error: false
-
-      # Server events 
-      - name: Run synthetic server events
-        run: |
-          echo "🚀 Starting server-side synthetic traffic..."
-          node scripts/synthetic-traffic.js 2>&1 | tee server_events.log
-          EXIT_CODE=${PIPESTATUS[0]}
-          
-          # Extract metrics from logs
-          ACTIVE_USERS=$(grep -oP 'Active users: \K\d+' server_events.log || echo "0")
-          NEW_SIGNUPS=$(grep -oP 'New signups: \K\d+' server_events.log || echo "0")
-          
-          echo "📊 Server Events Summary:"
-          echo "   - Active users: $ACTIVE_USERS"
-          echo "   - New signups: $NEW_SIGNUPS"
-          echo "   - Exit code: $EXIT_CODE"
-          
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "⚠️  Server script completed with warnings"
-            grep -i "error\|warning" server_events.log | head -20 || true
-          else
-            echo "✅ Server script completed successfully"
-          fi
-        env:
-          PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
-          PH_HOST: ${{ secrets.PH_HOST }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_URL: https://ygbftctnpvxhflpamjrt.supabase.co
-          STATE_DIR: .synthetic_state
-          PERSONA_POOL: 400
-          ENABLE_ORGANIC_EXPLORATION: true
-          APP_URL: https://hogflix-project.vercel.app
-        continue-on-error: true
 
       # LLM Analytics baseload (server-side, no browser needed)
       - name: Generate LLM analytics traffic
@@ -139,8 +106,24 @@ jobs:
       # --- BROWSER FLOWS (PLAYWRIGHT REQUIRED) ---
       - name: Install Playwright
         run: |
-          npm i playwright@1.49.0
+          npm i playwright@1.49.0 playwright-extra puppeteer-extra-plugin-stealth
           npx playwright@1.49.0 install --with-deps chromium
+        continue-on-error: true
+
+      # Synthetic traffic - 7 hardcoded returning users (browser sessions)
+      - name: Run synthetic traffic (returning browser sessions)
+        run: |
+          echo "🌐 Starting synthetic browser sessions (7 hardcoded users)..."
+          node scripts/synthetic-traffic.js 2>&1 | tee synthetic_traffic.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Synthetic traffic completed"
+          else
+            echo "⚠️  Synthetic traffic completed with warnings"
+            grep -i "error" synthetic_traffic.log | head -10 || true
+          fi
+        env:
+          APP_URL: https://hogflix-project.vercel.app
         continue-on-error: true
 
       # New user signup journeys (creates real users)
@@ -288,6 +271,25 @@ jobs:
         env:
           POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
           POSTHOG_PROJECT_ID: 0191db49-6f72-0000-e9a2-66ad8c3dda1a
+        continue-on-error: true
+
+      # --- CLEANUP ---
+      - name: Clean up old synthetic Supabase accounts
+        run: |
+          echo "🧹 Cleaning up synthetic accounts older than 14 days..."
+          node scripts/cleanup-synthetic-users.js 2>&1 | tee cleanup.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          DELETED=$(grep -oP '\d+(?= deleted)' cleanup.log | head -1 || echo "0")
+          echo "📊 Cleanup: $DELETED accounts removed"
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "⚠️  Cleanup completed with warnings"
+          else
+            echo "✅ Cleanup completed"
+          fi
+        env:
+          SUPABASE_URL: https://ygbftctnpvxhflpamjrt.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SYNTHETIC_USER_RETENTION_DAYS: '14'
         continue-on-error: true
 
       - name: Save persona state
