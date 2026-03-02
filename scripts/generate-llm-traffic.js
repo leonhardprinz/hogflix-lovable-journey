@@ -249,8 +249,12 @@ function buildTrace({ distinctId, timestamp, traceId, sessionId, traceName, firs
             $ai_session_id: sessionId,
             $ai_trace_name: traceName,
             $ai_latency: totalLatency,
-            $ai_input_state: firstUserMsg,
-            $ai_output_state: lastAssistantMsg || '',
+            // Must be a JSON object with a `messages` array so the backend can parse it
+            // with orjson.loads() and the frontend can read inputState.messages
+            $ai_input_state: { messages: [{ role: 'user', content: firstUserMsg }] },
+            $ai_output_state: lastAssistantMsg
+                ? { messages: [{ role: 'assistant', content: lastAssistantMsg }] }
+                : null,
             $ai_is_error: isError,
             hogflix_feature: 'FlixBuddy',
             $lib: 'posthog-node',
