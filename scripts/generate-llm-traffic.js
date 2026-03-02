@@ -214,6 +214,7 @@ function buildGeneration({ distinctId, timestamp, modelConfig, userMsg, assistan
         $ai_stream: Math.random() < STREAMING_RATE,
         $ai_max_tokens: pick([1024, 2048, 4096, 8192]),
         $ai_is_error: isError,
+        $ai_prompt_name: 'flixbuddy-system-prompt',
         hogflix_feature: 'FlixBuddy',
         $lib: 'posthog-node',
         $lib_version: '4.3.1',
