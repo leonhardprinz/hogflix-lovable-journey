@@ -3,8 +3,11 @@
 // Expected: 'suggested-prompts' wins by ~20% on message_sent
 
 import { PostHog } from 'posthog-node'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const DEBUG = process.env.DEBUG === 'true'
+const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const FUNNEL_COUNT = parseInt(process.env.FLIXBUDDY_FUNNEL_COUNT || '50', 10)
 const EXPERIMENT_END_DATE = process.env.EXPERIMENT_END_DATE || null
 
@@ -260,7 +263,7 @@ async function simulateFlixBuddySession(variant, index, total) {
     console.log(`  → Abandoned after ${timeOnPage}s`)
   }
   
-  return { variant, sendsMessage }
+  return { distinctId, variant, sendsMessage }
 }
 
 async function runFlixBuddyExperimentFunnel() {
@@ -285,24 +288,44 @@ async function runFlixBuddyExperimentFunnel() {
     'suggested-prompts': { exposures: 0, messageSent: 0, feedback: 0, videoClicked: 0, abandoned: 0 },
     personalized: { exposures: 0, messageSent: 0, feedback: 0, videoClicked: 0, abandoned: 0 }
   }
-  
+
+  const cohortWeek = new Date().toISOString().slice(0, 10)
+  const generatedPersonas = []
+
   for (let i = 0; i < FUNNEL_COUNT; i++) {
     // Distribute evenly across variants (33% each)
     const variant = VARIANTS[i % 3]
-    
-    const { sendsMessage } = await simulateFlixBuddySession(variant, i, FUNNEL_COUNT)
-    
+
+    const { distinctId, sendsMessage } = await simulateFlixBuddySession(variant, i, FUNNEL_COUNT)
+    generatedPersonas.push({ id: distinctId, variant, cohortWeek, createdAt: new Date().toISOString() })
+
     results[variant].exposures++
     if (sendsMessage) {
       results[variant].messageSent++
     } else {
       results[variant].abandoned++
     }
-    
+
     // Small delay between users to avoid rate limiting
     await new Promise(r => setTimeout(r, 50 + Math.random() * 100))
   }
-  
+
+  // Persist personas to STATE_DIR so returning-users script can replay them
+  try {
+    if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true })
+    const cohortFile = path.join(STATE_DIR, 'flixbuddy_cohort.json')
+    const existing = fs.existsSync(cohortFile) ? JSON.parse(fs.readFileSync(cohortFile, 'utf8')) : []
+    const existingIds = new Set(existing.map(p => p.id))
+    const merged = [...existing, ...generatedPersonas.filter(p => !existingIds.has(p.id))]
+    // Keep only last 90 days to avoid unbounded growth
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+    const pruned = merged.filter(p => p.createdAt >= cutoff)
+    fs.writeFileSync(cohortFile, JSON.stringify(pruned, null, 2))
+    console.log(`   💾 Saved ${generatedPersonas.length} personas to cohort pool (total: ${pruned.length})`)
+  } catch (e) {
+    console.warn(`   ⚠ Could not save cohort personas: ${e.message}`)
+  }
+
   return results
 }
 

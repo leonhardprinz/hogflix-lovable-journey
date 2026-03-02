@@ -84,6 +84,25 @@ jobs:
           EXPERIMENT_END_DATE: "2026-09-01T12:00:00Z"
         continue-on-error: false
 
+      # FlixBuddy returning users — replays saved personas with age-based decay
+      - name: Run FlixBuddy returning users
+        run: |
+          echo "🔁 Sending FlixBuddy return events for existing cohort..."
+          node scripts/synthetic/flixbuddy-returning-users.js 2>&1 | tee flixbuddy_returning.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          SENT=$(grep -oP '\d+(?= return events sent)' flixbuddy_returning.log | head -1 || echo "0")
+          echo "📊 FlixBuddy returning: $SENT return events sent"
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ FlixBuddy returning users completed"
+          else
+            echo "⚠️  FlixBuddy returning users completed with warnings"
+          fi
+        env:
+          STATE_DIR: .synthetic_state
+          POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          PH_HOST: ${{ secrets.PH_HOST }}
+        continue-on-error: true
+
       # LLM Analytics baseload (server-side, no browser needed)
       - name: Generate LLM analytics traffic
         run: |
