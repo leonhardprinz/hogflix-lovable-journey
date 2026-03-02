@@ -117,6 +117,25 @@ jobs:
           APP_URL: https://hogflix-project.vercel.app
         continue-on-error: true
 
+      # LLM Analytics baseload (server-side, no browser needed)
+      - name: Generate LLM analytics traffic
+        run: |
+          echo "🤖 Generating synthetic LLM analytics events..."
+          node scripts/generate-llm-traffic.js 2>&1 | tee llm_traffic.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ LLM analytics traffic generated"
+            grep -E "Generations:|Traces:|Errors:" llm_traffic.log || true
+          else
+            echo "⚠️  LLM analytics generation failed"
+          fi
+        env:
+          PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          PH_HOST: ${{ secrets.PH_HOST }}
+          INCREMENTAL: 'true'
+        continue-on-error: true
+
       # --- BROWSER FLOWS (PLAYWRIGHT REQUIRED) ---
       - name: Install Playwright
         run: |
@@ -217,6 +236,26 @@ jobs:
         env:
           STATE_DIR: .synthetic_state
           APP_URL: https://hogflix-project.vercel.app
+        continue-on-error: true
+
+      # FlixBuddy real chat sessions (creates session replays with LLM interactions)
+      - name: Run FlixBuddy chat sessions
+        run: |
+          echo "🤖 Starting FlixBuddy chat sessions for session replay..."
+          node scripts/playwright-flixbuddy-chat.js 2>&1 | tee flixbuddy_chat.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ FlixBuddy chat sessions completed"
+            grep -E "Done!|sessions completed" flixbuddy_chat.log || true
+          else
+            echo "⚠️  FlixBuddy chat sessions completed with warnings"
+          fi
+        env:
+          APP_URL: https://hogflix-project.vercel.app
+          POSTHOG_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          FLIXBUDDY_SESSION_COUNT: '2'
+          DEBUG: 'false'
         continue-on-error: true
 
       # --- SESSION REPLAY DEMO ---
