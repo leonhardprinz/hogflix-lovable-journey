@@ -8,7 +8,7 @@ chromium.use(stealthPlugin());
 
 // --- CONFIGURATION ---
 const CONFIG = {
-    baseUrl: (process.env.TARGET_URL || 'https://hogflix-demo.lovable.app').replace(/\/$/, ''),
+    baseUrl: (process.env.APP_URL || 'https://hogflix-project.vercel.app').replace(/\/$/, ''),
     minSessionDuration: 300000, // 5 Minutes Target
     // Try both keys if available
     geminiKey: process.env.GEMINI_API_KEY_2 || process.env.GEMINI_API_KEY,

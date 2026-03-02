@@ -4,7 +4,7 @@ import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 chromium.use(stealthPlugin());
 
 // --- CONFIG ---
-const RAW_URL = process.env.TARGET_URL || 'https://hogflix-demo.lovable.app';
+const RAW_URL = process.env.APP_URL || 'https://hogflix-project.vercel.app';
 const BASE_URL = RAW_URL.replace(/\/$/, ''); 
 const START_PATH = '/'; 
 

@@ -17,7 +17,7 @@ type Persona = {
   affinity?: string[]
 }
 
-const SITE = process.env.HOGFLIX_URL || 'https://hogflix-demo.lovable.app/'
+const SITE = process.env.APP_URL || 'https://hogflix-project.vercel.app/'
 const STATE_DIR = path.join(process.cwd(), '.personas')
 const DB = path.join(STATE_DIR, 'personas.json')
 

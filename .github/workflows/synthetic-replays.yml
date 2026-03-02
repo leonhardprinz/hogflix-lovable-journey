@@ -23,6 +23,6 @@ jobs:
       - name: Run AI Replay Script
         run: npx tsx scripts/generate-replays.ts
         env:
-          TARGET_URL: 'https://hogflix-demo.lovable.app/'
+          APP_URL: 'https://hogflix-project.vercel.app/'
           # This pulls the key from the secret you created in Step 1
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

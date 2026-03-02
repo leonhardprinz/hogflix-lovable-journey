@@ -5,7 +5,7 @@ import { chromium } from 'playwright'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
+const APP_URL = process.env.APP_URL || 'https://hogflix-project.vercel.app'
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const AI_BEHAVIORS_FILE = path.join(STATE_DIR, 'ai_behaviors.json')
 const SUPABASE_URL = 'https://ygbftctnpvxhflpamjrt.supabase.co'

@@ -6,7 +6,7 @@ import { chromium } from 'playwright'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
+const APP_URL = process.env.APP_URL || 'https://hogflix-project.vercel.app'
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const PERSONAS_FILE = path.join(STATE_DIR, 'personas.json')
 

@@ -5,10 +5,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { enrichEventProperties, getRealisticPath, generateVideoMilestoneEvents } from './synthetic/path-extractor.js'
 
-const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
+const APP_URL = process.env.APP_URL || 'https://hogflix-project.vercel.app'
 const STATE_DIR = process.env.STATE_DIR || '.synthetic_state'
 const PERSONAS_FILE = path.join(STATE_DIR, 'personas.json')
 const DEBUG = process.env.DEBUG === 'true'
+const SYNTHETIC_PASSWORD = process.env.SYNTHETIC_PASSWORD || 'HogflixSynth2026!'
 
 // Initialize PostHog for server-side event capture
 const posthog = new PostHog(
@@ -53,6 +54,32 @@ function getSectionPriority(persona) {
  */
 function hasEarlyAccessAISummaries(persona) {
   return getFeatureFlag(persona, 'early_access_ai_summaries', false) === true
+}
+
+/**
+ * Log in as a persona in the browser before navigating to protected pages.
+ * Uses the persona's stored password or the standard synthetic password.
+ */
+async function loginInBrowser(page, persona) {
+  const password = persona.password || SYNTHETIC_PASSWORD
+  try {
+    await page.goto(`${APP_URL}/login`, { waitUntil: 'networkidle', timeout: 15000 })
+    await page.waitForSelector('input[type="email"]', { timeout: 10000 })
+    await page.fill('input[type="email"]', persona.email)
+    await page.fill('input[type="password"]', password)
+    await page.click('button[type="submit"]')
+    await page.waitForTimeout(3000)
+
+    const url = page.url()
+    const loggedIn = !url.includes('/login')
+    if (DEBUG) {
+      console.log(`  [DEBUG] Login ${loggedIn ? 'succeeded' : 'failed'} for ${persona.email} → ${url}`)
+    }
+    return loggedIn
+  } catch (e) {
+    console.log(`  ⚠ Login error for ${persona.email}: ${e.message}`)
+    return false
+  }
 }
 
 function loadPersonas() {
@@ -125,13 +152,19 @@ async function simulateReturningUserJourney(personas, count = 25) {
     const page = await context.newPage()
 
     try {
+      // Login first (required for protected routes like /browse)
+      const loggedIn = await loginInBrowser(page, p)
+      if (!loggedIn) {
+        console.log(`  ⚠ Login failed for ${p.email}, continuing with server-side events only`)
+      }
+
       // Navigate to browse page with UTM (returning traffic)
       const entryUrl = `${APP_URL}/browse?utm_source=${encodeURIComponent(p.utm_source || 'direct')}&utm_medium=synthetic&utm_campaign=hogflix-returning`
       await page.goto(entryUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
       await page.waitForTimeout(1000)
 
       if (DEBUG) {
-        console.log(`  [DEBUG] Browse page loaded for ${p.email}`)
+        console.log(`  [DEBUG] Browse page loaded for ${p.email} (authenticated: ${loggedIn})`)
       }
 
       // Capture page view (server-side)

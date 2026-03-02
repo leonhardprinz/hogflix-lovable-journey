@@ -3,7 +3,7 @@
 
 import { chromium } from 'playwright'
 
-const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
+const APP_URL = process.env.APP_URL || 'https://hogflix-project.vercel.app'
 const DEBUG = process.env.DEBUG === 'true'
 const IS_CI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
 

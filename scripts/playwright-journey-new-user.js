@@ -2,7 +2,7 @@
 import { chromium } from 'playwright'
 import { PostHog } from 'posthog-node'
 
-const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
+const APP_URL = process.env.APP_URL || 'https://hogflix-project.vercel.app'
 const DEBUG = process.env.DEBUG === 'true'
 
 // Initialize PostHog for server-side event capture
@@ -61,8 +61,10 @@ function generateEmail() {
   return `${firstName}.${lastName}${number}@${domain}`
 }
 
+const SYNTHETIC_PASSWORD = 'HogflixSynth2026!'
+
 function generatePassword() {
-  return `SynTest${Math.floor(Math.random() * 100000)}!`
+  return SYNTHETIC_PASSWORD
 }
 
 async function simulateNewUserJourney(count = 10) {

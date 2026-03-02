@@ -6,7 +6,7 @@ import { PostHog } from 'posthog-node'
 import { discoverRoutes, getRouteMetadata, getNavigationSuggestions } from './route-discovery.js'
 import { generateSessionTimestamp, generateEventTimestamp } from './temporal-distribution.js'
 
-const APP_URL = process.env.APP_URL || 'https://hogflix-demo.lovable.app'
+const APP_URL = process.env.APP_URL || 'https://hogflix-project.vercel.app'
 const SUPABASE_URL = 'https://ygbftctnpvxhflpamjrt.supabase.co'
 const DEBUG = process.env.DEBUG === 'true'
 

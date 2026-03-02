@@ -53,7 +53,7 @@ export function enrichEventProperties(url, baseProperties = {}) {
  * @returns {string} - Realistic page path
  */
 export function getRealisticPath(entryPoint, options = {}) {
-  const siteUrl = options.siteUrl || 'https://hogflix-demo.lovable.app'
+  const siteUrl = options.siteUrl || 'https://hogflix-project.vercel.app'
   
   switch (entryPoint) {
     case 'home':
