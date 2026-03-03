@@ -8,6 +8,33 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ─── POSTHOG PROMPT FETCHER ──────────────────────────────────────────────────
+
+const POSTHOG_PERSONAL_API_KEY = Deno.env.get('POSTHOG_PERSONAL_API_KEY');
+const promptCache: Record<string, { text: string; expiresAt: number }> = {};
+
+async function fetchPrompt(promptKey: string, fallback: string): Promise<string> {
+  const now = Date.now();
+  if (promptCache[promptKey] && promptCache[promptKey].expiresAt > now) {
+    return promptCache[promptKey].text;
+  }
+  if (!POSTHOG_PERSONAL_API_KEY) return fallback;
+  try {
+    const res = await fetch(
+      `https://eu.posthog.com/api/environments/85924/llm_prompts/name/${promptKey}/`,
+      { headers: { Authorization: `Bearer ${POSTHOG_PERSONAL_API_KEY}` } }
+    );
+    if (!res.ok) return fallback;
+    const data = await res.json();
+    const text: string = data.content ?? data.template ?? fallback;
+    const compiled = text.replace(/\{\{platform_name\}\}/g, 'HogFlix');
+    promptCache[promptKey] = { text: compiled, expiresAt: now + 5 * 60 * 1000 };
+    return compiled;
+  } catch {
+    return fallback;
+  }
+}
+
 // Helper to capture PostHog events via HTTP API (Deno compatible)
 async function capturePostHogEvent(apiKey: string, event: string, distinctId: string, properties: Record<string, any>) {
   if (!apiKey) return;
@@ -170,7 +197,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { message, conversationId, userId, profileId, model: requestedModel } = await req.json();
+    const { message, conversationId, userId, profileId, model: requestedModel, promptVariant } = await req.json();
     console.log('FlixBuddy chat request:', { conversationId, userId, profileId, requestedModel, messageLength: message?.length });
 
     await log.info('FlixBuddy request started', {
@@ -234,15 +261,8 @@ serve(async (req) => {
       `${msg.role === 'user' ? 'User' : 'FlixBuddy'}: ${msg.content}`
     ).join('\n\n') || '';
 
-    const fullPrompt = `You are FlixBuddy, the AI assistant for HogFlix streaming service. Your role is to help users discover movies and series that match their preferences.
-
-AVAILABLE CONTENT:
-${videoContext}
-
-USER CONTEXT:
-- User has ${watchlistIds.length} items in watchlist
-- User has rated ${Object.keys(userRatings).length} videos
-- Current profile: ${profileId}
+    // Fetch system prompt from PostHog Prompts based on A/B variant
+    const PROMPT_FALLBACK = `You are FlixBuddy, the AI assistant for HogFlix streaming service. Your role is to help users discover movies and series that match their preferences.
 
 INSTRUCTIONS:
 1. Be conversational, friendly, and enthusiastic about movies/series
@@ -262,7 +282,20 @@ When recommending content, structure your response like this:
 
 Would you like more details about any of these, or should I look for something different?"
 
-Always be helpful and engaging while focusing on the available content.
+Always be helpful and engaging while focusing on the available content.`;
+
+    const promptKey = promptVariant === 'funny' ? 'flixbuddy-funny' : 'flixbuddy-system-prompt';
+    const systemPrompt = await fetchPrompt(promptKey, PROMPT_FALLBACK);
+
+    const fullPrompt = `${systemPrompt}
+
+AVAILABLE CONTENT:
+${videoContext}
+
+USER CONTEXT:
+- User has ${watchlistIds.length} items in watchlist
+- User has rated ${Object.keys(userRatings).length} videos
+- Current profile: ${profileId}
 
 CONVERSATION HISTORY:
 ${conversationText}
@@ -409,8 +442,8 @@ FlixBuddy:`;
       {
         $ai_model: modelUsed,
         $ai_provider: providerUsed,
-        $ai_input: message,
-        $ai_output_choices: [responseText],
+        $ai_input: [{ role: 'user', content: message }],
+        $ai_output_choices: [{ role: 'assistant', content: responseText }],
         $ai_input_tokens: tokenUsage.input,
         $ai_output_tokens: tokenUsage.output,
         $ai_total_cost_usd: totalCost,
@@ -418,7 +451,7 @@ FlixBuddy:`;
         $ai_trace_id: conversationId,
         $ai_http_status: httpStatus,
         $ai_is_error: false,
-        $ai_prompt_name: 'flixbuddy-system-prompt',
+        $ai_prompt_name: promptKey,
         profile_id: profileId,
       }
     );

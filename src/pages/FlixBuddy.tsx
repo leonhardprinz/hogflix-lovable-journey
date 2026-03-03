@@ -113,6 +113,8 @@ const FlixBuddy = () => {
 
   // Feature flag for welcome message experiment
   const welcomeVariant = useFeatureFlagVariantKey('flixbuddy_welcome_experiment') as string | undefined;
+  // Feature flag for prompt A/B test
+  const promptVariant = useFeatureFlagVariantKey('flixbuddy-prompt-experiment') as string | undefined;
 
   // Get welcome message based on experiment variant
   const getWelcomeMessage = (): string => {
@@ -279,7 +281,8 @@ const FlixBuddy = () => {
           conversationId,
           userId: (await supabase.auth.getUser()).data.user?.id,
           profileId: selectedProfile.id,
-          model: selectedModel
+          model: selectedModel,
+          promptVariant: promptVariant || 'control'
         }
       });
 
