@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Send, Bot, User, Play, Plus, ArrowLeft, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WatchlistButton } from '@/components/WatchlistButton';
@@ -16,13 +17,26 @@ import { formatDuration } from '@/lib/formatDuration';
 
 // Thumb survey feedback component for assistant messages
 const ThumbFeedback = ({ traceId, conversationId }: { traceId: string; conversationId: string }) => {
-  const { respond, response, triggerRef } = useThumbSurvey({
+  const hookResult = useThumbSurvey({
     surveyId: '019c5de4-91ff-0000-7c7c-a0ec59602dc7',
     properties: {
       $ai_trace_id: traceId,
       $ai_conversation_id: conversationId,
     },
   });
+  const { respond: rawRespond, response, triggerRef } = hookResult;
+
+  console.log('🔍 ThumbFeedback hook result:', { response, hasRespond: typeof rawRespond, hasTriggerRef: !!triggerRef, traceId });
+
+  const respond = (value: 'up' | 'down') => {
+    console.log('👆 ThumbFeedback respond() called with:', value);
+    try {
+      rawRespond(value);
+      console.log('✅ respond() completed');
+    } catch (e) {
+      console.error('❌ respond() error:', e);
+    }
+  };
 
   return (
     <div ref={triggerRef} className="flex items-center space-x-1 px-2">
@@ -84,17 +98,6 @@ const FlixBuddy = () => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [recommendedVideos, setRecommendedVideos] = useState<Video[]>([]);
   const [selectedModel, setSelectedModel] = useState('auto');
-
-  const MODEL_OPTIONS = [
-    { value: 'auto', label: '✨ Auto', group: 'Auto' },
-    { value: 'gemini-3.0-flash', label: 'Gemini 3.0 Flash', group: 'Google' },
-    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', group: 'Google' },
-    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', group: 'Google' },
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', group: 'Google' },
-    { value: 'mistral-small-latest', label: 'Mistral Small', group: 'Mistral' },
-    { value: 'mistral-medium-latest', label: 'Mistral Medium', group: 'Mistral' },
-    { value: 'mistral-large-latest', label: 'Mistral Large', group: 'Mistral' },
-  ];
 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -507,26 +510,30 @@ const FlixBuddy = () => {
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="text-sm bg-secondary text-secondary-foreground border border-border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-            >
-              <optgroup label="Auto">
-                <option value="auto">✨ Auto</option>
-              </optgroup>
-              <optgroup label="Google">
-                <option value="gemini-3.0-flash">Gemini 3.0 Flash</option>
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-              </optgroup>
-              <optgroup label="Mistral">
-                <option value="mistral-small-latest">Mistral Small</option>
-                <option value="mistral-medium-latest">Mistral Medium</option>
-                <option value="mistral-large-latest">Mistral Large</option>
-              </optgroup>
-            </select>
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger className="w-48 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Auto</SelectLabel>
+                  <SelectItem value="auto">✨ Auto</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Google</SelectLabel>
+                  <SelectItem value="gemini-3.0-flash">Gemini 3.0 Flash</SelectItem>
+                  <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                  <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                  <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Mistral</SelectLabel>
+                  <SelectItem value="mistral-small-latest">Mistral Small</SelectItem>
+                  <SelectItem value="mistral-medium-latest">Mistral Medium</SelectItem>
+                  <SelectItem value="mistral-large-latest">Mistral Large</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <div className="text-sm text-muted-foreground">
               Chatting as {selectedProfile.display_name}
             </div>
