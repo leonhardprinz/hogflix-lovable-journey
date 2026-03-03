@@ -44,7 +44,7 @@ const ThumbFeedback = ({ traceId, conversationId }: { traceId: string; conversat
         variant="ghost"
         size="sm"
         onClick={() => respond('up')}
-        disabled={response !== undefined}
+        disabled={response != null}
         className={`h-6 px-2 ${response === 'up'
           ? 'text-green-500'
           : 'text-muted-foreground hover:text-foreground'
@@ -56,7 +56,7 @@ const ThumbFeedback = ({ traceId, conversationId }: { traceId: string; conversat
         variant="ghost"
         size="sm"
         onClick={() => respond('down')}
-        disabled={response !== undefined}
+        disabled={response != null}
         className={`h-6 px-2 ${response === 'down'
           ? 'text-red-500'
           : 'text-muted-foreground hover:text-foreground'
