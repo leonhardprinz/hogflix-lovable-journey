@@ -16,18 +16,18 @@ export default defineConfig(({ mode }) => {
       react(),
       mode === 'development' &&
       componentTagger(),
-      // PostHog sourcemap upload disabled — re-enable when POSTHOG_PERSONAL_API_KEY is updated in Vercel
-      // posthog({
-      //   personalApiKey: env.POSTHOG_PERSONAL_API_KEY,
-      //   projectId: env.POSTHOG_PROJECT_ID,
-      //   host: 'https://eu.i.posthog.com',
-      //   sourcemaps: {
-      //     enabled: true,
-      //     releaseName: 'hogflix',
-      //     releaseVersion: `1.0.${Date.now()}`,
-      //     deleteAfterUpload: true,
-      //   },
-      // }),
+      mode === 'production' &&
+      posthog({
+        personalApiKey: env.POSTHOG_PERSONAL_API_KEY,
+        projectId: env.POSTHOG_PROJECT_ID,
+        host: 'https://eu.i.posthog.com',
+        sourcemaps: {
+          enabled: true,
+          releaseName: 'hogflix',
+          releaseVersion: `1.0.${Date.now()}`,
+          deleteAfterUpload: true,
+        },
+      }),
     ].filter(Boolean),
     resolve: {
       alias: {
