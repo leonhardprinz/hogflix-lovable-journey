@@ -106,6 +106,16 @@ async function runFlixBuddySession(user, sessionIndex) {
         }))
         log(`📊 PostHog: loaded=${phStatus.loaded}, recording=${phStatus.recording}, session=${phStatus.sessionId}`)
 
+        // Force-start session recording (mirrors synthetic-traffic.js forcePostHogStart)
+        await page.evaluate(() => {
+            if (window.posthog) {
+                window.posthog.register({ synthetic: true });
+                window.posthog.opt_in_capturing();
+                window.posthog.startSessionRecording();
+            }
+        });
+        log('📹 Forced session recording start')
+
         // 3. Browse for a moment (creates context in the session replay)
         log('🏠 Browsing homepage...')
         await page.goto(`${APP_URL}/browse`, { waitUntil: 'domcontentloaded', timeout: 20000 })

@@ -19,7 +19,7 @@ const Index = () => {
 
   // Fire a manual PostHog event on page load
   useEffect(() => {
-    posthog.capture('This is an event 👋 🦔', { ts: Date.now() });
+    posthog.capture('page:viewed_landing', { ts: Date.now() });
   }, []);
 
   // Fetch featured video for background with signed URL
@@ -34,7 +34,7 @@ const Index = () => {
           .lte('duration', 60) // Prefer videos under 60 seconds
           .limit(1)
           .single();
-        
+
         if (videoError || !videoData) {
           console.log('No suitable video found for background');
           setVideoLoading(false);
@@ -53,7 +53,9 @@ const Index = () => {
           return;
         }
 
-        console.log('✅ Got signed video URL for background');
+        if (import.meta.env.DEV) {
+          console.log('✅ Got signed video URL for background');
+        }
         setFeaturedVideo({
           ...videoData,
           signedVideoUrl: urlData.signedUrl
@@ -73,21 +75,18 @@ const Index = () => {
     const checkAuthAndRedirect = async () => {
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (session?.user) {
-        // Use a longer delay to ensure profile context is loaded
-        setTimeout(() => {
-          if (selectedProfile) {
-            navigate('/browse');
-          } else {
-            navigate('/profiles');
-          }
-        }, 200);
+        if (selectedProfile) {
+          navigate('/browse');
+        } else {
+          navigate('/profiles');
+        }
       }
     };
 
     checkAuthAndRedirect();
-  }, [navigate]); // Remove selectedProfile dependency
+  }, [navigate, selectedProfile]);
 
   return (
     <div className="min-h-screen bg-background-dark">
@@ -98,7 +97,7 @@ const Index = () => {
             HogFlix
           </h1>
           <Link to="/login">
-            <Button 
+            <Button
               variant="default"
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-2 shadow-lg"
             >
@@ -139,11 +138,11 @@ const Index = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-background-dark/80 via-transparent to-transparent" />
           </>
         )}
-        
+
         {/* Fallback Gradient */}
         {(!featuredVideo?.signedVideoUrl || videoError) && (
           <div className="absolute inset-0 bg-gradient-to-br from-primary-red/20 via-background-dark to-background-dark">
-            <div 
+            <div
               className="absolute inset-0 opacity-10"
               style={{
                 backgroundImage: `radial-gradient(circle at 25% 25%, #e50914 0%, transparent 50%),
@@ -152,7 +151,7 @@ const Index = () => {
             />
           </div>
         )}
-        
+
         {/* Hero Content */}
         <div className="relative container-netflix flex flex-col justify-center items-center text-center px-4 z-10">
           <div className="max-w-4xl w-full">
@@ -160,17 +159,17 @@ const Index = () => {
             <h1 className={`text-4xl sm:text-5xl lg:text-7xl font-bold text-primary-red mb-3 sm:mb-4 font-manrope ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`}>
               HogFlix
             </h1>
-            
+
             {/* Main Headline */}
             <h2 className={`text-xl sm:text-3xl lg:text-5xl font-bold text-text-primary mb-4 sm:mb-6 font-manrope leading-tight px-2 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.2s' : '0' }}>
               Unlimited movies, TV shows, and more
             </h2>
-            
+
             {/* Subheadline */}
             <p className={`text-base sm:text-lg lg:text-xl text-text-secondary mb-6 sm:mb-8 font-manrope max-w-2xl mx-auto px-4 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.4s' : '0' }}>
               From hedgehog adventures to PostHog demos - discover content that entertains and educates.
             </p>
-            
+
             {/* CTA Buttons - Sign Up Free FIRST */}
             <div className={`flex flex-col sm:flex-row gap-4 justify-center mb-8 ${hasAnimated ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: hasAnimated ? '0.6s' : '0' }}>
               <Link to="/signup" className="w-full sm:w-auto">
@@ -186,7 +185,7 @@ const Index = () => {
             </div>
           </div>
         </div>
-        
+
       </div>
 
       {/* Content Preview Section - Above the fold */}
@@ -217,7 +216,7 @@ const Index = () => {
                 Stream on any device, see analytics in real-time
               </p>
             </div>
-            
+
             <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '1.2s' : '0' }}>
               <div className="flex justify-center mb-3 sm:mb-4">
                 <Star className="h-10 sm:h-12 w-10 sm:w-12 text-primary-red" />
@@ -229,7 +228,7 @@ const Index = () => {
                 From hedgehog blockbusters to PostHog demos
               </p>
             </div>
-            
+
             <div className={hasAnimated ? 'animate-fade-in' : 'opacity-0'} style={{ animationDelay: hasAnimated ? '1.4s' : '0' }}>
               <div className="flex justify-center mb-3 sm:mb-4">
                 <Users className="h-10 sm:h-12 w-10 sm:w-12 text-primary-red" />
@@ -254,7 +253,7 @@ const Index = () => {
               More than just entertainment - discover how PostHog analytics powers every interaction
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
             <div className="text-center md:text-left">
               <div className="flex justify-center md:justify-start mb-4">
@@ -262,18 +261,18 @@ const Index = () => {
               </div>
               <h3 className="text-xl font-semibold text-foreground mb-3">Entertainment</h3>
               <p className="text-muted-foreground">
-                Quirky hedgehog-themed movies and shows that bring joy while showcasing 
+                Quirky hedgehog-themed movies and shows that bring joy while showcasing
                 real streaming platform functionality you'd expect from any modern service.
               </p>
             </div>
-            
+
             <div className="text-center md:text-left">
               <div className="flex justify-center md:justify-start mb-4">
                 <BarChart3 className="h-12 w-12 text-primary" />
               </div>
               <h3 className="text-xl font-semibold text-foreground mb-3">Analytics in Action</h3>
               <p className="text-muted-foreground">
-                Every click, view, and interaction is tracked with PostHog, giving you 
+                Every click, view, and interaction is tracked with PostHog, giving you
                 firsthand experience of how powerful analytics can transform user insights.
               </p>
             </div>
@@ -287,8 +286,8 @@ const Index = () => {
               <div>
                 <h4 className="text-lg font-semibold text-foreground mb-2">Coming Soon: PostHog Demos</h4>
                 <p className="text-muted-foreground">
-                  We're building a dedicated library where customers can view and bookmark 
-                  interactive PostHog feature demonstrations. Experience analytics, feature flags, 
+                  We're building a dedicated library where customers can view and bookmark
+                  interactive PostHog feature demonstrations. Experience analytics, feature flags,
                   session recordings, and more through guided, hands-on examples.
                 </p>
               </div>

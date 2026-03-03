@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Clock } from 'lucide-react';
 import { AiSummaryPanel } from '@/components/AiSummaryPanel';
 import { toast } from 'sonner';
+import { formatDuration } from '@/lib/formatDuration';
 
 interface Video {
   id: string;
@@ -44,17 +45,17 @@ export default function DemoDetail() {
   useEffect(() => {
     const checkEarlyAccess = async () => {
       if (!selectedProfile?.id) return;
-      
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('early_access_features')
         .eq('id', selectedProfile.id)
         .single();
-      
+
       const hasAccess = profile?.early_access_features?.includes('ai_summaries') || false;
       setHasEarlyAccess(hasAccess);
     };
-    
+
     checkEarlyAccess();
   }, [selectedProfile, posthog]);
 
@@ -141,31 +142,31 @@ export default function DemoDetail() {
 
   const handleGenerateSummary = async () => {
     if (!video?.id || isGeneratingSummary) return;
-    
+
     setIsGeneratingSummary(true);
-    
+
     try {
       const { data, error } = await supabase.functions.invoke('generate-video-summary', {
         body: { videoId: video.id }
       });
-      
+
       if (error) throw error;
-      
+
       setAiSummary(data.summary);
-      
+
       // Track summary generation
       posthog.capture('ai_summary:generated', {
         video_id: video.id,
         video_title: video.title,
         cached: data.cached || false
       });
-      
+
       // Track summary viewed
       posthog.capture('ai_summary:viewed', {
         video_id: video.id,
         video_title: video.title
       });
-      
+
       toast.success('✨ AI Summary generated!');
       if (import.meta.env.DEV) {
         console.log('✅ AI Summary generated');
@@ -178,11 +179,7 @@ export default function DemoDetail() {
     }
   };
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+
 
   if (loading) {
     return (
@@ -219,7 +216,7 @@ export default function DemoDetail() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
-      
+
       <main className="flex-1 container mx-auto px-4 py-8 max-w-7xl">
         {/* Back Button */}
         <Button

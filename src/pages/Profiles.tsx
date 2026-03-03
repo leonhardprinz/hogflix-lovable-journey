@@ -21,7 +21,7 @@ const Profiles = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [showNewProfileModal, setShowNewProfileModal] = useState(false);
-  
+
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { setSelectedProfile } = useProfile();
@@ -35,7 +35,7 @@ const Profiles = () => {
         setLoading(false);
         return;
       }
-      
+
       const mapped = (data || []).map((row: any) => ({
         id: row.id,
         display_name: row.display_name,
@@ -44,7 +44,7 @@ const Profiles = () => {
         is_kids_profile: row.is_kids_profile,
         early_access_features: row.early_access_features || []
       }));
-      
+
       // AUTO-SELECT: If only one profile, select it and go to browse
       if (mapped.length === 1) {
         console.log('Single profile detected, auto-selecting...');
@@ -56,7 +56,7 @@ const Profiles = () => {
         navigate('/browse');
         return;
       }
-      
+
       setProfiles(mapped);
     } catch (error) {
       console.error('Error fetching profiles:', error);
@@ -69,7 +69,7 @@ const Profiles = () => {
     const checkAuthAndFetchProfiles = async () => {
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session?.user) {
         navigate('/login');
         return;
@@ -77,7 +77,6 @@ const Profiles = () => {
 
       setUser(session.user);
       await fetchProfiles(session.user.id);
-      setLoading(false);
     };
 
     checkAuthAndFetchProfiles();
@@ -133,11 +132,7 @@ const Profiles = () => {
     }
   };
 
-  const handleProfileUpdated = async () => {
-    if (user) {
-      await fetchProfiles(user.id);
-    }
-  };
+
 
   if (loading) {
     return (
@@ -172,18 +167,18 @@ const Profiles = () => {
               <div className="relative pb-8">
                 {/* Animated ring indicator */}
                 <div className="absolute inset-0 w-32 h-32 rounded-lg border-4 border-primary-red animate-pulse group-hover:animate-none" />
-                
+
                 <div className="w-32 h-32 rounded-lg flex items-center justify-center card-hover border-4 border-primary-red group-hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] transition-all duration-300 relative" style={{ backgroundColor: 'rgb(220, 38, 38)' }}>
                   {/* Hedgehog emoji as icon */}
                   <span className="text-6xl group-hover:scale-110 transition-transform">🦔</span>
-                  
+
                   {profile.is_kids_profile && (
                     <div className="absolute top-2 right-2 bg-background-dark text-white text-xs px-2 py-1 rounded border border-white">
                       KIDS
                     </div>
                   )}
                 </div>
-                
+
                 {/* Click indicator badge - moved completely outside */}
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 bg-background-dark border-2 border-primary-red text-primary-red text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg group-hover:bg-primary-red group-hover:text-white transition-all">
                   CLICK TO START

@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, CheckCircle, Mail, Lock, ArrowRight, UserPlus } from 'lucide-react';
+import { Shield, CheckCircle, Mail, Lock, ArrowRight, UserPlus, Calendar } from 'lucide-react';
+import { getAgeGroup } from '@/lib/posthog-utils';
 import NewsletterOptIn from '@/components/NewsletterOptIn';
 
 const Signup = () => {
@@ -21,7 +22,8 @@ const Signup = () => {
   const [step, setStep] = useState('form'); // 'form', 'processing', 'success', 'verify'
   const [selectedPlan] = useState(searchParams.get('plan') || 'basic');
   const [marketingOptIn, setMarketingOptIn] = useState(true);
-  
+  const [birthDate, setBirthDate] = useState('');
+
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { toast } = useToast();
@@ -60,10 +62,13 @@ const Signup = () => {
 
       // Capture signup event
       if (data.user) {
+        const age_group = birthDate ? getAgeGroup(new Date(birthDate)) : undefined;
+
         posthog.identify(data.user.id, {
           email: data.user.email,
           $email: data.user.email,
-          marketing_opt_in: marketingOptIn
+          marketing_opt_in: marketingOptIn,
+          ...(age_group && { age_group }),
         });
         
         posthog.capture('signup:completed', { 
@@ -226,6 +231,25 @@ const Signup = () => {
                 />
                 <p className="text-xs text-text-tertiary">
                   Choose a strong password with at least 8 characters
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="birthDate" className="text-text-primary font-medium flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  生年月日 / Date of Birth
+                </Label>
+                <Input
+                  id="birthDate"
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  className="input-netflix h-12 text-lg transition-all duration-200 focus:ring-2 focus:ring-primary-red/20"
+                  required
+                  disabled={loading || success}
+                />
+                <p className="text-xs text-text-tertiary">
+                  年齢層別セグメンテーションに使用 / Used for age-based segmentation
                 </p>
               </div>
 

@@ -1,5 +1,7 @@
 import posthog from 'posthog-js';
 
+export type AgeGroup = 'under-18' | '18-24' | '25-34' | '35-44' | '45-54' | '55+';
+
 export interface UserProperties {
   subscription_plan?: string;
   subscription_status?: string;
@@ -11,6 +13,7 @@ export interface UserProperties {
   flixbuddy_user?: boolean;
   watchlist_count?: number;
   avg_rating?: number;
+  age_group?: AgeGroup;
 }
 
 /**
@@ -29,6 +32,26 @@ export const updateUserProperties = (properties: UserProperties) => {
   if (properties.lifecycle_state) superProps.lifecycle_state = properties.lifecycle_state;
   
   posthog.register(superProps);
+};
+
+/**
+ * Derive age_group from a birth date
+ * 生年月日から年齢グループを計算
+ */
+export const getAgeGroup = (birthDate: Date): AgeGroup => {
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  if (age < 18) return 'under-18';
+  if (age <= 24) return '18-24';
+  if (age <= 34) return '25-34';
+  if (age <= 44) return '35-44';
+  if (age <= 54) return '45-54';
+  return '55+';
 };
 
 /**

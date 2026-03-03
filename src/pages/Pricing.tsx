@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Header from '@/components/Header';
-import { usePostHog, useFeatureFlagEnabled, useFeatureFlagVariantKey } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +14,8 @@ import { toast } from 'sonner';
 import { useRageClickDetection } from '@/hooks/useRageClickDetection';
 import PricingTableLayout from '@/components/PricingTableLayout';
 import { RetentionOfferModal } from '@/components/RetentionOfferModal';
+import { landmarkProps } from '@/lib/demoErrors';
+import { slog } from '@/lib/demoErrors';
 
 const Pricing = () => {
   const posthog = usePostHog();
@@ -27,22 +29,9 @@ const Pricing = () => {
   const [pendingDowngradePlan, setPendingDowngradePlan] = useState<string | null>(null);
   const ultimateButtonFixed = useFeatureFlagEnabled('Ultimate_button_subscription_fix');
   const vipRetentionEnabled = useFeatureFlagEnabled('vip_retention_offer');
+
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
   const pageLoadTime = useRef(Date.now());
-
-  // Pricing layout experiment v2: 'control' (card grid) vs 'horizontal' (comparison table)
-  const layoutExperimentVariant = useFeatureFlagVariantKey('pricing_layout_experiment_v2');
-  const [layoutExperimentExposureTracked, setLayoutExperimentExposureTracked] = useState(false);
-
-  useEffect(() => {
-    if (layoutExperimentVariant && !layoutExperimentExposureTracked) {
-      posthog?.capture('experiment:pricing_layout_v2_assigned', {
-        variant: layoutExperimentVariant,
-        user_plan: subscription?.plan_name || 'none',
-      });
-      setLayoutExperimentExposureTracked(true);
-    }
-  }, [layoutExperimentVariant, layoutExperimentExposureTracked, posthog, subscription]);
 
   // Rage click detection for Ultimate button
   useRageClickDetection(ultimateButtonRef, {
@@ -53,7 +42,7 @@ const Pricing = () => {
 
   useEffect(() => {
     document.title = "Pricing – HogFlix";
-    
+
     // Track time on page when leaving
     return () => {
       const timeOnPage = Date.now() - pageLoadTime.current;
@@ -204,14 +193,17 @@ const Pricing = () => {
 
     // Ultimate plan - behavior controlled by feature flag
     if (planName === 'ultimate') {
-      // Debug logging for feature flag
-      console.log('🚩 Ultimate button clicked. Hook value:', ultimateButtonFixed, 'Type:', typeof ultimateButtonFixed);
-      
+      if (import.meta.env.DEV) {
+        console.log('🚩 Ultimate button clicked. Hook value:', ultimateButtonFixed, 'Type:', typeof ultimateButtonFixed);
+      }
+
       // Check both the hook value AND direct PostHog check as fallback
       const isFixEnabled = ultimateButtonFixed === true || posthog?.isFeatureEnabled('Ultimate_button_subscription_fix') === true;
-      console.log('🚩 Direct PostHog check:', posthog?.isFeatureEnabled('Ultimate_button_subscription_fix'));
-      console.log('🚩 Final isFixEnabled:', isFixEnabled);
-      
+      if (import.meta.env.DEV) {
+        console.log('🚩 Direct PostHog check:', posthog?.isFeatureEnabled('Ultimate_button_subscription_fix'));
+        console.log('🚩 Final isFixEnabled:', isFixEnabled);
+      }
+
       if (isFixEnabled) {
         // Feature flag is ON - redirect to working Stripe checkout
         posthog?.capture('pricing:ultimate_fixed_checkout', {
@@ -221,17 +213,147 @@ const Pricing = () => {
         window.open('https://buy.stripe.com/test_00w4gzbQR8dP5aC2VZ9Ve02', '_blank');
         return;
       } else {
-        // Feature flag is OFF - simulate broken button (rage click demo)
+        // Feature flag is OFF - simulate broken checkout (rage click + error tracking demo)
+        // Uses a realistic async call chain so PostHog Error Tracking shows
+        // a multi-frame stack trace, not just "setTimeout → anonymous"
         setLoading(true);
-        setTimeout(() => {
-          setLoading(false);
-          posthog?.capture('pricing:ultimate_payment_error', {
-            feature_flag: 'Ultimate_button_subscription_fix',
-            flag_value: false,
-            error: 'Payment Gateway Connection Failed'
+
+        const transactionId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const errorContext = {
+          feature_flag: 'Ultimate_button_subscription_fix',
+          flag_value: false,
+          transaction_id: transactionId,
+          gateway: 'stripe',
+          plan: 'ultimate',
+          amount_cents: 2999,
+          currency: 'USD',
+          user_plan_current: subscription?.plan_name || 'none',
+          retry_count: 0,
+        };
+
+        // Structured logs for Session Replay's Logs panel
+        slog('PAYMENT', 'info', `Initializing checkout — plan: ultimate, amount: $29.99 USD`);
+        slog('PAYMENT', 'info', `Transaction: ${transactionId}`);
+        slog('PAYMENT', 'info', `Gateway: stripe, endpoint: api.stripe.com/v1/charges`);
+        slog('AUTH', 'info', `Payment token validated — scope: charges:write`);
+        slog('PAYMENT', 'warn', `⚠️ Gateway response timeout after 30000ms — transaction: ${transactionId}`);
+
+        // --- Simulated payment processing chain (named functions = named stack frames) ---
+
+        class PaymentGatewayError extends Error {
+          public details: Record<string, any>;
+          public cause?: unknown;
+          constructor(message: string, details: Record<string, any>, cause?: unknown) {
+            super(message);
+            this.name = 'PaymentGatewayError';
+            this.details = details;
+            if (cause) this.cause = cause;
+          }
+        }
+        class StripeConnectionError extends Error {
+          constructor(message: string) {
+            super(message);
+            this.name = 'StripeConnectionError';
+          }
+        }
+
+        /** Deepest frame: raw Stripe API call */
+        function executeStripeCharge(txnId: string, amountCents: number): never {
+          throw new StripeConnectionError(
+            `ETIMEDOUT: Stripe API connection timed out after 30000ms (POST /v1/charges). ` +
+            `Transaction: ${txnId}, Amount: ${amountCents} cents. ` +
+            `Host: api.stripe.com:443, DNS resolved: 52.202.184.175`
+          );
+        }
+
+        /** Gateway authorization wrapper */
+        function authorizeWithGateway(txnId: string, gateway: string, amount: number): never {
+          try {
+            executeStripeCharge(txnId, amount);
+          } catch (stripeErr) {
+            throw new PaymentGatewayError(
+              `Gateway authorization failed [${gateway}]: Unable to complete charge for transaction ${txnId}`,
+              { gateway, txnId, amount, stage: 'authorization' },
+              stripeErr
+            );
+          }
+          // TypeScript: unreachable, but keeps the types happy
+          throw new Error('unreachable');
+        }
+
+        /** Session initialization */
+        function initializePaymentSession(plan: string, amount: number, txnId: string): never {
+          // Simulate idempotency key + session setup
+          const sessionId = `cs_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          if (import.meta.env.DEV) console.log(`Payment session ${sessionId} initialized`);
+          authorizeWithGateway(txnId, 'stripe', amount);
+          throw new Error('unreachable');
+        }
+
+        /** Top-level subscription upgrade orchestrator */
+        async function processSubscriptionUpgrade(ctx: typeof errorContext): Promise<never> {
+          // Simulate a brief network delay for realism
+          await new Promise(resolve => setTimeout(resolve, 800));
+          initializePaymentSession(ctx.plan, ctx.amount_cents, ctx.transaction_id);
+          throw new Error('unreachable');
+        }
+
+        // --- Kick off the chain ---
+        processSubscriptionUpgrade(errorContext)
+          .catch((err) => {
+            setLoading(false);
+
+            // Provide $exception_list with structured frames so the Error
+            // Tracking UI renders a full, readable stack trace instead of
+            // the single minified frame from err.stack.
+            posthog?.capture('$exception', {
+              $exception_list: [
+                {
+                  type: 'PaymentGatewayError',
+                  value: err.message,
+                  mechanism: { handled: true, synthetic: false },
+                  stacktrace: {
+                    type: 'raw' as const,
+                    frames: [
+                      { platform: 'web:javascript' as const, filename: 'src/pages/Pricing.tsx', function: 'handlePlanSelect', lineno: 302, colno: 9, in_app: true },
+                      { platform: 'web:javascript' as const, filename: 'src/pages/Pricing.tsx', function: 'processSubscriptionUpgrade', lineno: 297, colno: 11, in_app: true },
+                      { platform: 'web:javascript' as const, filename: 'src/pages/Pricing.tsx', function: 'initializePaymentSession', lineno: 289, colno: 11, in_app: true },
+                      { platform: 'web:javascript' as const, filename: 'src/pages/Pricing.tsx', function: 'authorizeWithGateway', lineno: 272, colno: 13, in_app: true },
+                    ],
+                  },
+                },
+                {
+                  type: 'StripeConnectionError',
+                  value: (err as any).cause?.message || 'Stripe API connection timed out',
+                  mechanism: { handled: false, synthetic: false },
+                  stacktrace: {
+                    type: 'raw' as const,
+                    frames: [
+                      { platform: 'web:javascript' as const, filename: 'src/pages/Pricing.tsx', function: 'authorizeWithGateway', lineno: 272, colno: 13, in_app: true },
+                      { platform: 'web:javascript' as const, filename: 'src/pages/Pricing.tsx', function: 'executeStripeCharge', lineno: 261, colno: 17, in_app: true },
+                    ],
+                  },
+                },
+              ],
+              $exception_message: err.message,
+              $exception_type: 'PaymentGatewayError',
+              ...errorContext,
+              error_session_id: `cs_${Date.now()}`,
+              ...landmarkProps({
+                statusCode: 504,
+                apiUrl: 'https://api.hogflix.io/api/payments/stripe/charge',
+                screen: 'pricingScreen',
+              }),
+            });
+
+            // Also fire a typed business event for dashboards
+            posthog?.capture('pricing:ultimate_payment_error', errorContext);
+
+            // Re-throw so the React Error Boundary catches it too
+            // (gives Session Replay the red error overlay)
+            throw err;
           });
-          throw new Error("Payment Gateway Connection Failed: Timeout waiting for response from provider.");
-        }, 1000);
+
         return;
       }
     }
@@ -263,11 +385,11 @@ const Pricing = () => {
           from: currentPlan,
           to: planName
         });
-        
+
         // Check if VIP retention offer should be shown
         // Flag is enabled if: is_vip = true AND customer_health_score < 50
         const isVipRetentionActive = vipRetentionEnabled === true || posthog?.isFeatureEnabled('vip_retention_offer') === true;
-        
+
         if (isVipRetentionActive) {
           posthog?.capture('subscription:downgrade_intercepted', {
             from: currentPlan,
@@ -353,7 +475,7 @@ const Pricing = () => {
       // Continue with the original downgrade action
       const planName = pendingDowngradePlan;
       setPendingDowngradePlan(null);
-      
+
       // For basic plan, activate it directly
       if (planName === 'basic') {
         handlePlanSelect(planName);
@@ -380,7 +502,7 @@ const Pricing = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background" data-layout={layoutExperimentVariant === 'horizontal' ? 'table' : 'card'}>
+    <div className="min-h-screen bg-background" data-layout="card">
       <Header />
 
       <main className="container mx-auto px-4 py-12 md:py-20">
@@ -402,144 +524,75 @@ const Pricing = () => {
           </AlertDescription>
         </Alert>
 
-        {/* Pricing Cards — layout depends on experiment variant */}
-        {layoutExperimentVariant === 'horizontal' ? (
-          /* ── VARIANT: Horizontal comparison table ── */
-          <div className="max-w-6xl mx-auto overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <th className="p-4 text-left text-muted-foreground font-medium border-b border-border">Features</th>
-                  {plans.map((plan) => {
-                    const isCurrent = isCurrentPlan(plan.name);
-                    return (
-                      <th key={plan.name} className={`p-4 text-center border-b min-w-[180px] ${isCurrent ? 'border-green-500 bg-green-500/5' : plan.popular ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                        {isCurrent && <Badge className="mb-2 bg-green-500">Current</Badge>}
-                        {!isCurrent && plan.popular && <Badge className="mb-2 bg-primary">Most Popular</Badge>}
-                        <div className="text-xl font-bold">{plan.displayName}</div>
-                        <div className="mt-1">
-                          <span className="text-2xl font-bold">{plan.price}</span>
-                          <span className="text-muted-foreground text-sm ml-1">{plan.priceDetail}</span>
-                        </div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from(new Set(plans.flatMap(p => p.features))).map((feature, idx) => (
-                  <tr key={idx} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                    <td className="p-4 text-sm">{feature}</td>
-                    {plans.map((plan) => {
-                      const isCurrent = isCurrentPlan(plan.name);
-                      return (
-                        <td key={plan.name} className={`p-4 text-center ${isCurrent ? 'bg-green-500/5' : plan.popular ? 'bg-primary/5' : ''}`}>
-                          {plan.features.includes(feature) ? (
-                            <Check className="w-5 h-5 text-primary mx-auto" />
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td className="p-4"></td>
-                  {plans.map((plan) => {
-                    const isCurrent = isCurrentPlan(plan.name);
-                    return (
-                      <td key={plan.name} className={`p-4 text-center ${isCurrent ? 'bg-green-500/5' : plan.popular ? 'bg-primary/5' : ''}`}>
-                        <Button
-                          ref={plan.name === 'ultimate' ? ultimateButtonRef : undefined}
-                          className={`w-full ${plan.name === 'ultimate' ? 'ultimate-subscribe-button' : ''}`}
-                          variant={isCurrent ? 'outline' : plan.popular ? 'default' : 'outline'}
-                          size="lg"
-                          onClick={() => handlePlanSelect(plan.name)}
-                          disabled={loading || isCurrent}
-                        >
-                          {loading ? 'Processing...' : getButtonText(plan)}
-                        </Button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        ) : (
-          /* ── CONTROL: Original vertical card grid ── */
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {plans.map((plan) => {
-              const isCurrent = isCurrentPlan(plan.name);
+        {/* Pricing Cards */}
+        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          {plans.map((plan) => {
+            const isCurrent = isCurrentPlan(plan.name);
 
-              return (
-                <Card
-                  key={plan.name}
-                  className={`relative p-8 flex flex-col ${isCurrent
-                      ? 'border-green-500 shadow-lg shadow-green-500/20 scale-105'
-                      : plan.popular
-                        ? 'border-primary shadow-lg scale-105 md:scale-110'
-                        : 'border-border'
-                    }`}
-                >
-                  {isCurrent && (
-                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500">
-                      ✓ Current Plan
-                    </Badge>
-                  )}
-                  {!isCurrent && plan.popular && (
-                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">
-                      Most Popular
-                    </Badge>
-                  )}
+            return (
+              <Card
+                key={plan.name}
+                className={`relative p-8 flex flex-col ${isCurrent
+                  ? 'border-green-500 shadow-lg shadow-green-500/20 scale-105'
+                  : plan.popular
+                    ? 'border-primary shadow-lg scale-105 md:scale-110'
+                    : 'border-border'
+                  }`}
+              >
+                {isCurrent && (
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500">
+                    ✓ Current Plan
+                  </Badge>
+                )}
+                {!isCurrent && plan.popular && (
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">
+                    Most Popular
+                  </Badge>
+                )}
 
-                  <div className="text-center mb-6">
-                    <h3 className="text-2xl font-bold mb-2">{plan.displayName}</h3>
-                    <div className="mb-4">
-                      <span className="text-4xl font-bold">{plan.price}</span>
-                      <span className="text-muted-foreground ml-2">
-                        {plan.priceDetail}
-                      </span>
-                    </div>
+                <div className="text-center mb-6">
+                  <h3 className="text-2xl font-bold mb-2">{plan.displayName}</h3>
+                  <div className="mb-4">
+                    <span className="text-4xl font-bold">{plan.price}</span>
+                    <span className="text-muted-foreground ml-2">
+                      {plan.priceDetail}
+                    </span>
                   </div>
+                </div>
 
-                  <ul className="space-y-3 mb-8 flex-grow">
-                    {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
+                <ul className="space-y-3 mb-8 flex-grow">
+                  {plan.features.map((feature, index) => (
+                    <li key={index} className="flex items-start gap-3">
+                      <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                      <span className="text-sm">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
 
-                  <Button
-                    ref={plan.name === 'ultimate' ? ultimateButtonRef : undefined}
-                    className={`w-full ${plan.name === 'ultimate' ? 'ultimate-subscribe-button' : ''}`}
-                    variant={isCurrent ? 'outline' : plan.popular ? 'default' : 'outline'}
-                    size="lg"
-                    onClick={() => handlePlanSelect(plan.name)}
-                    disabled={loading || isCurrent}
-                  >
-                    {loading && plan.name === 'ultimate' ? 'Processing...' : loading ? 'Processing...' : getButtonText(plan)}
-                    {!isCurrent && subscription && (
-                      <>
-                        {plan.name === 'ultimate' && subscription.plan_name !== plan.name && (
-                          <ArrowRight className="w-4 h-4 ml-2" />
-                        )}
-                        {plan.name === 'basic' && subscription.plan_name !== 'basic' && (
-                          <ArrowDown className="w-4 h-4 ml-2" />
-                        )}
-                      </>
-                    )}
-                  </Button>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                <Button
+                  ref={plan.name === 'ultimate' ? ultimateButtonRef : undefined}
+                  className={`w-full ${plan.name === 'ultimate' ? 'ultimate-subscribe-button' : ''}`}
+                  variant={isCurrent ? 'outline' : plan.popular ? 'default' : 'outline'}
+                  size="lg"
+                  onClick={() => handlePlanSelect(plan.name)}
+                  disabled={loading || isCurrent}
+                >
+                  {loading && plan.name === 'ultimate' ? 'Processing...' : loading ? 'Processing...' : getButtonText(plan)}
+                  {!isCurrent && subscription && (
+                    <>
+                      {plan.name === 'ultimate' && subscription.plan_name !== plan.name && (
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      )}
+                      {plan.name === 'basic' && subscription.plan_name !== 'basic' && (
+                        <ArrowDown className="w-4 h-4 ml-2" />
+                      )}
+                    </>
+                  )}
+                </Button>
+              </Card>
+            );
+          })}
+        </div>
 
         {/* FAQ Section */}
         <div className="mt-20 max-w-3xl mx-auto text-center">

@@ -28,8 +28,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail, Menu, Headphones } from 'lucide-react';
+import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail, Menu, Headphones, Heart, Upload, Shield } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
+import { formatDuration } from '@/lib/formatDuration';
+import { slog, throwSearchError, landmarkProps } from '@/lib/demoErrors';
 
 interface Profile {
   id: string;
@@ -48,10 +50,10 @@ const Header = () => {
   const [role, setRole] = useState<string | null>(null);
   const [userProfiles, setUserProfiles] = useState<Profile[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
-  
+
   // Use hybrid search hook
   const { search, instantSearch, searchResults, isSearching, lastSearchType } = useHybridSearch();
-  
+
   // Instant search results for dropdown preview
   const instantResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -78,41 +80,83 @@ const Header = () => {
       setShowInstantResults(false);
     }
   }, [searchQuery, instantResults]);
-  
+
   const navigate = useNavigate();
   const posthog = usePostHog();
+
   const { selectedProfile, setSelectedProfile } = useProfile();
   const { subscription, isFreePlan } = useSubscription();
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    if (hours > 0) {
-      return `${hours}h ${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
-    
-    const result = await search(searchQuery);
+
+    const searchStartMs = Date.now();
+    slog('SEARCH', 'info', `Query: "${searchQuery}" — searching index "videos"...`);
+
+    // Trigger phrases that simulate a search backend timeout for Error Tracking demo
+    const triggerPhrases = ['server status', 'debug error', 'status check'];
+    const isTrigger = triggerPhrases.some(p => searchQuery.toLowerCase().includes(p));
+
+    if (isTrigger) {
+      slog('SEARCH', 'warn', `⚠️ Elasticsearch cluster search-prod responding slowly`);
+      slog('SEARCH', 'error', `❌ Elasticsearch timeout after 5000ms — query: "${searchQuery}"`);
+
+      // Fire the error asynchronously so it doesn't block UI
+      setTimeout(() => {
+        try {
+          throwSearchError(searchQuery);
+        } catch (err: any) {
+          posthog.capture('$exception', {
+            $exception_list: [
+              {
+                type: 'SearchServiceError',
+                value: err.message,
+                mechanism: { handled: true, synthetic: false },
+                stacktrace: {
+                  type: 'raw' as const,
+                  frames: [
+                    { platform: 'web:javascript' as const, filename: 'src/components/Header.tsx', function: 'handleSearch', lineno: 108, colno: 11, in_app: true },
+                    { platform: 'web:javascript' as const, filename: 'src/lib/demoErrors.ts', function: 'querySearchIndex', lineno: 112, colno: 13, in_app: true },
+                    { platform: 'web:javascript' as const, filename: 'src/lib/demoErrors.ts', function: 'executeElasticQuery', lineno: 98, colno: 15, in_app: true },
+                  ],
+                },
+              },
+            ],
+            $exception_message: err.message,
+            $exception_type: 'SearchServiceError',
+            search_query: searchQuery,
+            error_source: 'search_service',
+            ...landmarkProps({
+              statusCode: 504,
+              apiUrl: 'https://search-prod.hogflix.internal:9200/videos/_search',
+              screen: 'searchOverlay',
+            }),
+          });
+          throw err;
+        }
+      }, 200);
+      return;
+    }
+
+    await search(searchQuery);
+    const elapsed = Date.now() - searchStartMs;
+    slog('SEARCH', 'info', `Query: "${searchQuery}" — ${instantResults.length} results (${elapsed}ms)`);
     setShowSearchResults(true);
   };
 
-  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       // If user presses Enter, redirect to FlixBuddy with their query
       if (searchQuery.trim()) {
         setShowInstantResults(false);
-        
+
         // Track search-to-chat conversion
         posthog.capture('search:redirected_to_flixbuddy', {
           query: searchQuery,
           instant_results_count: instantResults.length
         });
-        
+
         navigate(`/flixbuddy?q=${encodeURIComponent(searchQuery)}`);
         setSearchQuery('');
       }
@@ -181,14 +225,14 @@ const Header = () => {
       early_access_features: profile.early_access_features || []
     };
     setSelectedProfile(profileForContext);
-    
+
     // Initialize PostHog person properties for early access features
     if (posthog) {
       posthog.setPersonProperties({
         early_access_features: profile.early_access_features || []
       });
     }
-    
+
     posthog?.capture('profile:switched', {
       profile_id: profile.id,
       profile_name: profile.display_name,
@@ -228,6 +272,74 @@ const Header = () => {
                   <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
+              <SheetContent side="left" className="w-[280px] bg-card/95 backdrop-blur-sm border-border">
+                <SheetHeader>
+                  <SheetTitle className="text-text-primary font-manrope text-left">Navigation</SheetTitle>
+                </SheetHeader>
+                <nav className="flex flex-col space-y-4 mt-6">
+                  <Link
+                    to="/browse"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+                  >
+                    <Play className="h-5 w-5" />
+                    <span>Home</span>
+                  </Link>
+                  <Link
+                    to="/my-list"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+                  >
+                    <Heart className="h-5 w-5" />
+                    <span>My List</span>
+                  </Link>
+                  {role === 'admin' && (
+                    <Link
+                      to="/submit-content"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+                    >
+                      <Upload className="h-5 w-5" />
+                      <span>Submit Content</span>
+                    </Link>
+                  )}
+                  <Link
+                    to="/flixbuddy"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+                  >
+                    <Sparkles className="h-5 w-5" />
+                    <span>FlixBuddy</span>
+                  </Link>
+                  {(role === 'admin' || role === 'moderator') && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+                    >
+                      <Shield className="h-5 w-5" />
+                      <span>Admin Panel</span>
+                    </Link>
+                  )}
+
+                  {/* Upgrade button for Basic plan users */}
+                  {isFreePlan && (
+                    <Link
+                      to="/pricing"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="mt-4"
+                    >
+                      <Button
+                        variant="default"
+                        className="w-full bg-gradient-to-r from-primary-red to-red-600 hover:from-primary-red/90 hover:to-red-600/90 text-white font-semibold"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Upgrade to Premium
+                      </Button>
+                    </Link>
+                  )}
+                </nav>
+              </SheetContent>
             </Sheet>
           )}
 
@@ -242,56 +354,56 @@ const Header = () => {
             {user ? (
               <>
                 {/* Navigation Links */}
-                  <div className="hidden lg:flex items-center space-x-6">
-                    <Link 
-                      to="/browse" 
+                <div className="hidden lg:flex items-center space-x-6">
+                  <Link
+                    to="/browse"
+                    className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                  >
+                    Home
+                  </Link>
+                  <Link
+                    to="/my-list"
+                    className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                  >
+                    My List
+                  </Link>
+                  {role === 'admin' && (
+                    <Link
+                      to="/submit-content"
                       className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
                     >
-                      Home
+                      Submit Content
                     </Link>
-                    <Link 
-                      to="/my-list" 
+                  )}
+                  <Link
+                    to="/flixbuddy"
+                    className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                  >
+                    FlixBuddy
+                  </Link>
+                  {(role === 'admin' || role === 'moderator') && (
+                    <Link
+                      to="/admin"
                       className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
                     >
-                      My List
+                      Admin Panel
                     </Link>
-                    {role === 'admin' && (
-                      <Link 
-                        to="/submit-content" 
-                        className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                  )}
+
+                  {/* Upgrade button for Basic plan users */}
+                  {isFreePlan && (
+                    <Link to="/pricing">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="bg-gradient-to-r from-primary-red to-red-600 hover:from-primary-red/90 hover:to-red-600/90 text-white font-semibold"
                       >
-                        Submit Content
-                      </Link>
-                    )}
-                    <Link 
-                      to="/flixbuddy" 
-                      className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
-                    >
-                      FlixBuddy
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Upgrade
+                      </Button>
                     </Link>
-                    {(role === 'admin' || role === 'moderator') && (
-                      <Link 
-                        to="/admin" 
-                        className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
-                      >
-                        Admin Panel
-                      </Link>
-                    )}
-                    
-                    {/* Upgrade button for Basic plan users */}
-                    {isFreePlan && (
-                      <Link to="/pricing">
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          className="bg-gradient-to-r from-primary-red to-red-600 hover:from-primary-red/90 hover:to-red-600/90 text-white font-semibold"
-                        >
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Upgrade
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
+                  )}
+                </div>
 
                 {/* Hybrid Search Input */}
                 <div ref={searchRef} className="relative flex-1 max-w-md mx-4">
@@ -301,7 +413,7 @@ const Header = () => {
                     placeholder="Search movies or ask for recommendations..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={handleSearchKeyPress}
+                    onKeyDown={handleSearchKeyDown}
                     onFocus={() => searchQuery.trim() && instantResults.length > 0 && setShowInstantResults(true)}
                     className="pl-10 bg-background/20 border-gray-700 text-text-primary placeholder:text-muted-foreground focus:border-primary-red"
                   />
@@ -310,7 +422,7 @@ const Header = () => {
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-red"></div>
                     </div>
                   )}
-                  
+
                   {/* Instant search dropdown */}
                   {showInstantResults && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-card/95 backdrop-blur-sm border border-border rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
@@ -357,8 +469,8 @@ const Header = () => {
                 {/* Profile Dropdown */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       className="flex items-center space-x-2 text-text-primary hover:text-white hover:bg-white/10"
                     >
                       <div className="flex items-center space-x-2">
@@ -372,8 +484,8 @@ const Header = () => {
                       </div>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent 
-                    align="end" 
+                  <DropdownMenuContent
+                    align="end"
                     className="w-56 bg-card/95 backdrop-blur-sm border-border"
                   >
                     {userProfiles.length > 0 && (
@@ -399,7 +511,7 @@ const Header = () => {
                             )}
                           </DropdownMenuItem>
                         ))}
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           onClick={() => navigate('/profiles')}
                           className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
                         >
@@ -409,28 +521,28 @@ const Header = () => {
                         <DropdownMenuSeparator className="bg-gray-700" />
                       </>
                     )}
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => navigate('/pricing')}
                       className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
                     >
                       <CreditCard className="h-4 w-4 mr-2" />
                       Pricing & Plans
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => navigate('/newsletter-preferences')}
                       className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
                     >
                       <Mail className="h-4 w-4 mr-2" />
                       Newsletter Preferences
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => navigate('/beta-features')}
                       className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
                     >
                       <Sparkles className="h-4 w-4 mr-2" />
                       Beta Features
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => navigate('/support')}
                       className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
                     >
@@ -438,7 +550,7 @@ const Header = () => {
                       Support
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-gray-700" />
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={handleLogout}
                       disabled={loading}
                       className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
@@ -452,7 +564,7 @@ const Header = () => {
             ) : (
               /* Unauthenticated Navigation */
               <Link to="/login">
-                <Button 
+                <Button
                   className="bg-primary-red hover:bg-primary-red/90 text-white font-manrope font-semibold px-6 py-2"
                 >
                   Log In
@@ -477,7 +589,7 @@ const Header = () => {
               )}
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             {searchResults.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -485,11 +597,11 @@ const Header = () => {
                   <div
                     key={video.id}
                     className="bg-card-background rounded-lg overflow-hidden hover:bg-white/5 transition-colors cursor-pointer"
-                     onClick={() => {
-                       navigate(`/watch/${video.id}`);
-                       setShowSearchResults(false);
-                       setSearchQuery('');
-                     }}
+                    onClick={() => {
+                      navigate(`/watch/${video.id}`);
+                      setShowSearchResults(false);
+                      setSearchQuery('');
+                    }}
                   >
                     <div className="aspect-video bg-gray-700 relative overflow-hidden">
                       <img
@@ -519,12 +631,12 @@ const Header = () => {
                           size="sm"
                           variant="ghost"
                           className="text-text-primary hover:text-white hover:bg-white/10"
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             navigate(`/watch/${video.id}`);
-                             setShowSearchResults(false);
-                             setSearchQuery('');
-                           }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/watch/${video.id}`);
+                            setShowSearchResults(false);
+                            setSearchQuery('');
+                          }}
                         >
                           <Info className="h-4 w-4 mr-1" />
                           Details
@@ -545,79 +657,7 @@ const Header = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Mobile Menu Sheet */}
-      {user && (
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetContent side="left" className="w-[280px] bg-card/95 backdrop-blur-sm border-border">
-            <SheetHeader>
-              <SheetTitle className="text-text-primary font-manrope text-left">Navigation</SheetTitle>
-            </SheetHeader>
-            <nav className="flex flex-col space-y-4 mt-6">
-              <Link 
-                to="/browse" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
-              >
-                <Play className="h-5 w-5" />
-                <span>Home</span>
-              </Link>
-              <Link 
-                to="/my-list" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
-              >
-                <Info className="h-5 w-5" />
-                <span>My List</span>
-              </Link>
-              {role === 'admin' && (
-                <Link 
-                  to="/submit-content" 
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
-                >
-                  <CreditCard className="h-5 w-5" />
-                  <span>Submit Content</span>
-                </Link>
-              )}
-              <Link 
-                to="/flixbuddy" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
-              >
-                <Sparkles className="h-5 w-5" />
-                <span>FlixBuddy</span>
-              </Link>
-              {(role === 'admin' || role === 'moderator') && (
-                <Link 
-                  to="/admin" 
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
-                >
-                  <Users className="h-5 w-5" />
-                  <span>Admin Panel</span>
-                </Link>
-              )}
-              
-              {/* Upgrade button for Basic plan users */}
-              {isFreePlan && (
-                <Link 
-                  to="/pricing"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="mt-4"
-                >
-                  <Button 
-                    variant="default" 
-                    className="w-full bg-gradient-to-r from-primary-red to-red-600 hover:from-primary-red/90 hover:to-red-600/90 text-white font-semibold"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Upgrade to Premium
-                  </Button>
-                </Link>
-              )}
-            </nav>
-          </SheetContent>
-        </Sheet>
-      )}
+
     </>
   );
 };

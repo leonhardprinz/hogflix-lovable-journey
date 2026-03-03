@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { formatDuration } from '@/lib/formatDuration';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +15,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { AiSummaryPanel } from '@/components/AiSummaryPanel';
 import { UnifiedVideoPlayer } from '@/components/UnifiedVideoPlayer';
 import { toast } from 'sonner';
+import { slog, throwCDNError, landmarkProps } from '@/lib/demoErrors';
 
 interface Video {
   id: string;
@@ -50,6 +52,7 @@ const VideoPlayer = () => {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [hasEarlyAccess, setHasEarlyAccess] = useState(false);
   const aiSummariesFlagEnabled = useFeatureFlagEnabled('early_access_ai_summaries');
+
 
   const hasAppliedResume = useRef(false);
   const initialProgressRef = useRef<typeof progress | null>(null);
@@ -107,25 +110,18 @@ const VideoPlayer = () => {
         });
       }
 
-      // Track completion
+      // Track completion (single event with all properties)
       if (progressPercentage >= 95) {
         const sourceSection = sessionStorage.getItem('video_source_section') || 'unknown';
 
         posthog.capture('video:completed', {
           video_id: video.id,
-          category: categoryName,
-          session_id: sessionId,
-          profile_id: selectedProfile.id,
-          total_duration: duration
-        });
-
-        // Video completed event for A/B test tracking
-        posthog.capture('video:completed', {
           content_id: video.id,
           category: categoryName,
           source_section: sourceSection,
           completion_pct: Math.round(progressPercentage),
           watch_seconds: Math.round(currentTimeValue),
+          total_duration: duration,
           profile_id: selectedProfile.id,
           session_id: sessionId
         });
@@ -175,9 +171,8 @@ const VideoPlayer = () => {
       }
 
       try {
-        if (import.meta.env.DEV) {
-          console.log('🎬 Initializing video player for:', videoId);
-        }
+        slog('AUTH', 'info', `Session verified — user: ${session.user.email}`);
+        slog('PLAYER', 'info', `Initializing player for video ${videoId}`);
 
         // Step 1: Load video metadata
         const { data: videoData, error: videoError } = await supabase
@@ -192,9 +187,8 @@ const VideoPlayer = () => {
           return;
         }
 
-        if (import.meta.env.DEV) {
-          console.log('📹 Video metadata loaded:', videoData.title);
-        }
+        slog('API', 'info', `GET /api/videos/${videoId} — 200 OK`);
+        slog('PLAYER', 'info', `Metadata loaded — title: "${videoData.title}", duration: ${videoData.duration}s`);
         setVideo(videoData);
         setAiSummary(videoData.ai_summary);
 
@@ -212,14 +206,10 @@ const VideoPlayer = () => {
         setCategoryName(fetchedCategoryName);
 
         // Step 2: Load watch progress first
-        if (import.meta.env.DEV) {
-          console.log('📊 Loading watch progress...');
-        }
+        slog('PLAYER', 'info', `Loading watch progress for video ${videoId}...`);
         const progressData = await loadProgress(videoId);
         initialProgressRef.current = progressData; // Store in ref instead of triggering re-renders
-        if (import.meta.env.DEV) {
-          console.log('📊 Progress data:', progressData);
-        }
+        slog('PLAYER', 'info', `Watch progress loaded — ${progressData ? Math.round(progressData.progress_percentage || 0) + '%' : 'no prior progress'}`);
 
         // Step 3: Get video URL
         const { data: urlData, error: urlError } = await supabase.functions.invoke('get-video-url', {
@@ -227,17 +217,54 @@ const VideoPlayer = () => {
         });
 
         if (urlError || !urlData?.signedUrl) {
+          slog('CDN', 'error', `Stream URL fetch failed — video: ${videoId}, error: ${urlError?.message || 'no signed URL'}`);
+          slog('CDN', 'warn', `Attempting CDN failover — regions: eu-west-1 → us-east-1 → ap-south-1`);
+
+          // Throw a realistic CDN error with a multi-frame stack trace
+          // This creates a distinct "ContentDeliveryError" group in PostHog Error Tracking
+          setTimeout(() => {
+            try {
+              throwCDNError(videoId, video?.title || 'Unknown');
+            } catch (err: any) {
+              posthog.capture('$exception', {
+                $exception_list: [
+                  {
+                    type: 'ContentDeliveryError',
+                    value: err.message,
+                    mechanism: { handled: true, synthetic: false },
+                    stacktrace: {
+                      type: 'raw' as const,
+                      frames: [
+                        { platform: 'web:javascript' as const, filename: 'src/pages/VideoPlayer.tsx', function: 'initializePlayer', lineno: 195, colno: 11, in_app: true },
+                        { platform: 'web:javascript' as const, filename: 'src/lib/demoErrors.ts', function: 'loadVideoStream', lineno: 84, colno: 9, in_app: true },
+                        { platform: 'web:javascript' as const, filename: 'src/lib/demoErrors.ts', function: 'resolveStreamingManifest', lineno: 60, colno: 13, in_app: true },
+                        { platform: 'web:javascript' as const, filename: 'src/lib/demoErrors.ts', function: 'fetchCDNSegment', lineno: 50, colno: 15, in_app: true },
+                      ],
+                    },
+                  },
+                ],
+                $exception_message: err.message,
+                $exception_type: 'ContentDeliveryError',
+                video_id: videoId,
+                video_title: video?.title,
+                error_source: 'cdn_streaming',
+                ...landmarkProps({
+                  statusCode: 503,
+                  apiUrl: `https://cdn.c1.hogflix.io/streams/${videoId}/manifest.m3u8`,
+                  screen: 'videoPlayer',
+                }),
+              });
+              throw err;
+            }
+          }, 100);
+
           setError('Could not load video');
-          if (import.meta.env.DEV) {
-            console.error('Video URL error:', urlError);
-          }
           setLoading(false);
           return;
         }
 
-        if (import.meta.env.DEV) {
-          console.log('🔗 Video URL obtained');
-        }
+        slog('CDN', 'info', `Stream URL resolved — protocol: ${urlData.isHLS ? 'HLS' : 'MP4'}, cache: HIT, region: eu-west-1`);
+        slog('API', 'info', `GET /api/stream/manifest/${videoId} — 200 OK (${Math.floor(Math.random() * 100 + 80)}ms)`);
         setVideoUrl(urlData.signedUrl);
         setIsHLS(urlData.isHLS || urlData.signedUrl.includes('.m3u8'));
 
@@ -252,9 +279,7 @@ const VideoPlayer = () => {
           const seconds = Math.floor(resumeTime % 60);
           setResumeMessage(`Resume from ${minutes}:${seconds.toString().padStart(2, '0')}?`);
           setShowStartOverButton(true);
-          if (import.meta.env.DEV) {
-            console.log('📺 Resume message set for', resumeTime, 'seconds');
-          }
+          slog('PLAYER', 'info', `Resume point found — ${minutes}:${seconds.toString().padStart(2, '0')} (${Math.round(resumeProgress.progress_percentage)}%)`);
         }
 
         // Get source section from session storage
@@ -331,9 +356,9 @@ const VideoPlayer = () => {
 
   // Handle video ready callback
   const handleVideoReady = () => {
-    if (import.meta.env.DEV) {
-      console.log('📋 Video ready');
-    }
+    slog('PLAYER', 'info', `Video ready — buffered and playable`);
+    slog('CDN', 'info', `Streaming active — bitrate: auto, segments cached: 3`);
+    slog('API', 'info', `GET /api/stream/heartbeat — 200 OK`);
   };
 
   // Handle start over button
@@ -564,7 +589,7 @@ const VideoPlayer = () => {
             )}
 
             <div className="text-text-tertiary font-manrope mb-6">
-              Duration: {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
+              Duration: {formatDuration(video.duration)}
             </div>
 
             {/* Add to Watchlist Button */}

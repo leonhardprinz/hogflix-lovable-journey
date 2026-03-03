@@ -27,8 +27,142 @@ async function capturePostHogEvent(apiKey: string, event: string, distinctId: st
   }
 }
 
+// ─── MODEL CONFIGURATIONS ────────────────────────────────────────────────────
+
+interface ModelConfig {
+  id: string;
+  label: string;
+  provider: 'google' | 'mistral';
+  apiModel: string;
+  inputPricePer1M: number;
+  outputPricePer1M: number;
+}
+
+const MODEL_CONFIGS: Record<string, ModelConfig> = {
+  'gemini-2.0-flash': {
+    id: 'gemini-2.0-flash',
+    label: 'Gemini 2.0 Flash',
+    provider: 'google',
+    apiModel: 'gemini-2.0-flash',
+    inputPricePer1M: 0.10,
+    outputPricePer1M: 0.40,
+  },
+  'gemini-2.5-flash': {
+    id: 'gemini-2.5-flash',
+    label: 'Gemini 2.5 Flash',
+    provider: 'google',
+    apiModel: 'gemini-2.5-flash',
+    inputPricePer1M: 0.15,
+    outputPricePer1M: 0.60,
+  },
+  'gemini-2.5-pro': {
+    id: 'gemini-2.5-pro',
+    label: 'Gemini 2.5 Pro',
+    provider: 'google',
+    apiModel: 'gemini-2.5-pro',
+    inputPricePer1M: 1.25,
+    outputPricePer1M: 10.00,
+  },
+  'gemini-3.0-flash': {
+    id: 'gemini-3.0-flash',
+    label: 'Gemini 3.0 Flash',
+    provider: 'google',
+    apiModel: 'gemini-3.0-flash',
+    inputPricePer1M: 0.10,
+    outputPricePer1M: 0.40,
+  },
+  'mistral-small-latest': {
+    id: 'mistral-small-latest',
+    label: 'Mistral Small',
+    provider: 'mistral',
+    apiModel: 'mistral-small-latest',
+    inputPricePer1M: 0.10,
+    outputPricePer1M: 0.30,
+  },
+  'mistral-medium-latest': {
+    id: 'mistral-medium-latest',
+    label: 'Mistral Medium',
+    provider: 'mistral',
+    apiModel: 'mistral-medium-latest',
+    inputPricePer1M: 2.50,
+    outputPricePer1M: 7.50,
+  },
+  'mistral-large-latest': {
+    id: 'mistral-large-latest',
+    label: 'Mistral Large',
+    provider: 'mistral',
+    apiModel: 'mistral-large-latest',
+    inputPricePer1M: 2.00,
+    outputPricePer1M: 6.00,
+  },
+};
+
+// Auto mode: fallback chain
+const AUTO_FALLBACK_CHAIN = ['gemini-3.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'];
+
+// ─── PROVIDER CALL FUNCTIONS ─────────────────────────────────────────────────
+
+async function callGemini(apiKey: string, model: string, prompt: string): Promise<{ response: Response; modelUsed: string }> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 1024 },
+      }),
+    }
+  );
+  return { response, modelUsed: model };
+}
+
+function parseGeminiResponse(data: any): { text: string; tokens: { input: number; output: number; total: number } } {
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
+  const usage = data.usageMetadata || {};
+  return {
+    text,
+    tokens: {
+      input: usage.promptTokenCount || 0,
+      output: usage.candidatesTokenCount || 0,
+      total: usage.totalTokenCount || 0,
+    },
+  };
+}
+
+async function callMistral(apiKey: string, model: string, prompt: string): Promise<{ response: Response; modelUsed: string }> {
+  const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 1024,
+    }),
+  });
+  return { response, modelUsed: model };
+}
+
+function parseMistralResponse(data: any): { text: string; tokens: { input: number; output: number; total: number } } {
+  const text = data.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';
+  const usage = data.usage || {};
+  return {
+    text,
+    tokens: {
+      input: usage.prompt_tokens || 0,
+      output: usage.completion_tokens || 0,
+      total: usage.total_tokens || 0,
+    },
+  };
+}
+
+// ─── MAIN HANDLER ────────────────────────────────────────────────────────────
+
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -36,30 +170,27 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { message, conversationId, userId, profileId } = await req.json();
-    console.log('FlixBuddy chat request:', { conversationId, userId, profileId, messageLength: message?.length });
+    const { message, conversationId, userId, profileId, model: requestedModel } = await req.json();
+    console.log('FlixBuddy chat request:', { conversationId, userId, profileId, requestedModel, messageLength: message?.length });
 
-    // OTLP Log: Request started
     await log.info('FlixBuddy request started', {
       conversation_id: conversationId || 'unknown',
       user_id: userId || 'anonymous',
       profile_id: profileId || 'unknown',
       message_length: message?.length || 0,
+      requested_model: requestedModel || 'auto',
       function_name: 'flixbuddy-chat'
     });
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    const MISTRAL_API_KEY = Deno.env.get('MISTRAL_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const POSTHOG_API_KEY = Deno.env.get('POSTHOG_API_KEY');
 
-    if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      console.error('Missing environment variables');
-      await log.error('Missing environment variables', { function_name: 'flixbuddy-chat' });
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error('Missing required environment variables');
     }
-
-    console.log('Environment variables loaded successfully');
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -76,7 +207,7 @@ serve(async (req) => {
       .select('id, title, description, duration')
       .limit(50);
 
-    // Get user's watchlist and ratings for personalization
+    // Get user's watchlist and ratings
     const { data: watchlist } = await supabase
       .from('user_watchlist')
       .select('video_id')
@@ -89,7 +220,6 @@ serve(async (req) => {
       .eq('user_id', userId)
       .eq('profile_id', profileId);
 
-    // Create system prompt with video context
     const videoContext = videos?.map(v =>
       `${v.title}: ${v.description || 'No description'} (${Math.floor(v.duration / 60)}min)`
     ).join('\n') || '';
@@ -100,12 +230,10 @@ serve(async (req) => {
       return acc;
     }, {} as Record<string, number>) || {};
 
-    // Build conversation history as formatted text
     const conversationText = messages?.map(msg =>
       `${msg.role === 'user' ? 'User' : 'FlixBuddy'}: ${msg.content}`
     ).join('\n\n') || '';
 
-    // Build a single prompt string with everything
     const fullPrompt = `You are FlixBuddy, the AI assistant for HogFlix streaming service. Your role is to help users discover movies and series that match their preferences.
 
 AVAILABLE CONTENT:
@@ -143,143 +271,121 @@ User: ${message}
 
 FlixBuddy:`;
 
-    // Model fallback chain: newest → most capable
-    const MODELS = [
-      'gemini-3.0-flash',    // Primary: latest, fastest
-      'gemini-2.5-flash',    // Fallback 1: proven, fast
-      'gemini-2.5-pro',      // Fallback 2: most capable
-    ];
+    // ─── CALL THE SELECTED MODEL ─────────────────────────────────────────────
 
-    console.log('Calling Gemini API with model fallback chain:', MODELS);
-
-    // Track timing for analytics
     const aiStartTime = Date.now();
+    let responseText = '';
+    let tokenUsage = { input: 0, output: 0, total: 0 };
+    let modelUsed = requestedModel || 'auto';
+    let providerUsed = 'google';
+    let httpStatus = 200;
 
-    const requestBody = JSON.stringify({
-      contents: [{
-        parts: [{
-          text: fullPrompt
-        }]
-      }],
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024,
-      },
-    });
+    const selectedConfig = requestedModel && requestedModel !== 'auto'
+      ? MODEL_CONFIGS[requestedModel]
+      : null;
 
-    let geminiResponse: Response | null = null;
-    let modelUsed = MODELS[0];
+    if (selectedConfig) {
+      // ── SPECIFIC MODEL SELECTED ──
+      console.log(`Using specific model: ${selectedConfig.id} (${selectedConfig.provider})`);
+      providerUsed = selectedConfig.provider;
 
-    for (const model of MODELS) {
-      modelUsed = model;
-      console.log(`Trying model: ${model}`);
+      let apiResponse: Response;
 
-      try {
-        geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: requestBody,
-          }
-        );
-
-        if (geminiResponse.ok) {
-          console.log(`Model ${model} succeeded`);
-          break;
-        }
-
-        const errorText = await geminiResponse.text();
-        console.warn(`Model ${model} failed (${geminiResponse.status}): ${errorText.substring(0, 200)}`);
-
-        // Don't retry on 429 rate limit — return immediately
-        if (geminiResponse.status === 429) {
-          await log.warn('Rate limit exceeded', {
-            conversation_id: conversationId || 'unknown',
-            function_name: 'flixbuddy-chat',
-            model
-          });
-
-          return new Response(
-            JSON.stringify({
-              error: 'Rate limit exceeded. Please try again in a moment.',
-              isRateLimit: true
-            }),
-            {
-              status: 429,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            }
-          );
-        }
-
-        geminiResponse = null; // Mark as failed so we try next model
-      } catch (fetchError) {
-        console.error(`Model ${model} fetch error:`, fetchError);
-        geminiResponse = null;
+      if (selectedConfig.provider === 'mistral') {
+        if (!MISTRAL_API_KEY) throw new Error('Mistral API key not configured');
+        const result = await callMistral(MISTRAL_API_KEY, selectedConfig.apiModel, fullPrompt);
+        apiResponse = result.response;
+        modelUsed = result.modelUsed;
+      } else {
+        if (!GEMINI_API_KEY) throw new Error('Gemini API key not configured');
+        const result = await callGemini(GEMINI_API_KEY, selectedConfig.apiModel, fullPrompt);
+        apiResponse = result.response;
+        modelUsed = result.modelUsed;
       }
+
+      httpStatus = apiResponse.status;
+
+      if (apiResponse.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.', isRateLimit: true }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (!apiResponse.ok) {
+        const errorText = await apiResponse.text();
+        throw new Error(`${selectedConfig.provider} API error (${apiResponse.status}): ${errorText.substring(0, 200)}`);
+      }
+
+      const data = await apiResponse.json();
+      const parsed = selectedConfig.provider === 'mistral'
+        ? parseMistralResponse(data)
+        : parseGeminiResponse(data);
+
+      responseText = parsed.text;
+      tokenUsage = parsed.tokens;
+
+    } else {
+      // ── AUTO MODE: Gemini fallback chain ──
+      console.log('Auto mode: trying Gemini fallback chain:', AUTO_FALLBACK_CHAIN);
+      providerUsed = 'google';
+
+      let geminiResponse: Response | null = null;
+
+      for (const model of AUTO_FALLBACK_CHAIN) {
+        modelUsed = model;
+        console.log(`Trying model: ${model}`);
+
+        try {
+          if (!GEMINI_API_KEY) throw new Error('Gemini API key not configured');
+          const result = await callGemini(GEMINI_API_KEY, model, fullPrompt);
+          geminiResponse = result.response;
+
+          if (geminiResponse.ok) {
+            console.log(`Model ${model} succeeded`);
+            break;
+          }
+
+          const errorText = await geminiResponse.text();
+          console.warn(`Model ${model} failed (${geminiResponse.status}): ${errorText.substring(0, 200)}`);
+
+          if (geminiResponse.status === 429) {
+            return new Response(
+              JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.', isRateLimit: true }),
+              { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          geminiResponse = null;
+        } catch (fetchError) {
+          console.error(`Model ${model} fetch error:`, fetchError);
+          geminiResponse = null;
+        }
+      }
+
+      if (!geminiResponse || !geminiResponse.ok) {
+        httpStatus = geminiResponse?.status || 0;
+        throw new Error(`All Gemini models failed after trying: ${AUTO_FALLBACK_CHAIN.join(', ')}`);
+      }
+
+      httpStatus = geminiResponse.status;
+      const data = await geminiResponse.json();
+      const parsed = parseGeminiResponse(data);
+      responseText = parsed.text;
+      tokenUsage = parsed.tokens;
     }
 
     const aiLatency = Date.now() - aiStartTime;
-
-    if (!geminiResponse || !geminiResponse.ok) {
-      const httpStatus = geminiResponse?.status || 0;
-      console.error('All Gemini models failed');
-
-      await log.error('All Gemini models failed', {
-        conversation_id: conversationId || 'unknown',
-        http_status: httpStatus,
-        latency_ms: aiLatency,
-        function_name: 'flixbuddy-chat',
-        models_tried: MODELS.join(', ')
-      });
-
-      await capturePostHogEvent(
-        POSTHOG_API_KEY || '',
-        '$ai_generation',
-        userId,
-        {
-          $ai_model: modelUsed,
-          $ai_provider: 'google',
-          $ai_input: message,
-          $ai_trace_id: conversationId,
-          $ai_latency: aiLatency / 1000,
-          $ai_http_status: httpStatus,
-          $ai_is_error: true,
-          error_message: 'All models failed',
-        }
-      );
-
-      throw new Error(`All Gemini models failed after trying: ${MODELS.join(', ')}`);
-    }
-
-    const httpStatus = geminiResponse.status;
-
-    const geminiData = await geminiResponse.json();
-    console.log('Gemini API response received, latency:', aiLatency, 'ms');
-
-    // Parse response
-    const assistantMessage = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
-    console.log('Assistant message generated successfully, length:', assistantMessage.length);
-
-    // Extract token usage for analytics
-    const usageMetadata = geminiData.usageMetadata || {};
-    const tokenUsage = {
-      input: usageMetadata.promptTokenCount || 0,
-      output: usageMetadata.candidatesTokenCount || 0,
-      total: usageMetadata.totalTokenCount || 0
-    };
-    console.log('Token usage:', tokenUsage);
-
-    // Calculate cost breakdown (Gemini 1.5 Flash pricing: $0.075 per 1M input, $0.30 per 1M output)
-    const inputCost = (tokenUsage.input / 1_000_000) * 0.075;
-    const outputCost = (tokenUsage.output / 1_000_000) * 0.30;
-    const totalCost = inputCost + outputCost;
-
     const totalLatency = Date.now() - startTime;
 
-    // OTLP Log: Successful response
+    // Calculate cost
+    const config = MODEL_CONFIGS[modelUsed] || MODEL_CONFIGS['gemini-2.0-flash'];
+    const inputCost = (tokenUsage.input / 1_000_000) * config.inputPricePer1M;
+    const outputCost = (tokenUsage.output / 1_000_000) * config.outputPricePer1M;
+    const totalCost = inputCost + outputCost;
+
+    console.log(`Response from ${providerUsed}/${modelUsed}, latency: ${aiLatency}ms, tokens: ${tokenUsage.total}`);
+
     await log.info('FlixBuddy response generated', {
       conversation_id: conversationId || 'unknown',
       user_id: userId || 'anonymous',
@@ -288,22 +394,23 @@ FlixBuddy:`;
       tokens_input: tokenUsage.input,
       tokens_output: tokenUsage.output,
       tokens_total: tokenUsage.total,
-      response_length: assistantMessage.length,
+      response_length: responseText.length,
       model: modelUsed,
+      provider: providerUsed,
       function_name: 'flixbuddy-chat',
-      cost_usd_micro: Math.round(totalCost * 1_000_000) // microdollars for precision
+      cost_usd_micro: Math.round(totalCost * 1_000_000)
     });
 
-    // Capture successful AI generation in PostHog
+    // Capture PostHog AI generation
     await capturePostHogEvent(
       POSTHOG_API_KEY || '',
       '$ai_generation',
       userId,
       {
         $ai_model: modelUsed,
-        $ai_provider: 'google',
+        $ai_provider: providerUsed,
         $ai_input: message,
-        $ai_output_choices: [assistantMessage],
+        $ai_output_choices: [responseText],
         $ai_input_tokens: tokenUsage.input,
         $ai_output_tokens: tokenUsage.output,
         $ai_total_cost_usd: totalCost,
@@ -311,46 +418,29 @@ FlixBuddy:`;
         $ai_trace_id: conversationId,
         $ai_http_status: httpStatus,
         $ai_is_error: false,
+        $ai_prompt_name: 'flixbuddy-system-prompt',
         profile_id: profileId,
       }
     );
 
-    // Save user message
-    await supabase
-      .from('chat_messages')
-      .insert({
-        conversation_id: conversationId,
-        role: 'user',
-        content: message
-      });
-
-    // Save assistant message
-    await supabase
-      .from('chat_messages')
-      .insert({
-        conversation_id: conversationId,
-        role: 'assistant',
-        content: assistantMessage,
-        metadata: {
-          model: modelUsed,
-          timestamp: new Date().toISOString()
-        }
-      });
-
-    console.log('Chat response generated successfully');
+    // Save messages
+    await supabase.from('chat_messages').insert({ conversation_id: conversationId, role: 'user', content: message });
+    await supabase.from('chat_messages').insert({
+      conversation_id: conversationId,
+      role: 'assistant',
+      content: responseText,
+      metadata: { model: modelUsed, provider: providerUsed, timestamp: new Date().toISOString() }
+    });
 
     return new Response(JSON.stringify({
-      message: assistantMessage,
+      message: responseText,
       conversationId,
       metadata: {
         tokens: tokenUsage,
         latency: aiLatency,
-        cost: {
-          input: inputCost,
-          output: outputCost,
-          total: totalCost
-        },
-        model: 'gemini-2.0-flash'
+        cost: { input: inputCost, output: outputCost, total: totalCost },
+        model: modelUsed,
+        provider: providerUsed,
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -360,7 +450,6 @@ FlixBuddy:`;
     const totalLatency = Date.now() - startTime;
     console.error('Error in flixbuddy-chat function:', error);
 
-    // OTLP Log: Unhandled error
     await log.error('FlixBuddy unhandled error', {
       error_message: error instanceof Error ? error.message : 'Unknown error',
       latency_ms: totalLatency,

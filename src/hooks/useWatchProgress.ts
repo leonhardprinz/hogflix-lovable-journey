@@ -72,7 +72,7 @@ export const useWatchProgress = (videoId?: string) => {
 
   // Non-blocking progress save queue
   const progressSaveQueue = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Save or update progress with non-blocking queue
   const saveProgress = useCallback((
     id: string,
@@ -140,22 +140,12 @@ export const useWatchProgress = (videoId?: string) => {
           error = insertError;
         }
 
-      if (!error) {
-        if (import.meta.env.DEV) {
-          console.log('✅ Progress saved');
-        }
-        // Don't update state during playback to avoid re-renders
-        // setProgress(progressData); // REMOVED - prevents glitches
-        
-        // Track completion
-        if (isCompleted) {
-            posthog.capture('video:completed', {
-              video_id: id,
-              session_id: sessionId,
-              profile_id: selectedProfile.id,
-              total_duration: Math.floor(duration)
-            });
+        if (!error) {
+          if (import.meta.env.DEV) {
+            console.log('✅ Progress saved');
           }
+          // Don't update state during playback to avoid re-renders
+          // Note: video:completed event is fired by VideoPlayer.tsx, not here
         } else {
           console.error('❌ Save error:', error);
         }
@@ -178,7 +168,7 @@ export const useWatchProgress = (videoId?: string) => {
       console.log('🔍 Fetching resume watching videos...');
     }
     setLoading(true);
-    
+
     try {
       // Use a simpler direct JOIN query with lower thresholds and include category
       const { data, error } = await supabase
@@ -214,10 +204,10 @@ export const useWatchProgress = (videoId?: string) => {
 
       if (import.meta.env.DEV) {
         console.log('📊 Resume videos query result:', data?.length || 0, 'videos');
-        
+
         if (!data || data.length === 0) {
           console.log('ℹ️ No resume videos found - checking all progress records...');
-          
+
           // Debug query to see what we have
           const { data: debugData } = await supabase
             .from('watch_progress')
@@ -226,7 +216,7 @@ export const useWatchProgress = (videoId?: string) => {
             .eq('profile_id', selectedProfile.id)
             .order('last_watched_at', { ascending: false })
             .limit(5);
-            
+
           console.log('🔍 Recent progress records:', debugData);
         }
       }
@@ -246,7 +236,7 @@ export const useWatchProgress = (videoId?: string) => {
         console.log('✅ Returning', resumeVideos.length, 'resume videos');
       }
       return resumeVideos;
-      
+
     } catch (error) {
       console.error('❌ Error in getResumeWatchingVideos:', error);
       return [];

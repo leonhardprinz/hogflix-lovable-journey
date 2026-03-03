@@ -56,6 +56,24 @@ if (typeof window !== 'undefined') {
           platform: 'web',
           device_type: /mobile/i.test(navigator.userAgent) ? 'mobile' : 'desktop'
         });
+
+        // Set browser language as person property for survey targeting
+        // This enables language-based survey targeting (e.g., show Japanese surveys to Japanese users)
+        const browserLanguage = navigator.language || navigator.languages?.[0] || 'en';
+        const languageCode = browserLanguage.split('-')[0]; // e.g., "ja" from "ja-JP"
+
+        // Set as person property (survives across sessions)
+        posthog.setPersonProperties({
+          locale: browserLanguage,        // e.g., "ja-JP", "en-US"
+          language: languageCode,         // e.g., "ja", "en"
+          browser_languages: navigator.languages // Full list of user's preferred languages
+        });
+
+        console.log('🌍 Language properties set:', {
+          locale: browserLanguage,
+          language: languageCode,
+          browser_languages: navigator.languages
+        });
         
         // FORCE start session recording
         if (posthog.sessionRecording) {

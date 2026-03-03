@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { Heart, Play, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDuration } from '@/lib/formatDuration';
+import { fetchVideoRatingsBatch } from '@/lib/fetchVideoRatings';
 
 interface Video {
   id: string;
@@ -29,15 +31,7 @@ export default function MyList() {
   const { watchlist, removeFromWatchlist } = useWatchlist();
   const navigate = useNavigate();
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    if (hours > 0) {
-      return `${hours}h ${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
+
 
   const fetchWatchlistVideos = async () => {
     if (!user || !selectedProfile || watchlist.length === 0) {
@@ -54,30 +48,18 @@ export default function MyList() {
 
       if (error) throw error;
 
-      // Fetch ratings for each video
-      const videosWithRatings = await Promise.all(
-        videosData.map(async (video) => {
-          try {
-            const [avgRatingResult, ratingCountResult] = await Promise.all([
-              supabase.rpc('get_video_average_rating', { video_id_param: video.id }),
-              supabase.rpc('get_video_rating_count', { video_id_param: video.id })
-            ]);
+      // Batch fetch ratings for all videos
+      const videoIds = videosData.map(v => v.id);
+      const ratingsMap = await fetchVideoRatingsBatch(videoIds);
 
-            return {
-              ...video,
-              averageRating: avgRatingResult.data || 0,
-              ratingCount: ratingCountResult.data || 0
-            };
-          } catch (error) {
-            console.error(`Error fetching ratings for video ${video.id}:`, error);
-            return {
-              ...video,
-              averageRating: 0,
-              ratingCount: 0
-            };
-          }
-        })
-      );
+      const videosWithRatings = videosData.map((video) => {
+        const ratings = ratingsMap.get(video.id) || { avg_rating: 0, rating_count: 0 };
+        return {
+          ...video,
+          averageRating: ratings.avg_rating,
+          ratingCount: ratings.rating_count
+        };
+      });
 
       setVideos(videosWithRatings);
     } catch (error) {

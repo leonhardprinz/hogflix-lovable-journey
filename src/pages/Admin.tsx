@@ -23,6 +23,8 @@ import { VideoManagementGrid } from "@/components/admin/VideoManagementGrid";
 import { TagManagementSection } from "@/components/admin/TagManagementSection";
 import { RefreshCw, Video, Clock, TrendingUp, Users, Award, Loader2, CreditCard, Sparkles, Database } from "lucide-react";
 import { CDPDemoControls } from "@/components/admin/CDPDemoControls";
+import { LanguageTestControls } from "@/components/admin/LanguageTestControls";
+import { InactivityTestControls } from "@/components/admin/InactivityTestControls";
 import { useAuth } from "@/contexts/AuthContext";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
@@ -475,6 +477,8 @@ export default function Admin() {
 
             {/* Demo Controls Tab */}
             <TabsContent value="demo-controls" className="space-y-6">
+              <LanguageTestControls />
+              <InactivityTestControls />
               <CDPDemoControls userEmail={user?.email || null} />
               
               <Card className="bg-card-background border-gray-700">

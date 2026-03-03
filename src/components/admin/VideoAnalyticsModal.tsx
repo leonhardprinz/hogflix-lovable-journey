@@ -20,6 +20,7 @@ import {
   Cell,
 } from 'recharts';
 import { Clock, Eye, Users, Star, TrendingUp, BarChart3 } from 'lucide-react';
+import { formatDuration } from '@/lib/formatDuration';
 
 interface VideoAnalyticsModalProps {
   videoId: string | null;
@@ -31,14 +32,7 @@ export const VideoAnalyticsModal = ({ videoId, onClose }: VideoAnalyticsModalPro
 
   if (!videoId) return null;
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
+
 
   const formatSeconds = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -237,12 +231,12 @@ export const VideoAnalyticsModal = ({ videoId, onClose }: VideoAnalyticsModalPro
                             index === 0
                               ? 'hsl(var(--chart-1))'
                               : index === 1
-                              ? 'hsl(var(--chart-2))'
-                              : index === 2
-                              ? 'hsl(var(--chart-3))'
-                              : index === 3
-                              ? 'hsl(var(--chart-4))'
-                              : 'hsl(var(--chart-5))'
+                                ? 'hsl(var(--chart-2))'
+                                : index === 2
+                                  ? 'hsl(var(--chart-3))'
+                                  : index === 3
+                                    ? 'hsl(var(--chart-4))'
+                                    : 'hsl(var(--chart-5))'
                           }
                         />
                       ))}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
-import { 
+import {
   Carousel,
   CarouselContent,
   CarouselItem,
@@ -13,6 +13,8 @@ import { WatchlistButton } from '@/components/WatchlistButton';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { Skeleton } from '@/components/ui/skeleton';
 import { videoHrefFor } from '@/lib/videoRouting';
+import { formatDuration } from '@/lib/formatDuration';
+import { fetchVideoRatingsBatch } from '@/lib/fetchVideoRatings';
 
 interface Video {
   id: string;
@@ -32,15 +34,7 @@ export const TrendingCarousel = () => {
   const [loading, setLoading] = useState(true);
   const posthog = usePostHog();
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    if (hours > 0) {
-      return `${hours}h ${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
+
 
   useEffect(() => {
     fetchTrendingVideos();
@@ -48,10 +42,10 @@ export const TrendingCarousel = () => {
 
   const handleVideoClick = (video: Video, position: number) => {
     const sectionPriorityVariant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test');
-    
+
     // Store source section for video player tracking
     sessionStorage.setItem('video_source_section', 'trending');
-    
+
     posthog.capture('section:clicked', {
       section: 'trending',
       video_id: video.id,
@@ -87,38 +81,27 @@ export const TrendingCarousel = () => {
       }
 
       // Add rating data and calculate trending score
-      const videosWithTrending = await Promise.all(
-        (videosData || []).map(async (video) => {
-          try {
-            const { data: avgRating } = await supabase.rpc('get_video_average_rating', { video_id_param: video.id });
-            const { data: ratingCount } = await supabase.rpc('get_video_rating_count', { video_id_param: video.id });
-            
-            const averageRating = avgRating || 0;
-            const totalRatings = ratingCount || 0;
-            
-            // Trending algorithm: emphasize recent engagement
-            const daysOld = Math.max(1, Math.floor((Date.now() - new Date(video.created_at).getTime()) / (1000 * 60 * 60 * 24)));
-            const recencyWeight = Math.max(0.1, (30 - daysOld) / 30); // Higher weight for newer content
-            const engagementScore = averageRating * Math.sqrt(totalRatings + 1);
-            const trendingScore = engagementScore * recencyWeight * 10;
-            
-            return {
-              ...video,
-              average_rating: averageRating,
-              rating_count: totalRatings,
-              trending_score: trendingScore
-            };
-          } catch (error) {
-            console.error(`Error calculating trending score for video ${video.id}:`, error);
-            return { 
-              ...video, 
-              average_rating: 0, 
-              rating_count: 0,
-              trending_score: 0
-            };
-          }
-        })
-      );
+      const videoIds = (videosData || []).map(v => v.id);
+      const ratingsMap = await fetchVideoRatingsBatch(videoIds);
+
+      const videosWithTrending = (videosData || []).map((video) => {
+        const ratings = ratingsMap.get(video.id) || { avg_rating: 0, rating_count: 0 };
+        const averageRating = ratings.avg_rating;
+        const totalRatings = ratings.rating_count;
+
+        // Trending algorithm: emphasize recent engagement
+        const daysOld = Math.max(1, Math.floor((Date.now() - new Date(video.created_at).getTime()) / (1000 * 60 * 60 * 24)));
+        const recencyWeight = Math.max(0.1, (30 - daysOld) / 30); // Higher weight for newer content
+        const engagementScore = averageRating * Math.sqrt(totalRatings + 1);
+        const trendingScore = engagementScore * recencyWeight * 10;
+
+        return {
+          ...video,
+          average_rating: averageRating,
+          rating_count: totalRatings,
+          trending_score: trendingScore
+        };
+      });
 
       // Sort by trending score and take top 20
       const trendingVideos = videosWithTrending
@@ -157,8 +140,8 @@ export const TrendingCarousel = () => {
       <h3 className="text-xl font-bold text-text-primary mb-6 font-manrope">
         Trending Now
       </h3>
-      
-      <Carousel 
+
+      <Carousel
         className="w-full"
         categoryId="trending"
         categoryName="Trending Now"

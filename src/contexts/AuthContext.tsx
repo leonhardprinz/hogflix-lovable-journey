@@ -38,8 +38,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // PostHog user identification
         if (event === 'SIGNED_IN' && session?.user) {
+          // Get browser language for survey targeting
+          const browserLanguage = navigator.language || navigator.languages?.[0] || 'en';
+          const languageCode = browserLanguage.split('-')[0];
+
           posthog.identify(session.user.id, {
             email: session.user.email,
+            locale: browserLanguage,
+            language: languageCode,
           });
           
           // Initialize user properties on login (deferred to avoid blocking)

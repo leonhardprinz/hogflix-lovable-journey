@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
-import { 
+import {
   Carousel,
   CarouselContent,
   CarouselItem,
@@ -13,6 +13,8 @@ import { WatchlistButton } from '@/components/WatchlistButton';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { Skeleton } from '@/components/ui/skeleton';
 import { videoHrefFor } from '@/lib/videoRouting';
+import { formatDuration } from '@/lib/formatDuration';
+import { fetchVideoRatingsBatch } from '@/lib/fetchVideoRatings';
 
 interface Video {
   id: string;
@@ -32,15 +34,7 @@ export const PopularCarousel = () => {
   const [loading, setLoading] = useState(true);
   const posthog = usePostHog();
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    if (hours > 0) {
-      return `${hours}h ${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
+
 
   useEffect(() => {
     fetchPopularVideos();
@@ -48,10 +42,10 @@ export const PopularCarousel = () => {
 
   const handleVideoClick = (video: Video, position: number) => {
     const sectionPriorityVariant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test');
-    
+
     // Store source section for video player tracking
     sessionStorage.setItem('video_source_section', 'popular');
-    
+
     posthog.capture('section:clicked', {
       section: 'popular',
       video_id: video.id,
@@ -82,37 +76,26 @@ export const PopularCarousel = () => {
       }
 
       // Add rating data and calculate popularity score
-      const videosWithPopularity = await Promise.all(
-        (videosData || []).map(async (video) => {
-          try {
-            const { data: avgRating } = await supabase.rpc('get_video_average_rating', { video_id_param: video.id });
-            const { data: ratingCount } = await supabase.rpc('get_video_rating_count', { video_id_param: video.id });
-            
-            const averageRating = avgRating || 0;
-            const totalRatings = ratingCount || 0;
-            
-            // Popularity algorithm: weighted rating + rating count + recency boost
-            const daysOld = Math.max(1, Math.floor((Date.now() - new Date(video.created_at).getTime()) / (1000 * 60 * 60 * 24)));
-            const recencyBoost = Math.max(0, (30 - daysOld) / 30); // Boost for videos less than 30 days old
-            const popularityScore = (averageRating * Math.log(totalRatings + 1)) + (recencyBoost * 2);
-            
-            return {
-              ...video,
-              average_rating: averageRating,
-              rating_count: totalRatings,
-              popularity_score: popularityScore
-            };
-          } catch (error) {
-            console.error(`Error calculating popularity for video ${video.id}:`, error);
-            return { 
-              ...video, 
-              average_rating: 0, 
-              rating_count: 0,
-              popularity_score: 0
-            };
-          }
-        })
-      );
+      const videoIds = (videosData || []).map(v => v.id);
+      const ratingsMap = await fetchVideoRatingsBatch(videoIds);
+
+      const videosWithPopularity = (videosData || []).map((video) => {
+        const ratings = ratingsMap.get(video.id) || { avg_rating: 0, rating_count: 0 };
+        const averageRating = ratings.avg_rating;
+        const totalRatings = ratings.rating_count;
+
+        // Popularity algorithm: weighted rating + rating count + recency boost
+        const daysOld = Math.max(1, Math.floor((Date.now() - new Date(video.created_at).getTime()) / (1000 * 60 * 60 * 24)));
+        const recencyBoost = Math.max(0, (30 - daysOld) / 30); // Boost for videos less than 30 days old
+        const popularityScore = (averageRating * Math.log(totalRatings + 1)) + (recencyBoost * 2);
+
+        return {
+          ...video,
+          average_rating: averageRating,
+          rating_count: totalRatings,
+          popularity_score: popularityScore
+        };
+      });
 
       // Sort by popularity score and take top 20
       const popularVideos = videosWithPopularity
@@ -151,8 +134,8 @@ export const PopularCarousel = () => {
       <h3 className="text-xl font-bold text-text-primary mb-6 font-manrope">
         Popular on HogFlix
       </h3>
-      
-      <Carousel 
+
+      <Carousel
         className="w-full"
         categoryId="popular"
         categoryName="Popular on HogFlix"

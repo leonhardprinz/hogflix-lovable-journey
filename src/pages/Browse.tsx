@@ -1,15 +1,19 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
+import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useFeatureFlagEnabled } from 'posthog-js/react';
+import { landmarkProps } from '../lib/demoErrors';
+import { formatDuration } from '@/lib/formatDuration';
+import { fetchVideoRatingsBatch } from '@/lib/fetchVideoRatings';
 import Header from '@/components/Header';
 import { HeroCarousel } from '@/components/HeroCarousel';
 import { ResumeWatchingCarousel } from '@/components/ResumeWatchingCarousel';
 import { PopularCarousel } from '@/components/PopularCarousel';
 import { TrendingCarousel } from '@/components/TrendingCarousel';
 import { Button } from '@/components/ui/button';
-import { 
+import {
   Carousel,
   CarouselContent,
   CarouselItem,
@@ -21,6 +25,7 @@ import { Play, Info } from 'lucide-react';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { videoHrefFor } from '@/lib/videoRouting';
 import { PowerUserBadge } from '@/components/PowerUserBadge';
+import { slog, throwRateLimitError } from '@/lib/demoErrors';
 
 interface Video {
   id: string;
@@ -46,26 +51,19 @@ const Browse = () => {
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { selectedProfile } = useProfile();
-  
+
   // Power User Early Access feature flag
   // Enabled if: power_user_tier = "gold" or "platinum" AND videos_watched_external > 100
   const powerUserEarlyAccess = useFeatureFlagEnabled('power_user_early_access');
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    if (hours > 0) {
-      return `${hours}h ${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
+
+
 
   // A/B test thumbnail function
   const getThumbnailUrl = (video: Video) => {
     // Get the feature flag variant for thumbnail experiment
     const variant = posthog.getFeatureFlag('thumbnail-experiment');
-    
+
     // For testing purposes, we'll use the first video in the first category
     // In a real scenario, you'd have specific video IDs to test
     if (categories.length > 0 && categories[0].videos.length > 0 && video.id === categories[0].videos[0]?.id) {
@@ -74,7 +72,7 @@ const Browse = () => {
         return 'https://images.unsplash.com/photo-1489599807473-d2f3ba75b4c1?w=800&h=450&fit=crop&crop=center';
       }
     }
-    
+
     // Return original thumbnail for control variant or other videos
     return video.thumbnail_url;
   };
@@ -83,7 +81,7 @@ const Browse = () => {
     const checkAuthAndProfile = async () => {
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session?.user) {
         navigate('/login');
         return;
@@ -115,7 +113,56 @@ const Browse = () => {
   }, [navigate, selectedProfile, posthog]);
 
   const fetchCategoriesAndVideos = async () => {
+    // --- Rate limit detection: fires if Browse is loaded 4+ times in 10s ---
+    const now = Date.now();
+    const windowMs = 10_000;
+    const stored = sessionStorage.getItem('browse_load_timestamps');
+    let timestamps: number[] = stored ? JSON.parse(stored) : [];
+    timestamps = timestamps.filter(t => now - t < windowMs);
+    timestamps.push(now);
+    sessionStorage.setItem('browse_load_timestamps', JSON.stringify(timestamps));
+
+    if (timestamps.length >= 4) {
+      slog('API', 'warn', `⚠️ High request frequency detected — ${timestamps.length} requests in ${windowMs / 1000}s`);
+      slog('API', 'error', `❌ Rate limit exceeded for /api/catalog/categories`);
+      sessionStorage.removeItem('browse_load_timestamps'); // reset so it doesn't loop
+      setTimeout(() => {
+        try {
+          throwRateLimitError('/api/catalog/categories', timestamps.length);
+        } catch (err: any) {
+          posthog.capture('$exception', {
+            $exception_list: [
+              {
+                type: 'APIRateLimitError',
+                value: err.message,
+                mechanism: { handled: true, synthetic: false },
+                stacktrace: {
+                  type: 'raw' as const,
+                  frames: [
+                    { platform: 'web:javascript' as const, filename: 'src/pages/Browse.tsx', function: 'fetchCategories', lineno: 123, colno: 11, in_app: true },
+                    { platform: 'web:javascript' as const, filename: 'src/lib/demoErrors.ts', function: 'validateAPIQuota', lineno: 161, colno: 9, in_app: true },
+                    { platform: 'web:javascript' as const, filename: 'src/lib/demoErrors.ts', function: 'enforceRateLimit', lineno: 141, colno: 15, in_app: true },
+                  ],
+                },
+              },
+            ],
+            $exception_message: err.message,
+            $exception_type: 'APIRateLimitError',
+            error_source: 'api_rate_limit',
+            ...landmarkProps({
+              statusCode: 429,
+              apiUrl: 'https://api.hogflix.io/api/catalog/categories',
+              screen: 'browseScreen',
+            }),
+          });
+          throw err;
+        }
+      }, 100);
+    }
+
     try {
+      slog('API', 'info', `GET /api/catalog/categories — fetching...`);
+
       // Fetch categories ordered by sort_order
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
@@ -123,9 +170,12 @@ const Browse = () => {
         .order('sort_order');
 
       if (categoriesError) {
+        slog('API', 'error', `GET /api/catalog/categories — ${categoriesError.message}`);
         console.error('Error fetching categories:', categoriesError);
         return;
       }
+
+      slog('API', 'info', `GET /api/catalog/categories — 200 OK (${categoriesData.length} categories)`);
 
       // Fetch videos for each category (newest first, up to 20 per category)
       const categoriesWithVideos = await Promise.all(
@@ -138,28 +188,22 @@ const Browse = () => {
             .limit(20);
 
           if (videosError) {
-            console.error(`Error fetching videos for category ${category.name}:`, videosError);
+            console.error(`Error fetching videos for category ${category.name}: `, videosError);
             return { ...category, videos: [] };
           }
 
-          // Add rating data to each video
-          const videosWithRatings = await Promise.all(
-            (videos || []).map(async (video) => {
-              try {
-                const { data: avgRating } = await supabase.rpc('get_video_average_rating', { video_id_param: video.id });
-                const { data: ratingCount } = await supabase.rpc('get_video_rating_count', { video_id_param: video.id });
-                
-                return {
-                  ...video,
-                  average_rating: avgRating || 0,
-                  rating_count: ratingCount || 0
-                };
-              } catch (error) {
-                console.error(`Error fetching rating for video ${video.id}:`, error);
-                return { ...video, average_rating: 0, rating_count: 0 };
-              }
-            })
-          );
+          // Batch fetch ratings for all videos in this category
+          const videoIds = (videos || []).map(v => v.id);
+          const ratingsMap = await fetchVideoRatingsBatch(videoIds);
+
+          const videosWithRatings = (videos || []).map((video) => {
+            const ratings = ratingsMap.get(video.id) || { avg_rating: 0, rating_count: 0 };
+            return {
+              ...video,
+              average_rating: ratings.avg_rating,
+              rating_count: ratings.rating_count
+            };
+          });
 
           return { ...category, videos: videosWithRatings };
         })
@@ -167,14 +211,14 @@ const Browse = () => {
 
       // Only show categories with videos
       const categoriesWithContent = categoriesWithVideos.filter(category => category.videos.length > 0);
-      
+
       // Prioritize PostHog Demo category to appear first
       const sortedCategories = categoriesWithContent.sort((a, b) => {
         if (a.name === 'PostHog Demo') return -1;
         if (b.name === 'PostHog Demo') return 1;
         return a.sort_order - b.sort_order;
       });
-      
+
       setCategories(sortedCategories);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -194,7 +238,7 @@ const Browse = () => {
   return (
     <div className="min-h-screen bg-background-dark">
       <Header />
-      
+
       {/* Hero Section */}
       <HeroCarousel />
 
@@ -204,7 +248,7 @@ const Browse = () => {
         {powerUserEarlyAccess && (
           <PowerUserBadge className="mb-4" />
         )}
-        
+
         {/* Profile Welcome Message */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-text-primary font-manrope">
@@ -228,9 +272,9 @@ const Browse = () => {
               <h3 className="text-xl font-bold text-text-primary mb-6 font-manrope">
                 {category.name}
               </h3>
-              
+
               {/* Carousel with PostHog Tracking */}
-              <Carousel 
+              <Carousel
                 className="w-full"
                 categoryId={category.id}
                 categoryName={category.name}
@@ -246,23 +290,23 @@ const Browse = () => {
                         to={videoHrefFor(category.name, video.id)}
                         data-ph-capture-attribute-video-id={video.id}
                       >
-                         <div className="w-full bg-card-background rounded card-hover cursor-pointer group">
-                           <div className="aspect-video bg-gray-700 rounded-t overflow-hidden relative">
-                             <img
-                               src={getThumbnailUrl(video)}
-                               alt={video.title}
-                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                               loading="lazy"
-                             />
-                             {/* Watchlist button overlay */}
-                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                               <WatchlistButton
-                                 videoId={video.id}
-                                 variant="icon"
-                                 size="sm"
-                               />
-                             </div>
-                           </div>
+                        <div className="w-full bg-card-background rounded card-hover cursor-pointer group">
+                          <div className="aspect-video bg-gray-700 rounded-t overflow-hidden relative">
+                            <img
+                              src={getThumbnailUrl(video)}
+                              alt={video.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              loading="lazy"
+                            />
+                            {/* Watchlist button overlay */}
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <WatchlistButton
+                                videoId={video.id}
+                                variant="icon"
+                                size="sm"
+                              />
+                            </div>
+                          </div>
                           <div className="p-4">
                             <h4 className="text-text-primary font-manrope font-medium mb-2 truncate">
                               {video.title}
@@ -302,13 +346,18 @@ const Browse = () => {
 // Component to handle dynamic section ordering based on feature flag
 const DynamicSections = ({ posthog, selectedProfile }: { posthog: any; selectedProfile: any }) => {
   const [sectionPriorityVariant, setSectionPriorityVariant] = useState<string | null>(null);
-  
-  // Load feature flag and track section order impression
+
+  const flagLoadedRef = useRef(false);
+
+  // Load feature flag and track section order impression (once only)
   useEffect(() => {
+    if (flagLoadedRef.current) return;
     posthog.onFeatureFlags(() => {
+      if (flagLoadedRef.current) return;
+      flagLoadedRef.current = true;
       const variant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test') as string || 'popular-first';
       setSectionPriorityVariant(variant);
-      
+
       posthog.capture('feature_flag:section_priority_impression', {
         variant: variant,
         profile_id: selectedProfile?.id,
@@ -336,7 +385,7 @@ const DynamicSections = ({ posthog, selectedProfile }: { posthog: any; selectedP
         { component: <TrendingCarousel key="trending" />, name: 'Trending Now', position: 1 }
       ];
     }
-    
+
     // Default: show ONLY Popular (control)
     return [
       { component: <PopularCarousel key="popular" />, name: 'Popular on HogFlix', position: 1 }

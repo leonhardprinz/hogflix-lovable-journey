@@ -27,6 +27,7 @@ import { useVideoTags } from '@/hooks/useVideoTags';
 import { supabase } from '@/integrations/supabase/client';
 import { BulkActionToolbar } from './BulkActionToolbar';
 import { Grid3x3, List, Plus, Pencil, Trash2, BarChart3, ExternalLink } from 'lucide-react';
+import { formatDuration } from '@/lib/formatDuration';
 import { videoHrefFor } from '@/lib/videoRouting';
 
 interface Category {
@@ -127,15 +128,6 @@ export function VideoManagementGrid() {
     if (selectedIds.size === 0 || tagIds.length === 0) return;
     await bulkRemoveTags(Array.from(selectedIds), tagIds);
     fetchVideos(filters);
-  };
-
-  const formatDuration = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hrs > 0) return `${hrs}h ${mins}m`;
-    if (mins > 0) return `${mins}m ${secs}s`;
-    return `${secs}s`;
   };
 
   return (

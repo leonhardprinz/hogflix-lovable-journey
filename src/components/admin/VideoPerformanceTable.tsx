@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { VideoAnalytics } from '@/hooks/useVideoAnalytics';
 import { Search, ArrowUpDown } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { formatDuration } from '@/lib/formatDuration';
 
 interface VideoPerformanceTableProps {
   data: VideoAnalytics[];
@@ -81,14 +82,7 @@ export const VideoPerformanceTable = ({
       }
     });
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
+
 
   return (
     <div className="space-y-4">
@@ -209,8 +203,8 @@ export const VideoPerformanceTable = ({
                         video.completion_rate >= 70
                           ? 'text-green-600 dark:text-green-400'
                           : video.completion_rate >= 40
-                          ? 'text-yellow-600 dark:text-yellow-400'
-                          : 'text-red-600 dark:text-red-400'
+                            ? 'text-yellow-600 dark:text-yellow-400'
+                            : 'text-red-600 dark:text-red-400'
                       }
                     >
                       {video.completion_rate.toFixed(1)}%

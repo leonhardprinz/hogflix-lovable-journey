@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Send, Bot, User, Play, Plus, ArrowLeft, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WatchlistButton } from '@/components/WatchlistButton';
+import { formatDuration } from '@/lib/formatDuration';
 
 // Thumb survey feedback component for assistant messages
 const ThumbFeedback = ({ traceId, conversationId }: { traceId: string; conversationId: string }) => {
@@ -31,8 +32,8 @@ const ThumbFeedback = ({ traceId, conversationId }: { traceId: string; conversat
         onClick={() => respond('up')}
         disabled={response !== undefined}
         className={`h-6 px-2 ${response === 'up'
-            ? 'text-green-500'
-            : 'text-muted-foreground hover:text-foreground'
+          ? 'text-green-500'
+          : 'text-muted-foreground hover:text-foreground'
           }`}
       >
         <ThumbsUp className="h-3 w-3" />
@@ -43,8 +44,8 @@ const ThumbFeedback = ({ traceId, conversationId }: { traceId: string; conversat
         onClick={() => respond('down')}
         disabled={response !== undefined}
         className={`h-6 px-2 ${response === 'down'
-            ? 'text-red-500'
-            : 'text-muted-foreground hover:text-foreground'
+          ? 'text-red-500'
+          : 'text-muted-foreground hover:text-foreground'
           }`}
       >
         <ThumbsDown className="h-3 w-3" />
@@ -82,6 +83,18 @@ const FlixBuddy = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [recommendedVideos, setRecommendedVideos] = useState<Video[]>([]);
+  const [selectedModel, setSelectedModel] = useState('auto');
+
+  const MODEL_OPTIONS = [
+    { value: 'auto', label: '✨ Auto', group: 'Auto' },
+    { value: 'gemini-3.0-flash', label: 'Gemini 3.0 Flash', group: 'Google' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', group: 'Google' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', group: 'Google' },
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', group: 'Google' },
+    { value: 'mistral-small-latest', label: 'Mistral Small', group: 'Mistral' },
+    { value: 'mistral-medium-latest', label: 'Mistral Medium', group: 'Mistral' },
+    { value: 'mistral-large-latest', label: 'Mistral Large', group: 'Mistral' },
+  ];
 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -91,6 +104,7 @@ const FlixBuddy = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const sessionStartRef = useRef<Date>(new Date());
+  const traceSentRef = useRef(false);
 
   const initialQuery = searchParams.get('q');
 
@@ -110,15 +124,7 @@ const FlixBuddy = () => {
     }
   };
 
-  // Format duration helper
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
+
 
   // Auto-scroll to bottom only during active conversation
   const scrollToBottom = () => {
@@ -179,18 +185,6 @@ const FlixBuddy = () => {
           $feature_flag: 'flixbuddy_welcome_experiment',
           $feature_flag_response: welcomeVariant || 'control'
         });
-
-        // Track AI trace for new conversation (PostHog LLM Analytics)
-        try {
-          posthog.capture('$ai_trace', {
-            $ai_trace_id: conversation.id,
-            $ai_provider: 'google',
-            $ai_model: 'gemini-2.0-flash',
-            profile_id: selectedProfile.id
-          });
-        } catch (e) {
-          console.error('PostHog tracking error:', e);
-        }
 
         // If there's an initial query, send it automatically
         if (initialQuery) {
@@ -281,7 +275,8 @@ const FlixBuddy = () => {
           message,
           conversationId,
           userId: (await supabase.auth.getUser()).data.user?.id,
-          profileId: selectedProfile.id
+          profileId: selectedProfile.id,
+          model: selectedModel
         }
       });
 
@@ -310,10 +305,10 @@ const FlixBuddy = () => {
       // Track LLM generation (PostHog LLM Analytics) - with cost data
       try {
         posthog.capture('$ai_generation', {
-          $ai_provider: 'google',
-          $ai_model: 'gemini-2.0-flash',
-          $ai_input: message,
-          $ai_output: data.message,
+          $ai_provider: data.metadata?.provider || 'google',
+          $ai_model: data.metadata?.model || 'gemini-2.0-flash',
+          $ai_input: [{ role: 'user', content: message }],
+          $ai_output_choices: [{ role: 'assistant', content: data.message }],
           $ai_input_tokens: data.metadata?.tokens?.input || 0,
           $ai_output_tokens: data.metadata?.tokens?.output || 0,
           $ai_total_tokens: data.metadata?.tokens?.total || 0,
@@ -329,12 +324,31 @@ const FlixBuddy = () => {
         console.error('PostHog tracking error:', e);
       }
 
+      // Send $ai_trace on first successful response (with proper input/output state)
+      if (!traceSentRef.current) {
+        traceSentRef.current = true;
+        try {
+          posthog.capture('$ai_trace', {
+            $ai_trace_id: conversationId,
+            $ai_trace_name: 'flixbuddy_chat_completion',
+            $ai_provider: data.metadata?.provider || 'google',
+            $ai_model: data.metadata?.model || 'gemini-2.0-flash',
+            $ai_latency: data.metadata?.latency || 0,
+            $ai_input_state: { messages: [{ role: 'user', content: message }] },
+            $ai_output_state: { messages: [{ role: 'assistant', content: data.message }] },
+            profile_id: selectedProfile.id
+          });
+        } catch (e) {
+          console.error('PostHog tracking error:', e);
+        }
+      }
+
       // Track LLM generation complete (PostHog LLM Analytics)
       try {
         posthog.capture('$ai_generation_complete', {
-          $ai_provider: 'google',
-          $ai_model: 'gemini-2.0-flash',
-          $ai_output: data.message,
+          $ai_provider: data.metadata?.provider || 'google',
+          $ai_model: data.metadata?.model || 'gemini-2.0-flash',
+          $ai_output_choices: [{ role: 'assistant', content: data.message }],
           $ai_input_tokens: data.metadata?.tokens?.input || 0,
           $ai_output_tokens: data.metadata?.tokens?.output || 0,
           $ai_total_tokens: data.metadata?.tokens?.total || 0,
@@ -365,8 +379,8 @@ const FlixBuddy = () => {
         posthog.capture('$ai_generation_error', {
           $ai_error: errorMessage,
           $ai_is_rate_limit: isRateLimit,
-          $ai_provider: 'google',
-          $ai_model: 'gemini-2.0-flash',
+          $ai_provider: selectedModel.startsWith('mistral') ? 'mistral' : 'google',
+          $ai_model: selectedModel === 'auto' ? 'gemini-2.0-flash' : selectedModel,
           $ai_conversation_id: conversationId,
           $ai_trace_id: conversationId,
           profile_id: selectedProfile.id
@@ -492,8 +506,30 @@ const FlixBuddy = () => {
               <Badge variant="secondary" className="text-xs">AI Powered</Badge>
             </div>
           </div>
-          <div className="text-sm text-muted-foreground">
-            Chatting as {selectedProfile.display_name}
+          <div className="flex items-center space-x-4">
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="text-sm bg-secondary text-secondary-foreground border border-border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+            >
+              <optgroup label="Auto">
+                <option value="auto">✨ Auto</option>
+              </optgroup>
+              <optgroup label="Google">
+                <option value="gemini-3.0-flash">Gemini 3.0 Flash</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              </optgroup>
+              <optgroup label="Mistral">
+                <option value="mistral-small-latest">Mistral Small</option>
+                <option value="mistral-medium-latest">Mistral Medium</option>
+                <option value="mistral-large-latest">Mistral Large</option>
+              </optgroup>
+            </select>
+            <div className="text-sm text-muted-foreground">
+              Chatting as {selectedProfile.display_name}
+            </div>
           </div>
         </div>
       </div>
@@ -513,15 +549,15 @@ const FlixBuddy = () => {
                   <div className={`flex items-start space-x-2 max-w-[80%] ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
                     }`}>
                     <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${message.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-secondary-foreground'
                       }`}>
                       {message.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                     </div>
                     <div className="flex flex-col space-y-1">
                       <div className={`rounded-lg p-3 ${message.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary text-secondary-foreground'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground'
                         }`}>
                         <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                         <div className={`text-xs mt-1 opacity-70`}>
