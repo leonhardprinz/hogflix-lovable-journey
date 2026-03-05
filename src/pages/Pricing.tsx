@@ -64,8 +64,8 @@ const Pricing = () => {
       }
 
       // Layout experiment
-      const pricingLayoutVariant = posthog.getFeatureFlag('pricing_page_layout_experiment');
-      const variant = pricingLayoutVariant === 'table-layout' ? 'table-layout' : 'control';
+      const pricingLayoutVariant = posthog.getFeatureFlag('pricing_layout_experiment_v2');
+      const variant = pricingLayoutVariant === 'horizontal' ? 'horizontal' : 'control';
       setLayoutVariant(variant);
 
       // Track experiment assignment
@@ -77,7 +77,7 @@ const Pricing = () => {
 
       // Track layout viewed
       posthog?.capture('pricing:layout_viewed', {
-        layout: variant === 'table-layout' ? 'table' : 'card',
+        layout: variant === 'horizontal' ? 'table' : 'card',
         user_plan: subscription?.plan_name || 'none'
       });
     });
@@ -486,7 +486,7 @@ const Pricing = () => {
   };
 
   // Render table layout variant if assigned
-  if (layoutVariant === 'table-layout') {
+  if (layoutVariant === 'horizontal') {
     return (
       <>
         <PricingTableLayout onPlanSelect={handlePlanSelect} loading={loading} />
