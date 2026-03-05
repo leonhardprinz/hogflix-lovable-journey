@@ -80,7 +80,7 @@ const PricingTableLayout = ({ onPlanSelect, loading }: PricingTableLayoutProps) 
         </Alert>
 
         {/* Pricing Table */}
-        <div className="max-w-5xl mx-auto overflow-x-auto">
+        <div className="max-w-5xl mx-auto overflow-x-auto pt-4">
           <table className="w-full border-collapse" data-testid="pricing-table">
             {/* Header Row */}
             <thead>
