@@ -72,7 +72,7 @@ const PricingTableLayout = ({ onPlanSelect, loading }: PricingTableLayoutProps) 
         </div>
 
         {/* Demo Environment Alert */}
-        <Alert className="mb-12 max-w-4xl mx-auto border-primary/30 bg-primary/5">
+        <Alert className="mb-16 max-w-4xl mx-auto border-primary/30 bg-primary/5">
           <Info className="h-4 w-4 text-primary" />
           <AlertDescription>
             🎭 <strong>Demo Environment:</strong> This is a showcase for PostHog analytics. No actual billing occurs!
