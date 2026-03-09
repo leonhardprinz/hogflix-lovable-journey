@@ -197,7 +197,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { message, conversationId, userId, profileId, model: requestedModel, promptVariant, posthogSessionId } = await req.json();
+    const { message, conversationId, userId, profileId, model: requestedModel, promptVariant, posthogSessionId, posthogDistinctId } = await req.json();
     console.log('FlixBuddy chat request:', { conversationId, userId, profileId, requestedModel, messageLength: message?.length });
 
     await log.info('FlixBuddy request started', {
@@ -438,7 +438,7 @@ FlixBuddy:`;
     await capturePostHogEvent(
       POSTHOG_API_KEY || '',
       '$ai_generation',
-      userId,
+      posthogDistinctId || userId,
       {
         $ai_model: modelUsed,
         $ai_provider: providerUsed,

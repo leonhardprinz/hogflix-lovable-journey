@@ -284,6 +284,7 @@ const FlixBuddy = () => {
           model: selectedModel,
           promptVariant: promptVariant || 'control',
           posthogSessionId: posthog.get_session_id?.() || undefined,
+          posthogDistinctId: posthog.get_distinct_id?.() || undefined,
         }
       });
 
