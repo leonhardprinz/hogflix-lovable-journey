@@ -306,7 +306,7 @@ async function main() {
 
             // Decide type
             let type = 'rec';
-            if (!megaSent && ((INCREMENTAL && c === 0 && Math.random() < 0.2) || (!INCREMENTAL && day === 2 && c === 0))) type = 'mega';
+            if (!megaSent && day === 0 && c === 0) type = 'mega';
             else if (errorsToday < GUARANTEED_ERRORS_PER_DAY && c === Math.floor(count * 0.3)) type = 'error';
             else if (outliersToday < GUARANTEED_OUTLIERS_PER_DAY && c === Math.floor(count * 0.7)) type = 'outlier';
             else if (Math.random() < 0.05) type = 'error';
