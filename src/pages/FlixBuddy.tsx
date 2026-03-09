@@ -282,7 +282,8 @@ const FlixBuddy = () => {
           userId: (await supabase.auth.getUser()).data.user?.id,
           profileId: selectedProfile.id,
           model: selectedModel,
-          promptVariant: promptVariant || 'control'
+          promptVariant: promptVariant || 'control',
+          posthogSessionId: posthog.get_session_id?.() || undefined,
         }
       });
 

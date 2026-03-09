@@ -197,7 +197,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { message, conversationId, userId, profileId, model: requestedModel, promptVariant } = await req.json();
+    const { message, conversationId, userId, profileId, model: requestedModel, promptVariant, posthogSessionId } = await req.json();
     console.log('FlixBuddy chat request:', { conversationId, userId, profileId, requestedModel, messageLength: message?.length });
 
     await log.info('FlixBuddy request started', {
@@ -453,6 +453,7 @@ FlixBuddy:`;
         $ai_is_error: false,
         $ai_prompt_name: promptKey,
         profile_id: profileId,
+        ...(posthogSessionId ? { $session_id: posthogSessionId } : {}),
       }
     );
 
