@@ -1,7 +1,7 @@
 const puppeteer = require('puppeteer');
 
 // Configuration
-const APP_URL = process.env.APP_URL || 'https://hogflix.lovable.app';
+const APP_URL = process.env.APP_URL || 'https://hogflix-project.vercel.app';
 const POSTHOG_KEY = process.env.POSTHOG_KEY;
 const BROWSERLESS_API_KEY = process.env.BROWSERLESS_API_KEY;
 
@@ -19,7 +19,7 @@ const pagesToVisit = [
 async function runSessionReplay() {
   console.log('🚀 Connecting to Browserless.io...');
   console.log(`🔑 Using API key: ${BROWSERLESS_API_KEY.substring(0, 8)}...`);
-  
+
   const browser = await puppeteer.connect({
     browserWSEndpoint: `wss://production-sfo.browserless.io/?token=${BROWSERLESS_API_KEY}`,
   });
@@ -76,7 +76,7 @@ async function runSessionReplay() {
 
   console.log('\n✅ Session replay journey complete!');
   console.log('🔄 Browserless.io will handle cleanup and data flushing...');
-  
+
   await browser.disconnect();
   console.log('👋 Disconnected from Browserless.io');
 }
