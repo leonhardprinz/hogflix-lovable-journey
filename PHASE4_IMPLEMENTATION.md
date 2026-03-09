@@ -135,7 +135,7 @@ node scripts/synthetic-traffic.js
 {
   "browse": {
     "pageName": "Browse",
-    "pageUrl": "https://hogflix-demo.lovable.app/browse",
+    "pageUrl": "https://hogflix-project.vercel.app/browse",
     "lastAnalyzedAt": "2025-01-15T10:00:00Z",
     "behaviors": [
       {

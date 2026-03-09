@@ -40,7 +40,7 @@ The existing **"Synthetic Session Replays"** workflow already includes rage clic
 To test the full replay flow locally:
 ```bash
 cd hogflix-project
-TARGET_URL='https://hogflix-demo.lovable.app/' \
+TARGET_URL='https://hogflix-project.vercel.app/' \
 GEMINI_API_KEY='your-key' \
 npx tsx scripts/generate-replays.ts
 ```
