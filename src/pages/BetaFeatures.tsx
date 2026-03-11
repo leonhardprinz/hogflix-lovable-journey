@@ -93,8 +93,12 @@ export default function BetaFeatures() {
 
       // Update PostHog person properties for additional context
       posthog.setPersonProperties({
-        early_access_features: newFeatures
+        early_access_features: newFeatures,
+        has_early_access: newFeatures.length > 0
       });
+
+      // Force re-evaluation of feature flags so banners/features show immediately
+      posthog.reloadFeatureFlags();
 
       // Track the opt-in or opt-out event
       posthog.capture(
