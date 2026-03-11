@@ -10,7 +10,8 @@ if (typeof window !== 'undefined') {
   posthog.init(
     import.meta.env.VITE_POSTHOG_KEY || 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
     {
-      api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
+      api_host: import.meta.env.VITE_POSTHOG_HOST || '/ingest',
+      ui_host: 'https://eu.posthog.com',
       person_profiles: 'identified_only',
       autocapture: true,
       capture_pageview: true,
@@ -131,6 +132,26 @@ if (typeof window !== 'undefined') {
   
   // Explicitly expose posthog on window for toolbar
   (window as any).posthog = posthog;
+
+  // React Router can strip the #__posthog hash before posthog-js reads it
+  try {
+    const hash = window.location.hash.substring(1);
+    const toolbarJSON = new URLSearchParams(hash).get('__posthog');
+    if (toolbarJSON) {
+      posthog.loadToolbar(JSON.parse(toolbarJSON));
+    }
+  } catch (e) {
+    console.warn('PostHog toolbar hash parsing failed:', e);
+  }
+
+  // Allow toolbar loading via ?toolbar for demos
+  try {
+    if (new URLSearchParams(window.location.search).has('toolbar')) {
+      posthog.loadToolbar({ token: import.meta.env.VITE_POSTHOG_KEY || 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh' });
+    }
+  } catch (e) {
+    console.warn('PostHog toolbar fallback failed:', e);
+  }
 }
 
 // Pass the initialized posthog instance via client prop
