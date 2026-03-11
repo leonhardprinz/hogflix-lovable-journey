@@ -201,13 +201,24 @@ async function runFlixBuddySession(user, sessionIndex) {
             }
         }
 
-        // 7. Flush session recording
-        log('📹 Flushing session recording...')
+        // 7. Flush ALL PostHog data (events + session recording)
+        // posthog.flush() drains the regular event queue (including $ai_generation events).
+        // sessionRecording.flush() sends the rrweb snapshots.
+        // Without both, the browser can close before events are uploaded.
+        log('📹 Flushing PostHog events + session recording...')
+        const sessionIdBeforeFlush = await page.evaluate(() => window.posthog?.get_session_id?.() || 'unknown')
+        log(`   Session ID: ${sessionIdBeforeFlush}`)
         await page.evaluate(() => {
             return new Promise((resolve) => {
-                if (window.posthog?.sessionRecording) {
-                    window.posthog.sessionRecording.flush()
-                    setTimeout(resolve, 5000)
+                if (window.posthog) {
+                    // Flush regular event queue first
+                    window.posthog.flush()
+                    // Flush session recording chunks
+                    if (window.posthog.sessionRecording) {
+                        window.posthog.sessionRecording.flush()
+                    }
+                    // Wait for uploads to complete (10s gives generous time for network)
+                    setTimeout(resolve, 10000)
                 } else {
                     resolve()
                 }
