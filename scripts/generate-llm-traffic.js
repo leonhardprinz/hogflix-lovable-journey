@@ -5,13 +5,24 @@
  * Generates realistic $ai_generation + $ai_trace events via PostHog Capture API.
  * 
  * Usage:
- *   node scripts/generate-llm-traffic.js              # 14-day backfill
- *   INCREMENTAL=true node scripts/generate-llm-traffic.js  # single day (for CI)
+ *   node scripts/generate-llm-traffic.js                              # 14-day backfill
+ *   INCREMENTAL=true node scripts/generate-llm-traffic.js             # single day (for CI)
+ *   REDACT_LLM_CONTENT=true node scripts/generate-llm-traffic.js     # redacted mode (PII-safe)
  */
 
 const POSTHOG_API_KEY = process.env.PH_PROJECT_API_KEY || process.env.POSTHOG_KEY || 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh';
 const POSTHOG_HOST = process.env.PH_HOST || 'https://eu.i.posthog.com';
 const INCREMENTAL = process.env.INCREMENTAL === 'true';
+const REDACT_MODE = process.env.REDACT_LLM_CONTENT === 'true';
+
+// Lightweight PII redactor for synthetic events (mirrors supabase/_shared/pii-redactor.ts)
+function redactText(text) {
+    if (!REDACT_MODE || !text) return text;
+    return text
+        .replace(/\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/g, '[REDACTED]')
+        .replace(/\b(?:Mr|Mrs|Ms|Dr|Judge|Atty)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g, '[REDACTED]')
+        .replace(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b/g, '[REDACTED]');
+}
 
 const DAYS_BACK = INCREMENTAL ? 1 : 14;
 const CONVERSATIONS_PER_DAY = { min: 8, max: 25 };
@@ -216,9 +227,9 @@ function buildGeneration({ distinctId, timestamp, modelConfig, userMsg, assistan
         $ai_provider: modelConfig.provider,
         $ai_base_url: modelConfig.baseUrl,
         $ai_http_status: isError ? (errorDetails?.httpStatus || 500) : 200,
-        $ai_input: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: userMsg }],
+        $ai_input: [{ role: 'system', content: redactText(SYSTEM_PROMPT) }, { role: 'user', content: redactText(userMsg) }],
         $ai_input_tokens: inputTokens,
-        $ai_output_choices: isError ? [] : [{ role: 'assistant', content: assistantMsg }],
+        $ai_output_choices: isError ? [] : [{ role: 'assistant', content: redactText(assistantMsg) }],
         $ai_output_tokens: outputTokens,
         $ai_latency: Math.round(latency * 1000) / 1000,
         $ai_input_cost_usd: Math.round(inputCost * 1e8) / 1e8,
@@ -228,6 +239,7 @@ function buildGeneration({ distinctId, timestamp, modelConfig, userMsg, assistan
         $ai_stream: Math.random() < STREAMING_RATE,
         $ai_max_tokens: pick([1024, 2048, 4096, 8192]),
         $ai_is_error: isError,
+        ...(REDACT_MODE ? { $ai_content_redacted: true } : {}),
         $ai_prompt_name: 'flixbuddy-system-prompt',
         hogflix_feature: 'FlixBuddy',
         $lib: 'posthog-node',
@@ -265,11 +277,12 @@ function buildTrace({ distinctId, timestamp, traceId, sessionId, traceName, firs
             $ai_latency: totalLatency,
             // Must be a JSON object with a `messages` array so the backend can parse it
             // with orjson.loads() and the frontend can read inputState.messages
-            $ai_input_state: { messages: [{ role: 'user', content: firstUserMsg }] },
+            $ai_input_state: { messages: [{ role: 'user', content: redactText(firstUserMsg) }] },
             $ai_output_state: lastAssistantMsg
-                ? { messages: [{ role: 'assistant', content: lastAssistantMsg }] }
+                ? { messages: [{ role: 'assistant', content: redactText(lastAssistantMsg) }] }
                 : null,
             $ai_is_error: isError,
+            ...(REDACT_MODE ? { $ai_content_redacted: true } : {}),
             hogflix_feature: 'FlixBuddy',
             $lib: 'posthog-node',
             $lib_version: '4.3.1',

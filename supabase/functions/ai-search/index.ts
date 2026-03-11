@@ -2,6 +2,9 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { log } from '../_shared/posthog-logger.ts';
+import { redactPII } from '../_shared/pii-redactor.ts';
+
+const REDACT_LLM_CONTENT = Deno.env.get('REDACT_LLM_CONTENT') === 'true';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -290,8 +293,10 @@ Response:`;
               distinct_id: 'ai-search-system',
               $ai_model: modelUsed,
               $ai_provider: 'google',
-              $ai_input: query,
-              $ai_output_choices: [recommendedTitles.join(', ')],
+              $ai_input: REDACT_LLM_CONTENT ? redactPII(query) : query,
+              $ai_output_choices: REDACT_LLM_CONTENT
+                ? [redactPII(recommendedTitles.join(', '))]
+                : [recommendedTitles.join(', ')],
               $ai_input_tokens: tokenUsage.input,
               $ai_output_tokens: tokenUsage.output,
               $ai_total_cost_usd: inputCost + outputCost,
@@ -299,6 +304,7 @@ Response:`;
               $ai_trace_id: `ai-search-${Date.now()}`,
               $ai_http_status: 200,
               $ai_is_error: false,
+              ...(REDACT_LLM_CONTENT ? { $ai_content_redacted: true } : {}),
             },
             timestamp: new Date().toISOString()
           })

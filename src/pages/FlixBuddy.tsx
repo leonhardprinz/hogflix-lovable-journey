@@ -311,65 +311,70 @@ const FlixBuddy = () => {
       await updateRecommendedVideos(data.message);
 
       // Track LLM generation (PostHog LLM Analytics) - with cost data
-      try {
-        posthog.capture('$ai_generation', {
-          $ai_provider: data.metadata?.provider || 'google',
-          $ai_model: data.metadata?.model || 'gemini-2.0-flash',
-          $ai_input: [{ role: 'user', content: message }],
-          $ai_output_choices: [{ role: 'assistant', content: data.message }],
-          $ai_input_tokens: data.metadata?.tokens?.input || 0,
-          $ai_output_tokens: data.metadata?.tokens?.output || 0,
-          $ai_total_tokens: data.metadata?.tokens?.total || 0,
-          $ai_input_cost_usd: data.metadata?.cost?.input || 0,
-          $ai_output_cost_usd: data.metadata?.cost?.output || 0,
-          $ai_total_cost_usd: data.metadata?.cost?.total || 0,
-          $ai_latency: data.metadata?.latency || 0,
-          $ai_conversation_id: conversationId,
-          $ai_trace_id: conversationId,
-          profile_id: selectedProfile.id
-        });
-      } catch (e) {
-        console.error('PostHog tracking error:', e);
-      }
-
-      // Send $ai_trace on first successful response (with proper input/output state)
-      if (!traceSentRef.current) {
-        traceSentRef.current = true;
+      // When REDACT_LLM mode is on, server-side capture is the sole source
+      // (content is scrubbed there before sending to PostHog)
+      const REDACT_LLM = import.meta.env.VITE_REDACT_LLM_CONTENT === 'true';
+      if (!REDACT_LLM) {
         try {
-          posthog.capture('$ai_trace', {
-            $ai_trace_id: conversationId,
-            $ai_trace_name: 'flixbuddy_chat_completion',
+          posthog.capture('$ai_generation', {
             $ai_provider: data.metadata?.provider || 'google',
             $ai_model: data.metadata?.model || 'gemini-2.0-flash',
+            $ai_input: [{ role: 'user', content: message }],
+            $ai_output_choices: [{ role: 'assistant', content: data.message }],
+            $ai_input_tokens: data.metadata?.tokens?.input || 0,
+            $ai_output_tokens: data.metadata?.tokens?.output || 0,
+            $ai_total_tokens: data.metadata?.tokens?.total || 0,
+            $ai_input_cost_usd: data.metadata?.cost?.input || 0,
+            $ai_output_cost_usd: data.metadata?.cost?.output || 0,
+            $ai_total_cost_usd: data.metadata?.cost?.total || 0,
             $ai_latency: data.metadata?.latency || 0,
-            $ai_input_state: { messages: [{ role: 'user', content: message }] },
-            $ai_output_state: { messages: [{ role: 'assistant', content: data.message }] },
+            $ai_conversation_id: conversationId,
+            $ai_trace_id: conversationId,
             profile_id: selectedProfile.id
           });
         } catch (e) {
           console.error('PostHog tracking error:', e);
         }
-      }
 
-      // Track LLM generation complete (PostHog LLM Analytics)
-      try {
-        posthog.capture('$ai_generation_complete', {
-          $ai_provider: data.metadata?.provider || 'google',
-          $ai_model: data.metadata?.model || 'gemini-2.0-flash',
-          $ai_output_choices: [{ role: 'assistant', content: data.message }],
-          $ai_input_tokens: data.metadata?.tokens?.input || 0,
-          $ai_output_tokens: data.metadata?.tokens?.output || 0,
-          $ai_total_tokens: data.metadata?.tokens?.total || 0,
-          $ai_input_cost_usd: data.metadata?.cost?.input || 0,
-          $ai_output_cost_usd: data.metadata?.cost?.output || 0,
-          $ai_total_cost_usd: data.metadata?.cost?.total || 0,
-          $ai_latency: data.metadata?.latency || 0,
-          $ai_conversation_id: conversationId,
-          $ai_trace_id: conversationId,
-          profile_id: selectedProfile.id
-        });
-      } catch (e) {
-        console.error('PostHog tracking error:', e);
+        // Send $ai_trace on first successful response (with proper input/output state)
+        if (!traceSentRef.current) {
+          traceSentRef.current = true;
+          try {
+            posthog.capture('$ai_trace', {
+              $ai_trace_id: conversationId,
+              $ai_trace_name: 'flixbuddy_chat_completion',
+              $ai_provider: data.metadata?.provider || 'google',
+              $ai_model: data.metadata?.model || 'gemini-2.0-flash',
+              $ai_latency: data.metadata?.latency || 0,
+              $ai_input_state: { messages: [{ role: 'user', content: message }] },
+              $ai_output_state: { messages: [{ role: 'assistant', content: data.message }] },
+              profile_id: selectedProfile.id
+            });
+          } catch (e) {
+            console.error('PostHog tracking error:', e);
+          }
+        }
+
+        // Track LLM generation complete (PostHog LLM Analytics)
+        try {
+          posthog.capture('$ai_generation_complete', {
+            $ai_provider: data.metadata?.provider || 'google',
+            $ai_model: data.metadata?.model || 'gemini-2.0-flash',
+            $ai_output_choices: [{ role: 'assistant', content: data.message }],
+            $ai_input_tokens: data.metadata?.tokens?.input || 0,
+            $ai_output_tokens: data.metadata?.tokens?.output || 0,
+            $ai_total_tokens: data.metadata?.tokens?.total || 0,
+            $ai_input_cost_usd: data.metadata?.cost?.input || 0,
+            $ai_output_cost_usd: data.metadata?.cost?.output || 0,
+            $ai_total_cost_usd: data.metadata?.cost?.total || 0,
+            $ai_latency: data.metadata?.latency || 0,
+            $ai_conversation_id: conversationId,
+            $ai_trace_id: conversationId,
+            profile_id: selectedProfile.id
+          });
+        } catch (e) {
+          console.error('PostHog tracking error:', e);
+        }
       }
 
     } catch (error: any) {
@@ -571,7 +576,7 @@ const FlixBuddy = () => {
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-secondary-foreground'
                         }`}>
-                        <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                        <div className={`whitespace-pre-wrap text-sm ${import.meta.env.VITE_REDACT_LLM_CONTENT === 'true' ? 'sensitive' : ''}`}>{message.content}</div>
                         <div className={`text-xs mt-1 opacity-70`}>
                           {message.timestamp.toLocaleTimeString()}
                         </div>
@@ -636,7 +641,7 @@ const FlixBuddy = () => {
                   onKeyPress={handleKeyPress}
                   placeholder="Ask FlixBuddy for movie recommendations..."
                   disabled={isLoading}
-                  className="flex-1"
+                  className={`flex-1 ${import.meta.env.VITE_REDACT_LLM_CONTENT === 'true' ? 'sensitive' : ''}`}
                 />
                 <Button
                   onClick={handleSend}
