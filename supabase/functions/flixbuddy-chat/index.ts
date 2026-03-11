@@ -439,8 +439,8 @@ FlixBuddy:`;
 
     // Capture PostHog AI generation (with optional PII redaction)
     const aiInput = REDACT_LLM_CONTENT
-      ? redactAIContent([{ role: 'user', content: message }])
-      : [{ role: 'user', content: message }];
+      ? redactAIContent([{ role: 'system', content: systemPrompt }, { role: 'user', content: message }])
+      : [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }];
     const aiOutput = REDACT_LLM_CONTENT
       ? redactAIContent([{ role: 'assistant', content: responseText }])
       : [{ role: 'assistant', content: responseText }];

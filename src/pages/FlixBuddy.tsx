@@ -15,6 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { formatDuration } from '@/lib/formatDuration';
 
+const FLIXBUDDY_SYSTEM_PROMPT = 'You are FlixBuddy, the AI movie recommendation assistant for HogFlix. You help users discover movies and series from the HogFlix catalog. Always be enthusiastic and helpful.';
+
 // Thumb survey feedback component for assistant messages
 const ThumbFeedback = ({ traceId, conversationId }: { traceId: string; conversationId: string }) => {
   const hookResult = useThumbSurvey({
@@ -319,7 +321,7 @@ const FlixBuddy = () => {
           posthog.capture('$ai_generation', {
             $ai_provider: data.metadata?.provider || 'google',
             $ai_model: data.metadata?.model || 'gemini-2.0-flash',
-            $ai_input: [{ role: 'user', content: message }],
+            $ai_input: [{ role: 'system', content: FLIXBUDDY_SYSTEM_PROMPT }, { role: 'user', content: message }],
             $ai_output_choices: [{ role: 'assistant', content: data.message }],
             $ai_input_tokens: data.metadata?.tokens?.input || 0,
             $ai_output_tokens: data.metadata?.tokens?.output || 0,
@@ -346,7 +348,7 @@ const FlixBuddy = () => {
               $ai_provider: data.metadata?.provider || 'google',
               $ai_model: data.metadata?.model || 'gemini-2.0-flash',
               $ai_latency: data.metadata?.latency || 0,
-              $ai_input_state: { messages: [{ role: 'user', content: message }] },
+              $ai_input_state: { messages: [{ role: 'system', content: FLIXBUDDY_SYSTEM_PROMPT }, { role: 'user', content: message }] },
               $ai_output_state: { messages: [{ role: 'assistant', content: data.message }] },
               profile_id: selectedProfile.id
             });

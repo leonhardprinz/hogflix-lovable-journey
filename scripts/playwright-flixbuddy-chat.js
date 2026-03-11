@@ -31,6 +31,12 @@ const CHAT_PROMPTS = [
     ["I liked Jurassic Hog, what else?"],
     ["Suggest a binge-worthy series", "How many episodes?"],
     ["Any new releases this week?", "Which one has the best reviews?"],
+    // PII-heavy conversation — useful for demoing redaction
+    [
+        "Hi! My name is Sarah Thompson and I'm looking for a movie to watch with my husband Michael Johnson tonight",
+        "Michael's email is michael.johnson@gmail.com — can you send him the recommendation too? His phone is +1-555-867-5309",
+        "Actually my friend Dr. Rebecca Martinez recommended Lord of the Hogs to us. She said her colleague James O'Brien loved it. What do you think?",
+    ],
 ]
 
 const log = (step, detail = '') => {
@@ -109,7 +115,7 @@ async function runFlixBuddySession(user, sessionIndex) {
         // Force-start session recording (mirrors synthetic-traffic.js forcePostHogStart)
         await page.evaluate(() => {
             if (window.posthog) {
-                window.posthog.register({ synthetic: true });
+                window.posthog.register({ synthetic: true, synthetic_source: 'playwright-flixbuddy' });
                 window.posthog.opt_in_capturing();
                 window.posthog.startSessionRecording();
             }
