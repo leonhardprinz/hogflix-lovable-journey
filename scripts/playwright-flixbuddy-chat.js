@@ -5,7 +5,9 @@
 // Usage: node scripts/playwright-flixbuddy-chat.js
 // Env: APP_URL, POSTHOG_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
-import { chromium } from 'playwright'
+import { chromium } from 'playwright-extra'
+import stealthPlugin from 'puppeteer-extra-plugin-stealth'
+chromium.use(stealthPlugin())
 
 const APP_URL = process.env.APP_URL || 'https://hogflix-project.vercel.app'
 const DEBUG = process.env.DEBUG === 'true'
