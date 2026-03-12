@@ -22,7 +22,7 @@ if (typeof window !== 'undefined') {
       // Enable session recording (session replay)
       session_recording: {
         recordCrossOriginIframes: false,
-        maskAllInputs: false,
+        maskAllInputs: import.meta.env.VITE_REDACT_LLM_CONTENT === 'true',
         maskTextSelector: '.sensitive',
       } as any,
       
