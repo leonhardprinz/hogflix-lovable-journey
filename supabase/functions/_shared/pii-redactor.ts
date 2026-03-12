@@ -77,8 +77,9 @@ export function redactPII(text: string, options?: RedactorOptions): string {
     );
   }
 
-  // 2. Phone numbers (US/intl formats, min 7 digits)
+  // 2. Phone numbers and long digit sequences (bank numbers, IDs, SSNs)
   if (opts.redactPhones) {
+    // Phone formats (US/intl, min 7 digits)
     result = result.replace(
       /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,9}\b/g,
       (match) => {
@@ -86,6 +87,8 @@ export function redactPII(text: string, options?: RedactorOptions): string {
         return digits.length >= 7 ? opts.placeholder : match;
       }
     );
+    // Standalone long number sequences (bank accounts, IDs, etc — 6+ digits)
+    result = result.replace(/\b\d{6,}\b/g, opts.placeholder);
   }
 
   // 3. URL query parameter stripping
@@ -96,15 +99,47 @@ export function redactPII(text: string, options?: RedactorOptions): string {
     );
   }
 
-  // 4. Person names
+  // 4. Street addresses (street name + number patterns)
+  // Catches: "Uferstr. 15", "123 Main Street", "Baker Street 221B"
+  result = result.replace(
+    /\b\d{1,5}\s+[A-Z][a-z]+(?:\s+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Way|Court|Ct|Place|Pl|Strasse|Straße|Str|Gasse|Weg|Platz|Cesta|Ulica))\b\.?\s*\d{0,5}[A-Za-z]?\b/gi,
+    opts.placeholder
+  );
+  // Reverse format: "Streetname 123" or "Streetname. 123"
+  result = result.replace(
+    /\b[A-Z][a-z]+(?:str|straße|strasse|gasse|weg|cesta|ulica)\.?\s+\d{1,5}[A-Za-z]?\b/gi,
+    opts.placeholder
+  );
+  // General "word(s) + house number" after "live at/in/on", "address is"
+  result = result.replace(
+    /(?:live[sd]?\s+(?:at|in|on)|address\s+is)\s+[^,.]{2,40}?\s+\d{1,5}[A-Za-z]?\b/gi,
+    (match) => {
+      const prefix = match.match(/^(live[sd]?\s+(?:at|in|on)|address\s+is)\s+/i)?.[0] || '';
+      return prefix + opts.placeholder;
+    }
+  );
+
+  // 5. Person names
   if (opts.redactNames) {
-    // 4a. Title prefixes (high confidence — always redact)
+    // 5a. "my name is X", "I am X", "I'm X" — catches single first names in context
+    result = result.replace(
+      /(?:(?:my\s+name\s+is|I\s+am|I'm|call\s+me|this\s+is)\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
+      (match, name) => match.replace(name, opts.placeholder)
+    );
+
+    // 5b. "my husband/wife/friend/colleague/kid/son/daughter X"
+    result = result.replace(
+      /(?:my\s+(?:husband|wife|partner|friend|colleague|kid|child|son|daughter|brother|sister|mom|dad|mother|father)\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
+      (match, name) => match.replace(name, opts.placeholder)
+    );
+
+    // 5c. Title prefixes (high confidence — always redact)
     result = result.replace(
       /\b(?:Mr|Mrs|Ms|Miss|Dr|Prof|Judge|Atty|Attorney|Sen|Gov|Rep)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g,
       opts.placeholder
     );
 
-    // 4b. Capitalized word sequences (2-4 words) — likely names
+    // 5d. Capitalized word sequences (2-4 words) — likely names
     result = result.replace(
       /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b/g,
       (match) => isSafePhrase(match) ? match : opts.placeholder
