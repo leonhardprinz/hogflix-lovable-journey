@@ -27,6 +27,7 @@ const Pricing = () => {
   const [layoutVariant, setLayoutVariant] = useState<string | null>(null);
   const [showRetentionModal, setShowRetentionModal] = useState(false);
   const [pendingDowngradePlan, setPendingDowngradePlan] = useState<string | null>(null);
+  const ultimateButtonFixed = useFeatureFlagEnabled('ultimate_button_fix');
   const vipRetentionEnabled = useFeatureFlagEnabled('vip_retention_offer');
 
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
@@ -190,9 +191,19 @@ const Pricing = () => {
   const handlePlanSelect = async (planName: string) => {
     if (loading) return;
 
-    // Ultimate plan - broken checkout (Stripe gateway timeout)
+    // Ultimate plan — fixed via feature flag `ultimate_button_fix`
     if (planName === 'ultimate') {
-        setLoading(true);
+      if (ultimateButtonFixed) {
+        posthog?.capture('pricing:ultimate_fixed_checkout', {
+          feature_flag: 'ultimate_button_fix',
+          action: 'redirect_to_stripe'
+        });
+        window.open('https://buy.stripe.com/test_00w4gzbQR8dP5aC2VZ9Ve02', '_blank');
+        return;
+      }
+
+      // Broken path — Stripe gateway timeout (flag is off)
+      setLoading(true);
 
         const transactionId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const errorContext = {
