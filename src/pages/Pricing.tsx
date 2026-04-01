@@ -27,7 +27,7 @@ const Pricing = () => {
   const [layoutVariant, setLayoutVariant] = useState<string | null>(null);
   const [showRetentionModal, setShowRetentionModal] = useState(false);
   const [pendingDowngradePlan, setPendingDowngradePlan] = useState<string | null>(null);
-  const ultimateButtonFixed = useFeatureFlagEnabled('Ultimate_button_subscription_fix');
+  const ultimateButtonFixed = useFeatureFlagEnabled('ultimate_button_fix');
   const vipRetentionEnabled = useFeatureFlagEnabled('vip_retention_offer');
 
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
@@ -191,37 +191,22 @@ const Pricing = () => {
   const handlePlanSelect = async (planName: string) => {
     if (loading) return;
 
-    // Ultimate plan - behavior controlled by feature flag
+    // Ultimate plan - fixed via feature flag
     if (planName === 'ultimate') {
-      if (import.meta.env.DEV) {
-        console.log('🚩 Ultimate button clicked. Hook value:', ultimateButtonFixed, 'Type:', typeof ultimateButtonFixed);
-      }
-
-      // Check both the hook value AND direct PostHog check as fallback
-      const isFixEnabled = ultimateButtonFixed === true || posthog?.isFeatureEnabled('Ultimate_button_subscription_fix') === true;
-      if (import.meta.env.DEV) {
-        console.log('🚩 Direct PostHog check:', posthog?.isFeatureEnabled('Ultimate_button_subscription_fix'));
-        console.log('🚩 Final isFixEnabled:', isFixEnabled);
-      }
-
-      if (isFixEnabled) {
-        // Feature flag is ON - redirect to working Stripe checkout
+      if (ultimateButtonFixed) {
         posthog?.capture('pricing:ultimate_fixed_checkout', {
-          feature_flag: 'Ultimate_button_subscription_fix',
+          feature_flag: 'ultimate_button_fix',
           action: 'redirect_to_stripe'
         });
-        window.open('https://buy.stripe.com/test_00w4gzbQR8dP5aC2VZ9Ve02', '_blank');
+        window.open('https://buy.stripe.com/test_00w4gybQR8dP5aC2VZ9Ve02', '_blank');
         return;
-      } else {
-        // Feature flag is OFF - simulate broken checkout (rage click + error tracking demo)
-        // Uses a realistic async call chain so PostHog Error Tracking shows
-        // a multi-frame stack trace, not just "setTimeout → anonymous"
-        setLoading(true);
+      }
+
+      // Broken path — Stripe gateway timeout
+      setLoading(true);
 
         const transactionId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const errorContext = {
-          feature_flag: 'Ultimate_button_subscription_fix',
-          flag_value: false,
           transaction_id: transactionId,
           gateway: 'stripe',
           plan: 'ultimate',
@@ -355,7 +340,6 @@ const Pricing = () => {
           });
 
         return;
-      }
     }
 
     // Prevent selecting current plan
