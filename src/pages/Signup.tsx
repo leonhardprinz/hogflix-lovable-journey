@@ -33,6 +33,10 @@ const Signup = () => {
     setLoading(true);
     setError('');
     setStep('processing');
+    try {
+      localStorage.setItem('hogflix_signup_step', 'email_submit');
+      localStorage.setItem('hogflix_current_plan', selectedPlan);
+    } catch { /* localStorage may be unavailable */ }
 
     // Show processing toast
     toast({
@@ -52,6 +56,17 @@ const Signup = () => {
       if (signupError) {
         setError(signupError.message);
         setStep('form');
+        const wrapped = new Error(`SignupAuthError: ${signupError.message}`);
+        wrapped.name = 'SignupAuthError';
+        wrapped.cause = signupError;
+        posthog?.captureException(wrapped, {
+          signup_step: 'email_submit',
+          selected_plan: selectedPlan,
+          marketing_opt_in: marketingOptIn,
+          auth_error_status: (signupError as any)?.status,
+          auth_error_code: (signupError as any)?.code,
+          $exception_fingerprint: ['SignupAuthError', (signupError as any)?.code || 'unknown'],
+        });
         toast({
           title: "Sign up failed",
           description: signupError.message,
@@ -130,6 +145,16 @@ const Signup = () => {
     } catch (err) {
       setError('An unexpected error occurred');
       setStep('form');
+      const baseErr = err instanceof Error ? err : new Error(String(err));
+      const wrapped = new Error(`SignupUnexpectedError: ${baseErr.message}`);
+      wrapped.name = 'SignupUnexpectedError';
+      wrapped.cause = baseErr;
+      posthog?.captureException(wrapped, {
+        signup_step: 'email_submit',
+        selected_plan: selectedPlan,
+        marketing_opt_in: marketingOptIn,
+        $exception_fingerprint: ['SignupUnexpectedError'],
+      });
       toast({
         title: "Something went wrong",
         description: "Please try again or contact support if the issue persists.",

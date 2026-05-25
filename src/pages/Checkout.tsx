@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,14 @@ const Checkout = () => {
   const [processingMethod, setProcessingMethod] = useState<string>('');
   const [success, setSuccess] = useState(false);
   const [showStripeWarning, setShowStripeWarning] = useState(false);
+  const successRef = useRef(false);
+  const processingRef = useRef(false);
+  const processingMethodRef = useRef('');
 
+  // Keep refs in sync with state
+  useEffect(() => { successRef.current = success; }, [success]);
+  useEffect(() => { processingRef.current = processing; }, [processing]);
+  useEffect(() => { processingMethodRef.current = processingMethod; }, [processingMethod]);
 
   const paymentMethods = [
     {
@@ -46,11 +53,12 @@ const Checkout = () => {
     }
   ];
 
+  // Init effect — runs once on mount
   useEffect(() => {
     document.title = "Checkout – HogFlix";
     const selectedPlan = searchParams.get('plan') || '';
     setPlan(selectedPlan);
-    
+
     if (selectedPlan === 'basic') {
       navigate('/profiles');
       return;
@@ -58,20 +66,23 @@ const Checkout = () => {
 
     fetchPlanDetails(selectedPlan);
     posthog?.capture('checkout:viewed', { plan: selectedPlan });
-    
-    // Track checkout abandonment on page unload
+  }, [searchParams]);
+
+  // Abandonment tracking — uses refs to avoid re-registering on every state change
+  useEffect(() => {
+    const selectedPlan = searchParams.get('plan') || '';
     const handleBeforeUnload = () => {
-      if (!success && !processing) {
+      if (!successRef.current && !processingRef.current) {
         posthog?.capture('checkout:abandoned', {
           plan: selectedPlan,
-          selected_method: processingMethod || null
+          selected_method: processingMethodRef.current || null
         });
       }
     };
-    
+
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [searchParams, navigate, posthog, success, processing, processingMethod]);
+  }, [searchParams, posthog]);
 
   const fetchPlanDetails = async (planName: string) => {
     const { data, error } = await supabase
@@ -104,6 +115,18 @@ const Checkout = () => {
       }
     } catch (error) {
       console.error('Error creating checkout session:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      const wrapped = new Error(`StripeCheckoutSessionError: ${err.message}`);
+      wrapped.name = 'StripeCheckoutSessionError';
+      wrapped.cause = err;
+      posthog?.captureException(wrapped, {
+        plan,
+        plan_tier: planDetails?.display_name,
+        amount: planDetails?.price_monthly,
+        checkout_stage: 'stripe_redirect',
+        payment_method: 'stripe',
+        $exception_fingerprint: ['StripeCheckoutSessionError', plan],
+      });
       toast({
         title: "Checkout failed",
         description: "Could not create checkout session. Please try again.",
@@ -189,6 +212,18 @@ const Checkout = () => {
 
       } catch (error) {
         console.error('Checkout error:', error);
+        const err = error instanceof Error ? error : new Error(String(error));
+        const wrapped = new Error(`PaymentProcessingError: ${err.message}`);
+        wrapped.name = 'PaymentProcessingError';
+        wrapped.cause = err;
+        posthog?.captureException(wrapped, {
+          plan,
+          plan_tier: planDetails?.display_name,
+          amount: planDetails?.price_monthly,
+          payment_method: methodId,
+          checkout_stage: 'payment_processing',
+          $exception_fingerprint: ['PaymentProcessingError', methodId, plan],
+        });
         toast({
           title: "Payment failed",
           description: "Something went wrong. Please try again.",

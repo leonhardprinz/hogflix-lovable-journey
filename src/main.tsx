@@ -16,6 +16,7 @@ if (typeof window !== 'undefined') {
       autocapture: true,
       capture_pageview: true,
       capture_pageleave: true,
+      capture_exceptions: true,
       disable_web_experiments: false,
       debug: import.meta.env.DEV, // Enable debug logging in dev
       
@@ -107,24 +108,46 @@ if (typeof window !== 'undefined') {
       },
       
       // Drop ONLY synthetic demo VIDEO events (not all synthetic traffic)
+      // AND enrich every $exception with business context so error tracking
+      // can be used as a proactive support signal (Razorpay-style use case).
       before_send: (event) => {
         const props = event?.properties || {};
-        
-        const isSynthetic = 
-          props?.synthetic === true || 
+
+        const isSynthetic =
+          props?.synthetic === true ||
           props?.is_synthetic === true;
-        
-        const isDemoVideo = 
+
+        const isDemoVideo =
           props?.video_id === '6f4d68aa-3d28-43eb-a16d-31848741832b' ||
           props?.category === 'PostHog Demo';
-        
+
         if (isSynthetic && isDemoVideo) {
           if (import.meta.env.DEV) {
             console.log('🚫 Blocked synthetic demo video event:', event.event);
           }
           return null;
         }
-        
+
+        if (event?.event === '$exception') {
+          const enriched = {
+            ...event.properties,
+            app_surface: window.location.pathname,
+            current_plan: (() => {
+              try { return localStorage.getItem('hogflix_current_plan') || 'unknown'; }
+              catch { return 'unknown'; }
+            })(),
+            signup_step: (() => {
+              try { return localStorage.getItem('hogflix_signup_step') || 'n/a'; }
+              catch { return 'n/a'; }
+            })(),
+            is_authenticated: (() => {
+              try { return !!localStorage.getItem('sb-auth-token'); }
+              catch { return false; }
+            })(),
+          };
+          event.properties = enriched;
+        }
+
         return event;
       },
     }
