@@ -23,18 +23,27 @@ export default defineConfig(({ mode }) => {
       react(),
       mode === 'development' &&
       componentTagger(),
+      // PostHog sourcemap upload — explicit opt-in via POSTHOG_SOURCEMAPS_ENABLED=true.
+      // Default off so an invalid / expired personal API key never blocks a deploy.
+      // Re-enable once the key is fresh:
+      //   1) generate a fresh personal API key with "sourcemap upload" scope
+      //   2) set POSTHOG_PERSONAL_API_KEY + POSTHOG_PROJECT_ID + POSTHOG_SOURCEMAPS_ENABLED=true
+      //      on Vercel (and locally in .env)
       mode === 'production' &&
-      posthog({
-        personalApiKey: env.POSTHOG_PERSONAL_API_KEY,
-        projectId: env.POSTHOG_PROJECT_ID,
-        host: 'https://eu.i.posthog.com',
-        sourcemaps: {
-          enabled: true,
-          releaseName: 'hogflix',
-          releaseVersion: `1.0.${Date.now()}`,
-          deleteAfterUpload: true,
-        },
-      }),
+        env.POSTHOG_SOURCEMAPS_ENABLED === 'true' &&
+        env.POSTHOG_PERSONAL_API_KEY &&
+        env.POSTHOG_PROJECT_ID &&
+        posthog({
+          personalApiKey: env.POSTHOG_PERSONAL_API_KEY,
+          projectId: env.POSTHOG_PROJECT_ID,
+          host: 'https://eu.i.posthog.com',
+          sourcemaps: {
+            enabled: true,
+            releaseName: 'hogflix',
+            releaseVersion: `1.0.${Date.now()}`,
+            deleteAfterUpload: true,
+          },
+        }),
     ].filter(Boolean),
     resolve: {
       alias: {
