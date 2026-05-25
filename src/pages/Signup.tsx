@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, CheckCircle, Mail, Lock, ArrowRight, UserPlus, Calendar } from 'lucide-react';
+import { Shield, CheckCircle, Mail, Lock, ArrowRight, UserPlus, Calendar, ExternalLink } from 'lucide-react';
 import { getAgeGroup } from '@/lib/posthog-utils';
 import NewsletterOptIn from '@/components/NewsletterOptIn';
+import { initiateHandoff } from '@/lib/posthog-handoff';
 
 const Signup = () => {
   const [searchParams] = useSearchParams();
@@ -27,6 +28,30 @@ const Signup = () => {
   const navigate = useNavigate();
   const posthog = usePostHog();
   const { toast } = useToast();
+
+  // Surface the partner-verify return outcome to the user as a toast.
+  // `onboarding.kyc.handoff_returned` is fired by App.tsx via detectHandoffReturn().
+  useEffect(() => {
+    const outcome = searchParams.get('handoff_outcome');
+    const code = searchParams.get('handoff_code');
+    if (!outcome) return;
+    const titles: Record<string, string> = {
+      success: 'Identity verified',
+      failure: 'Verification declined',
+      cancelled: 'Verification cancelled',
+      timeout: 'Verification timed out',
+    };
+    toast({
+      title: titles[outcome] ?? `Handoff returned: ${outcome}`,
+      description: code ? `Code: ${code}` : undefined,
+      variant: outcome === 'success' ? 'default' : 'destructive',
+    });
+    // Clean the URL so a refresh doesn't re-fire the toast.
+    const url = new URL(window.location.href);
+    url.searchParams.delete('handoff_outcome');
+    url.searchParams.delete('handoff_code');
+    window.history.replaceState({}, '', url.pathname + url.search);
+  }, [searchParams, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,6 +190,28 @@ const Signup = () => {
     }
   };
 
+  /**
+   * Razorpay-pattern demo: simulated KYC handoff to a third-party identity
+   * provider (Digilocker). Mirrors how PostHog can bracket cross-domain
+   * redirects so the funnel never goes silent during the external step.
+   */
+  const handlePartnerVerify = (provider: 'digilocker' | 'hyperverge_vkyc') => {
+    const handoffSessionId = `ho_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const returnTo = '/signup';
+    initiateHandoff(posthog, {
+      flow: 'onboarding.kyc',
+      provider,
+      expected_return_url: returnTo,
+      handoff_session_id: handoffSessionId,
+      extra: {
+        selected_plan: selectedPlan,
+        signup_step: 'kyc_verification',
+      },
+    });
+    const url = `/partner-verify?return_to=${encodeURIComponent(returnTo)}&partner=${provider === 'digilocker' ? 'Digilocker' : 'HyperVerge VKYC'}`;
+    window.location.href = url;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background-dark via-background-dark to-background-dark/90 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -285,6 +332,43 @@ const Signup = () => {
                 onChange={setMarketingOptIn}
                 disabled={loading || success}
               />
+
+              {/* Razorpay-pattern demo: simulated third-party identity handoff */}
+              <div className="rounded-lg border border-blue-700/40 bg-blue-950/20 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-medium text-blue-200">
+                    Optional: verify identity via partner
+                  </span>
+                </div>
+                <p className="text-xs text-text-tertiary">
+                  Demonstrates a cross-domain handoff (Digilocker / VKYC pattern). PostHog
+                  brackets the round-trip with <code>onboarding.kyc.handoff_initiated</code> →{' '}
+                  <code>onboarding.kyc.handoff_returned</code>, so the external step is never silent.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 border-blue-700/60 text-blue-200 hover:bg-blue-900/30"
+                    onClick={() => handlePartnerVerify('digilocker')}
+                    disabled={loading || success}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Verify with Digilocker
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 border-blue-700/60 text-blue-200 hover:bg-blue-900/30"
+                    onClick={() => handlePartnerVerify('hyperverge_vkyc')}
+                    disabled={loading || success}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Verify with HyperVerge VKYC
+                  </Button>
+                </div>
+              </div>
 
           {error && (
             <div className="p-3 bg-red-900/20 border border-red-600 rounded text-red-400 text-sm" role="alert" aria-live="assertive">

@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Check, CreditCard, Loader2, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { initiateHandoff } from '@/lib/posthog-handoff';
 
 const Checkout = () => {
   const [searchParams] = useSearchParams();
@@ -100,15 +101,28 @@ const Checkout = () => {
     
     try {
       posthog?.capture('checkout:stripe_redirect', { plan });
-      
+
       // Create Stripe checkout session with metadata
       const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
         body: { plan_name: plan }
       });
-      
+
       if (error) throw error;
-      
+
       if (data?.url) {
+        // Bracket the cross-domain redirect to Stripe. App.tsx will fire
+        // `checkout.payment.handoff_returned` on return with duration + outcome.
+        initiateHandoff(posthog, {
+          flow: 'checkout.payment',
+          provider: 'stripe',
+          expected_return_url: '/checkout/success',
+          handoff_session_id: `ho_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          extra: {
+            plan,
+            plan_tier: planDetails?.display_name,
+            amount: planDetails?.price_monthly,
+          },
+        });
         window.location.href = data.url;
       } else {
         throw new Error('No checkout URL returned');

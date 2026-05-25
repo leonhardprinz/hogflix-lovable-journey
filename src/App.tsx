@@ -1,8 +1,11 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { usePostHog } from "posthog-js/react";
+import { detectHandoffReturn, sweepStaleHandoffs } from "@/lib/posthog-handoff";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
@@ -25,6 +28,7 @@ import NotFound from "./pages/NotFound";
 import Pricing from "./pages/Pricing";
 import TimeleftPricing from "./pages/TimeleftPricing";
 import DevLinks from "./pages/DevLinks";
+import IdentityTest from "./pages/IdentityTest";
 import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import NewsletterPreferences from "./pages/NewsletterPreferences";
@@ -33,6 +37,7 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import FAQ from "./pages/FAQ";
 import Help from "./pages/Help";
+import PartnerVerify from "./pages/PartnerVerify";
 import FloatingHedgehog from "./components/FloatingHedgehog";
 import SyntheticMarker from "./components/SyntheticMarker";
 
@@ -40,7 +45,18 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const location = useLocation();
-  const hideFooter = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/flixbuddy' || location.pathname === '/timeleft-pricing';
+  const posthog = usePostHog();
+  const hideFooter = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/flixbuddy' || location.pathname === '/timeleft-pricing' || location.pathname === '/partner-verify';
+
+  // On mount: if the user is returning from a third-party handoff
+  // (Digilocker / VKYC / Stripe / any cross-domain redirect),
+  // fire {flow}.handoff_returned with duration + outcome.
+  useEffect(() => {
+    detectHandoffReturn(posthog);
+    sweepStaleHandoffs(posthog);
+    const interval = setInterval(() => sweepStaleHandoffs(posthog), 60_000);
+    return () => clearInterval(interval);
+  }, [posthog]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -117,6 +133,8 @@ const AppContent = () => {
           <Route path="/faq" element={<FAQ />} />
           <Route path="/help" element={<Help />} />
           <Route path="/dev" element={<DevLinks />} />
+          <Route path="/dev/identity-test" element={<IdentityTest />} />
+          <Route path="/partner-verify" element={<PartnerVerify />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
