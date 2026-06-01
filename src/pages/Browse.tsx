@@ -1,6 +1,6 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { usePostHog } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagVariantKey } from 'posthog-js/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useFeatureFlagEnabled } from 'posthog-js/react';
@@ -11,8 +11,6 @@ import Header from '@/components/Header';
 import { HeroCarousel } from '@/components/HeroCarousel';
 import { ResumeWatchingCarousel } from '@/components/ResumeWatchingCarousel';
 import { PopularCarousel } from '@/components/PopularCarousel';
-import { TrendingCarousel } from '@/components/TrendingCarousel';
-import { Button } from '@/components/ui/button';
 import {
   Carousel,
   CarouselContent,
@@ -21,11 +19,150 @@ import {
   CarouselPrevious,
 } from '@/components/ui/carousel';
 import { WatchlistButton } from '@/components/WatchlistButton';
-import { Play, Info } from 'lucide-react';
 import { HedgehogRating } from '@/components/HedgehogRating';
 import { videoHrefFor } from '@/lib/videoRouting';
 import { PowerUserBadge } from '@/components/PowerUserBadge';
+import { VipLivestreamBanner } from '@/components/VipLivestreamBanner';
 import { slog, throwRateLimitError } from '@/lib/demoErrors';
+
+// ─── A/B EXPERIMENT BANNER ─────────────────────────────────────────────
+// IPL upgrade promo, gated by the `browse_upgrade_banner` experiment flag.
+// `urgency_banner` variant shows the strip, `control` renders nothing.
+// Fires three events: `$feature_flag_called` (exposure, once per page load),
+// `browse_upgrade_banner:viewed` (when the strip actually paints), and
+// `browse_upgrade_banner:clicked` (when the user follows the CTA).
+// Dismissal is sticky for the session via sessionStorage.
+const IplUpgradeBanner = () => {
+  const posthog = usePostHog();
+  const navigate = useNavigate();
+  const variant = useFeatureFlagVariantKey('browse_upgrade_banner') as string | undefined;
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try { return sessionStorage.getItem('ipl_banner_dismissed') === 'true'; }
+    catch { return false; }
+  });
+  const exposureSent = useRef(false);
+
+  useEffect(() => {
+    if (!variant || exposureSent.current) return;
+    exposureSent.current = true;
+    // Manual exposure: counts the user in the experiment at the moment the
+    // variant is actually known on the rendered page. Critical for accurate
+    // denominators on Razorpay's Segment-routed setup.
+    posthog?.capture('$feature_flag_called', {
+      $feature_flag: 'browse_upgrade_banner',
+      $feature_flag_response: variant,
+    });
+    if (variant === 'urgency_banner' && !dismissed) {
+      posthog?.capture('browse_upgrade_banner:viewed', { variant });
+    }
+  }, [variant, dismissed, posthog]);
+
+  if (variant !== 'urgency_banner' || dismissed) return null;
+
+  const handleClick = () => {
+    posthog?.capture('browse_upgrade_banner:clicked', { variant });
+    navigate('/pricing');
+  };
+
+  const handleDismiss = () => {
+    try { sessionStorage.setItem('ipl_banner_dismissed', 'true'); } catch { /* no-op */ }
+    setDismissed(true);
+  };
+
+  return (
+    <div className="bg-gradient-to-r from-red-700 via-red-600 to-orange-500 text-white shadow-lg">
+      <div className="container-netflix flex items-center justify-between gap-3 px-4 py-3">
+        <div className="flex items-center gap-3 text-sm sm:text-base">
+          <span className="text-xl">🏏</span>
+          <span>
+            <strong>IPL season is here</strong> &mdash; upgrade to Ultimate and stream live in 4K. Pay with UPI, card, or wallet.
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleClick}
+            className="bg-white text-red-700 font-semibold px-4 py-1.5 rounded-md hover:bg-red-50 transition whitespace-nowrap"
+          >
+            Upgrade now →
+          </button>
+          <button
+            onClick={handleDismiss}
+            className="text-white/80 hover:text-white text-2xl leading-none px-2"
+            aria-label="Dismiss banner"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── A/B EXPERIMENT BANNER #2 ───────────────────────────────────────────
+// IPL Final tickets giveaway, gated by `browse_ipl_tickets_banner`.
+// Sits below the hero so it coexists with the upgrade banner above it.
+const IplTicketsBanner = () => {
+  const posthog = usePostHog();
+  const navigate = useNavigate();
+  const variant = useFeatureFlagVariantKey('browse_ipl_tickets_banner') as string | undefined;
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try { return sessionStorage.getItem('ipl_tickets_banner_dismissed') === 'true'; }
+    catch { return false; }
+  });
+  const exposureSent = useRef(false);
+
+  useEffect(() => {
+    if (!variant || exposureSent.current) return;
+    exposureSent.current = true;
+    posthog?.capture('$feature_flag_called', {
+      $feature_flag: 'browse_ipl_tickets_banner',
+      $feature_flag_response: variant,
+    });
+    if (variant === 'tickets_banner' && !dismissed) {
+      posthog?.capture('browse_ipl_tickets_banner:viewed', { variant });
+    }
+  }, [variant, dismissed, posthog]);
+
+  if (variant !== 'tickets_banner' || dismissed) return null;
+
+  const handleClick = () => {
+    posthog?.capture('browse_ipl_tickets_banner:clicked', { variant });
+    navigate('/pricing');
+  };
+
+  const handleDismiss = () => {
+    try { sessionStorage.setItem('ipl_tickets_banner_dismissed', 'true'); } catch { /* no-op */ }
+    setDismissed(true);
+  };
+
+  return (
+    <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 text-white shadow-lg">
+      <div className="container-netflix flex items-center justify-between gap-3 px-4 py-3">
+        <div className="flex items-center gap-3 text-sm sm:text-base">
+          <span className="text-xl">🎟️</span>
+          <span>
+            <strong>Open a HogFlix Premium account</strong> and enter the IPL Final tickets giveaway. KYC in 2 minutes, powered by Razorpay.
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleClick}
+            className="bg-white text-emerald-700 font-semibold px-4 py-1.5 rounded-md hover:bg-emerald-50 transition whitespace-nowrap"
+          >
+            Open Premium account →
+          </button>
+          <button
+            onClick={handleDismiss}
+            className="text-white/80 hover:text-white text-2xl leading-none px-2"
+            aria-label="Dismiss banner"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface Video {
   id: string;
@@ -56,26 +193,11 @@ const Browse = () => {
   // Enabled if: power_user_tier = "gold" or "platinum" AND videos_watched_external > 100
   const powerUserEarlyAccess = useFeatureFlagEnabled('power_user_early_access');
 
+  // VIP Livestream Banner feature flag
+  const vipLivestreamBanner = useFeatureFlagEnabled('vip_livestream_banner');
 
 
 
-  // A/B test thumbnail function
-  const getThumbnailUrl = (video: Video) => {
-    // Get the feature flag variant for thumbnail experiment
-    const variant = posthog.getFeatureFlag('thumbnail-experiment');
-
-    // For testing purposes, we'll use the first video in the first category
-    // In a real scenario, you'd have specific video IDs to test
-    if (categories.length > 0 && categories[0].videos.length > 0 && video.id === categories[0].videos[0]?.id) {
-      if (variant === 'test') {
-        // Alternative thumbnail URL for A/B test
-        return 'https://images.unsplash.com/photo-1489599807473-d2f3ba75b4c1?w=800&h=450&fit=crop&crop=center';
-      }
-    }
-
-    // Return original thumbnail for control variant or other videos
-    return video.thumbnail_url;
-  };
 
   useEffect(() => {
     const checkAuthAndProfile = async () => {
@@ -93,16 +215,9 @@ const Browse = () => {
         return;
       }
 
-      // Load feature flags before capturing events
-      posthog.onFeatureFlags(() => {
-        const sectionPriorityVariant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test');
-
-        // Fire PostHog analytics for page view with feature flag context
-        posthog.capture('page:viewed_browse', {
-          profile_id: selectedProfile.id,
-          profile_name: selectedProfile.display_name || selectedProfile.email,
-          section_priority_variant: sectionPriorityVariant || 'popular-first'
-        });
+      posthog.capture('page:viewed_browse', {
+        profile_id: selectedProfile.id,
+        profile_name: selectedProfile.display_name || selectedProfile.email,
       });
 
       // Fetch categories and videos
@@ -239,11 +354,22 @@ const Browse = () => {
     <div className="min-h-screen bg-background-dark">
       <Header />
 
+      {/* A/B experiment: IPL upgrade promo banner (browse_upgrade_banner flag) */}
+      <IplUpgradeBanner />
+
       {/* Hero Section */}
       <HeroCarousel />
 
+      {/* A/B experiment: IPL Final tickets giveaway (browse_ipl_tickets_banner flag) */}
+      <IplTicketsBanner />
+
       {/* Content Carousels Container */}
       <div className="container-netflix py-12 space-y-12">
+        {/* VIP Livestream Banner */}
+        {vipLivestreamBanner && (
+          <VipLivestreamBanner className="mb-4" />
+        )}
+
         {/* Power User Early Access Badge */}
         {powerUserEarlyAccess && (
           <PowerUserBadge className="mb-4" />
@@ -262,8 +388,7 @@ const Browse = () => {
         {/* Resume Watching Section */}
         <ResumeWatchingCarousel />
 
-        {/* Dynamic Sections - Order controlled by feature flag */}
-        <DynamicSections posthog={posthog} selectedProfile={selectedProfile} />
+        <PopularCarousel />
 
         {/* Dynamic Categories and Videos */}
         <div className="space-y-16">
@@ -293,7 +418,7 @@ const Browse = () => {
                         <div className="w-full bg-card-background rounded card-hover cursor-pointer group">
                           <div className="aspect-video bg-gray-700 rounded-t overflow-hidden relative">
                             <img
-                              src={getThumbnailUrl(video)}
+                              src={video.thumbnail_url}
                               alt={video.title}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                               loading="lazy"
@@ -340,66 +465,6 @@ const Browse = () => {
         </div>
       </div>
     </div>
-  );
-};
-
-// Component to handle dynamic section ordering based on feature flag
-const DynamicSections = ({ posthog, selectedProfile }: { posthog: any; selectedProfile: any }) => {
-  const [sectionPriorityVariant, setSectionPriorityVariant] = useState<string | null>(null);
-
-  const flagLoadedRef = useRef(false);
-
-  // Load feature flag and track section order impression (once only)
-  useEffect(() => {
-    if (flagLoadedRef.current) return;
-    posthog.onFeatureFlags(() => {
-      if (flagLoadedRef.current) return;
-      flagLoadedRef.current = true;
-      const variant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test') as string || 'popular-first';
-      setSectionPriorityVariant(variant);
-
-      posthog.capture('feature_flag:section_priority_impression', {
-        variant: variant,
-        profile_id: selectedProfile?.id,
-        timestamp: new Date().toISOString()
-      });
-    });
-  }, [posthog, selectedProfile]);
-
-  // Track section interactions
-  const handleSectionView = (sectionName: string, position: number) => {
-    posthog.capture('section:viewed', {
-      section: sectionName.toLowerCase().includes('popular') ? 'popular' : 'trending',
-      position: position,
-      variant: sectionPriorityVariant || 'popular-first',
-      profile_id: selectedProfile?.id,
-      timestamp: new Date().toISOString()
-    });
-  };
-
-  // Show ONLY Popular OR Trending based on feature flag (50/50 split)
-  const sections = useMemo(() => {
-    // Check if the variant contains 'trending' - show ONLY Trending
-    if (sectionPriorityVariant && sectionPriorityVariant.includes('trending')) {
-      return [
-        { component: <TrendingCarousel key="trending" />, name: 'Trending Now', position: 1 }
-      ];
-    }
-
-    // Default: show ONLY Popular (control)
-    return [
-      { component: <PopularCarousel key="popular" />, name: 'Popular on HogFlix', position: 1 }
-    ];
-  }, [sectionPriorityVariant]);
-
-  return (
-    <>
-      {sections.map(({ component, name, position }) => (
-        <div key={name} onMouseEnter={() => handleSectionView(name, position)}>
-          {component}
-        </div>
-      ))}
-    </>
   );
 };
 
