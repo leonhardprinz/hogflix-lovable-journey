@@ -38,6 +38,7 @@ import Terms from "./pages/Terms";
 import FAQ from "./pages/FAQ";
 import Help from "./pages/Help";
 import PartnerVerify from "./pages/PartnerVerify";
+import GetStarted from "./pages/GetStarted";
 import FloatingHedgehog from "./components/FloatingHedgehog";
 import SyntheticMarker from "./components/SyntheticMarker";
 
@@ -63,6 +64,7 @@ const AppContent = () => {
       <div className="flex-1">
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/get-started" element={<GetStarted />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/timeleft-pricing" element={<TimeleftPricing />} />
           <Route path="/signup" element={<Signup />} />

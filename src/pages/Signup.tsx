@@ -29,6 +29,30 @@ const Signup = () => {
   const posthog = usePostHog();
   const { toast } = useToast();
 
+  // Identity stitching for QR cross-device flow: if a previous anonymous
+  // distinct_id was carried through the QR URL (?ph_did=...), alias this
+  // device's anon id to it so the experiment exposure (on the desktop)
+  // and the conversion (on this device) attribute to the same person.
+  useEffect(() => {
+    if (!posthog) return;
+    const phDid = searchParams.get('ph_did');
+    const fromQr = searchParams.get('from') === 'qr';
+    if (phDid && fromQr) {
+      try {
+        // alias() tells PostHog: "the current distinct_id and the given id are
+        // the same person". The server merges the records and preserves the
+        // flag/experiment exposure from the original desktop session.
+        posthog.alias(phDid);
+        posthog.capture('qr_handoff_received', {
+          from_distinct_id: phDid,
+          to_distinct_id: posthog.get_distinct_id?.(),
+        });
+      } catch {
+        // alias is best-effort; failing here shouldn't block signup.
+      }
+    }
+  }, [posthog, searchParams]);
+
   // Surface the partner-verify return outcome to the user as a toast.
   // `onboarding.kyc.handoff_returned` is fired by App.tsx via detectHandoffReturn().
   useEffect(() => {

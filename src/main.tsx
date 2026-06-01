@@ -16,6 +16,10 @@ if (typeof window !== 'undefined') {
       autocapture: true,
       capture_pageview: true,
       capture_pageleave: true,
+      capture_performance: {
+        web_vitals: true,
+        web_vitals_allowed_metrics: ['LCP', 'INP', 'CLS', 'FCP'],
+      },
       capture_exceptions: true,
       disable_web_experiments: false,
       debug: import.meta.env.DEV, // Enable debug logging in dev
