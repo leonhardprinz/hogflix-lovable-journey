@@ -39,6 +39,9 @@ import FAQ from "./pages/FAQ";
 import Help from "./pages/Help";
 import PartnerVerify from "./pages/PartnerVerify";
 import GetStarted from "./pages/GetStarted";
+import FormsIndex from "./pages/FormsIndex";
+import ProductForm from "./pages/ProductForm";
+import FormDone from "./pages/FormDone";
 import FloatingHedgehog from "./components/FloatingHedgehog";
 import SyntheticMarker from "./components/SyntheticMarker";
 
@@ -137,6 +140,9 @@ const AppContent = () => {
           <Route path="/dev" element={<DevLinks />} />
           <Route path="/dev/identity-test" element={<IdentityTest />} />
           <Route path="/partner-verify" element={<PartnerVerify />} />
+          <Route path="/forms" element={<FormsIndex />} />
+          <Route path="/forms/done" element={<FormDone />} />
+          <Route path="/forms/:product" element={<ProductForm />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
