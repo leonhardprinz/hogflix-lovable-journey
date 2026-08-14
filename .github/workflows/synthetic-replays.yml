@@ -26,3 +26,15 @@ jobs:
           APP_URL: 'https://hogflix-project.vercel.app/'
           # This pulls the key from the secret you created in Step 1
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      # Browser-driven FlixBuddy funnel personas. Unlike the server-side
+      # flixbuddy-experiment-funnel.js (posthog-node, so a replay is impossible),
+      # each persona here signs up in a real browser: it becomes its own Person
+      # AND owns a session recording. That is what makes funnel -> replay work.
+      # Filter any insight on `replay_demo = true` to get only these people.
+      - name: Run FlixBuddy replay funnel
+        run: npx tsx scripts/synthetic/flixbuddy-replay-funnel.ts
+        env:
+          APP_URL: 'https://hogflix-project.vercel.app'
+          PERSONA_COUNT: '8'
+          ABANDON_RATE: '0.45'
