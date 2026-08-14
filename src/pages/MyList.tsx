@@ -12,6 +12,7 @@ import { Heart, Play, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDuration } from '@/lib/formatDuration';
 import { fetchVideoRatingsBatch } from '@/lib/fetchVideoRatings';
+import { ViewingStatsPanel } from '@/components/ViewingStatsPanel';
 
 interface Video {
   id: string;
@@ -131,6 +132,9 @@ export default function MyList() {
           <Heart className="w-8 h-8 text-primary" />
           <h1 className="text-4xl font-bold">My List</h1>
         </div>
+
+        {/* Your viewing stats — powered by the PostHog viewer_stats endpoint */}
+        <ViewingStatsPanel />
 
         {videos.length === 0 ? (
           <div className="text-center py-16">

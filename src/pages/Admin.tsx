@@ -23,6 +23,7 @@ import { VideoManagementGrid } from "@/components/admin/VideoManagementGrid";
 import { TagManagementSection } from "@/components/admin/TagManagementSection";
 import { RefreshCw, Video, Clock, TrendingUp, Users, Award, Loader2, CreditCard, Sparkles, Database } from "lucide-react";
 import { CDPDemoControls } from "@/components/admin/CDPDemoControls";
+import { RevenueMetricsCards } from "@/components/admin/RevenueMetricsCards";
 import { LanguageTestControls } from "@/components/admin/LanguageTestControls";
 import { InactivityTestControls } from "@/components/admin/InactivityTestControls";
 import { useAuth } from "@/contexts/AuthContext";
@@ -299,6 +300,9 @@ export default function Admin() {
                       </CardContent>
                     </Card>
                   </div>
+
+                  {/* Revenue snapshot — served live by the PostHog revenue_summary endpoint */}
+                  <RevenueMetricsCards />
 
                   {analyticsData && analyticsData.length > 0 && (
                     <DashboardCharts analyticsData={analyticsData} />

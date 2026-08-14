@@ -11,6 +11,7 @@ import Header from '@/components/Header';
 import { HeroCarousel } from '@/components/HeroCarousel';
 import { ResumeWatchingCarousel } from '@/components/ResumeWatchingCarousel';
 import { PopularCarousel } from '@/components/PopularCarousel';
+import { TrendingNowCarousel } from '@/components/TrendingNowCarousel';
 import {
   Carousel,
   CarouselContent,
@@ -387,6 +388,9 @@ const Browse = () => {
 
         {/* Resume Watching Section */}
         <ResumeWatchingCarousel />
+
+        {/* Trending this week — ranking served live by the PostHog trending_content endpoint */}
+        <TrendingNowCarousel />
 
         <PopularCarousel />
 

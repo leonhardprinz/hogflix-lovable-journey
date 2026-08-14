@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import posthog from "@posthog/rollup-plugin";
+import { apiDevServer } from "./vite-plugin-api-dev";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -21,6 +22,9 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      // Serves api/*.ts (the PostHog Endpoints proxy) during `npm run dev`, the way
+      // Vercel serves them in production. Dev-only; not part of a build.
+      apiDevServer(env),
       mode === 'development' &&
       componentTagger(),
       // PostHog sourcemap upload — explicit opt-in via POSTHOG_SOURCEMAPS_ENABLED=true.
