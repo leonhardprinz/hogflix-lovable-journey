@@ -423,6 +423,28 @@ const FlixBuddy = () => {
     }
   };
 
+  // Seed the sidebar with default recommendations so the welcome state never looks empty
+  useEffect(() => {
+    let cancelled = false;
+    const loadDefaultRecommendations = async () => {
+      try {
+        const { data } = await supabase
+          .from('videos')
+          .select('*')
+          .limit(6);
+        if (!cancelled && data && data.length > 0) {
+          setRecommendedVideos(prev => (prev.length === 0 ? data : prev));
+        }
+      } catch (error) {
+        console.error('Error loading default recommendations:', error);
+      }
+    };
+    loadDefaultRecommendations();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Update recommended videos based on assistant response
   const updateRecommendedVideos = async (response: string) => {
     try {
@@ -437,7 +459,10 @@ const FlixBuddy = () => {
         response.toLowerCase().includes(video.title.toLowerCase())
       ).slice(0, 6);
 
-      setRecommendedVideos(mentionedVideos);
+      // Keep the current list when no titles matched, rather than blanking the sidebar
+      if (mentionedVideos.length > 0) {
+        setRecommendedVideos(mentionedVideos);
+      }
 
       // Track AI recommendations (PostHog LLM Analytics)
       if (mentionedVideos.length > 0) {
@@ -476,11 +501,11 @@ const FlixBuddy = () => {
     navigate(`/watch/${videoId}`);
   };
 
-  // Handle clicking a suggested prompt (for 'suggested-prompts' variant)
+  // Handle clicking a suggested prompt (chips now render for every variant)
   const handlePromptSuggestionClick = (promptText: string) => {
     posthog.capture('flixbuddy:prompt_suggestion_clicked', {
       prompt: promptText,
-      experiment_variant: 'suggested-prompts',
+      experiment_variant: welcomeVariant || 'control',
       conversation_id: conversationId
     });
     sendMessage(promptText);
@@ -613,8 +638,8 @@ const FlixBuddy = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Prompt Suggestions for 'suggested-prompts' variant */}
-            {welcomeVariant === 'suggested-prompts' && messages.length === 1 && messages[0].id === 'welcome' && (
+            {/* Prompt Suggestions — shown by default on the welcome state so every session has one-tap entry points */}
+            {messages.length === 1 && messages[0].id === 'welcome' && (
               <div className="border-t border-border p-3 bg-muted/30">
                 <div className="flex flex-wrap gap-2">
                   {PROMPT_SUGGESTIONS.map((suggestion) => (
