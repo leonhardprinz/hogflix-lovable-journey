@@ -7,19 +7,26 @@ import Header from '@/components/Header';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { usePostHog } from 'posthog-js/react';
 
+interface PricingTablePlan {
+  name: string;
+  displayName: string;
+  cta: string;
+}
+
 interface PricingTableLayoutProps {
   onPlanSelect: (planName: string) => void;
   loading: boolean;
+  getButtonText: (plan: PricingTablePlan) => string;
 }
 
-const PricingTableLayout = ({ onPlanSelect, loading }: PricingTableLayoutProps) => {
+const PricingTableLayout = ({ onPlanSelect, loading, getButtonText }: PricingTableLayoutProps) => {
   const { subscription } = useSubscription();
   const posthog = usePostHog();
 
   const plans = [
-    { name: 'basic', displayName: 'Basic', price: 'Free', priceDetail: 'with ads' },
-    { name: 'standard', displayName: 'Standard', price: '$9.99', priceDetail: '/month', popular: true },
-    { name: 'ultimate', displayName: 'Ultimate', price: '$29.99', priceDetail: '/month' },
+    { name: 'basic', displayName: 'Basic', price: 'Free', priceDetail: 'with ads', cta: 'Get Started' },
+    { name: 'standard', displayName: 'Standard', price: '$9.99', priceDetail: '/month', popular: true, cta: 'Choose Standard' },
+    { name: 'ultimate', displayName: 'Ultimate', price: '$29.99', priceDetail: '/month', cta: 'Choose Ultimate' },
   ];
 
   const features = [
@@ -43,6 +50,18 @@ const PricingTableLayout = ({ onPlanSelect, loading }: PricingTableLayoutProps) 
       layout: 'table',
       timestamp: new Date().toISOString()
     });
+  };
+
+  const selectPlan = (planName: string) => {
+    if (loading || isCurrentPlan(planName)) return;
+    onPlanSelect(planName);
+  };
+
+  const handlePlanKeyDown = (event: React.KeyboardEvent, planName: string) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectPlan(planName);
+    }
   };
 
   const renderFeatureValue = (value: boolean | string) => {
@@ -91,10 +110,16 @@ const PricingTableLayout = ({ onPlanSelect, loading }: PricingTableLayoutProps) 
                 {plans.map((plan) => (
                   <th
                     key={plan.name}
-                    className={`p-4 text-center border-b relative ${
+                    className={`p-4 text-center border-b relative transition-colors ${
                       plan.popular ? 'bg-primary/10 border-primary/30' : 'border-border'
-                    } ${isCurrentPlan(plan.name) ? 'bg-green-500/10' : ''}`}
+                    } ${isCurrentPlan(plan.name) ? 'bg-green-500/10' : 'cursor-pointer hover:bg-primary/5'}`}
                     onMouseEnter={() => handlePlanHover(plan.name)}
+                    onClick={() => selectPlan(plan.name)}
+                    onKeyDown={(e) => handlePlanKeyDown(e, plan.name)}
+                    role="button"
+                    tabIndex={isCurrentPlan(plan.name) ? -1 : 0}
+                    aria-disabled={loading || isCurrentPlan(plan.name)}
+                    aria-label={`Select ${plan.displayName} plan`}
                     data-plan={plan.name}
                   >
                     {plan.popular && !isCurrentPlan(plan.name) && (
@@ -158,8 +183,7 @@ const PricingTableLayout = ({ onPlanSelect, loading }: PricingTableLayoutProps) 
                       disabled={loading || isCurrentPlan(plan.name)}
                       data-plan-cta={plan.name}
                     >
-                      {loading ? 'Processing...' : isCurrentPlan(plan.name) ? 'Current Plan ✓' : 
-                        plan.name === 'basic' ? 'Get Started' : `Choose ${plan.displayName}`}
+                      {loading ? 'Processing...' : getButtonText(plan)}
                     </Button>
                   </td>
                 ))}
@@ -198,8 +222,7 @@ const PricingTableLayout = ({ onPlanSelect, loading }: PricingTableLayoutProps) 
                 onClick={() => onPlanSelect(plan.name)}
                 disabled={loading || isCurrentPlan(plan.name)}
               >
-                {loading ? 'Processing...' : isCurrentPlan(plan.name) ? 'Current Plan ✓' : 
-                  plan.name === 'basic' ? 'Get Started' : `Choose ${plan.displayName}`}
+                {loading ? 'Processing...' : getButtonText(plan)}
               </Button>
             </div>
           ))}
