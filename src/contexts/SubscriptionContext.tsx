@@ -31,6 +31,7 @@ interface SubscriptionContextType {
   subscription: UserSubscription | null;
   loading: boolean;
   refreshSubscription: () => Promise<void>;
+  cancelSubscription: () => Promise<void>;
   hasFeature: (feature: string) => boolean;
   isFreePlan: boolean;
 }
@@ -90,6 +91,35 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     await fetchSubscription();
   };
 
+  // Cancel a paid subscription by reverting the account to the free Basic
+  // plan, which is the default tier every account falls back to. The single
+  // user_subscriptions row is updated in place (RLS lets a user update their
+  // own row). The caller records the cancellation events for the funnel.
+  const cancelSubscription = async () => {
+    if (!user) {
+      throw new Error('You must be signed in to cancel a subscription.');
+    }
+
+    const { data: basicPlan, error: planError } = await supabase
+      .from('subscription_plans')
+      .select('id')
+      .eq('name', 'basic')
+      .single();
+
+    if (planError || !basicPlan) {
+      throw planError ?? new Error('Could not find the Basic plan to revert to.');
+    }
+
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .update({ plan_id: basicPlan.id, status: 'active', payment_intent: null })
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+
+    await fetchSubscription();
+  };
+
   const hasFeature = (feature: string): boolean => {
     if (!subscription) return false;
     return (subscription.features as string[]).some(f => 
@@ -105,6 +135,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         subscription,
         loading,
         refreshSubscription,
+        cancelSubscription,
         hasFeature,
         isFreePlan
       }}

@@ -31,6 +31,7 @@ import DevLinks from "./pages/DevLinks";
 import IdentityTest from "./pages/IdentityTest";
 import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
+import CancelSubscription from "./pages/CancelSubscription";
 import NewsletterPreferences from "./pages/NewsletterPreferences";
 import BetaFeatures from "./pages/BetaFeatures";
 import Privacy from "./pages/Privacy";
@@ -131,6 +132,11 @@ const AppContent = () => {
           <Route path="/beta-features" element={
             <ProtectedRoute>
               <BetaFeatures />
+            </ProtectedRoute>
+          } />
+          <Route path="/cancel-subscription" element={
+            <ProtectedRoute>
+              <CancelSubscription />
             </ProtectedRoute>
           } />
           <Route path="/privacy" element={<Privacy />} />

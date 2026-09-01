@@ -28,7 +28,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail, Menu, Headphones, Heart, Upload, Shield } from 'lucide-react';
+import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail, Menu, Headphones, Heart, Upload, Shield, Ban } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { formatDuration } from '@/lib/formatDuration';
 import { slog, throwSearchError, landmarkProps } from '@/lib/demoErrors';
@@ -528,6 +528,15 @@ const Header = () => {
                       <CreditCard className="h-4 w-4 mr-2" />
                       Pricing & Plans
                     </DropdownMenuItem>
+                    {subscription && !isFreePlan && (
+                      <DropdownMenuItem
+                        onClick={() => navigate('/cancel-subscription')}
+                        className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                      >
+                        <Ban className="h-4 w-4 mr-2" />
+                        Cancel Subscription
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={() => navigate('/newsletter-preferences')}
                       className="text-text-primary hover:bg-white/10 focus:bg-white/10 cursor-pointer"
