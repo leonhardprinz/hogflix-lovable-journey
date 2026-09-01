@@ -17,16 +17,33 @@ import { formatDuration } from '@/lib/formatDuration';
 
 const FLIXBUDDY_SYSTEM_PROMPT = 'You are FlixBuddy, the AI movie recommendation assistant for HogFlix. You help users discover movies and series from the HogFlix catalog. Always be enthusiastic and helpful.';
 
+const THUMB_SURVEY_ID = '019c5de4-91ff-0000-7c7c-a0ec59602dc7';
+
 // Thumb survey feedback component for assistant messages
 const ThumbFeedback = ({ traceId, conversationId }: { traceId: string; conversationId: string }) => {
   const hookResult = useThumbSurvey({
-    surveyId: '019c5de4-91ff-0000-7c7c-a0ec59602dc7',
+    surveyId: THUMB_SURVEY_ID,
     properties: {
       $ai_trace_id: traceId,
       $ai_conversation_id: conversationId,
     },
   });
   const { respond: rawRespond, response, triggerRef } = hookResult;
+
+  // After a thumb response the SDK opens the confirmation popover with displaySurvey(). That popover
+  // renders into a shadow root on document.body, and the SDK does not remove it when this component
+  // unmounts on a client-side route change, so it stays stranded over the next page. Close it on
+  // unmount. `PHSurveyClosed` is the SDK's programmatic close event; it only affects a popover that
+  // is still open for this survey.
+  const respondedRef = useRef(false);
+  respondedRef.current = response != null;
+  useEffect(() => {
+    return () => {
+      if (respondedRef.current) {
+        window.dispatchEvent(new CustomEvent('PHSurveyClosed', { detail: { surveyId: THUMB_SURVEY_ID } }));
+      }
+    };
+  }, []);
 
   console.log('🔍 ThumbFeedback hook result:', { response, hasRespond: typeof rawRespond, hasTriggerRef: !!triggerRef, traceId });
 
