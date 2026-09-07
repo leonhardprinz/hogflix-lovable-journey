@@ -392,6 +392,8 @@ async function simulateReturningUserJourney(personas, count = 25) {
           
           try {
             const flixbuddyUrl = getRealisticPath('flixbuddy', { siteUrl: APP_URL })
+            const flixbuddyProfileId = `profile-${p.distinct_id}`
+            const flixbuddyConversationId = `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
             currentPath = flixbuddyUrl
             await page.goto(flixbuddyUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
             await page.waitForTimeout(1500)
@@ -410,6 +412,8 @@ async function simulateReturningUserJourney(personas, count = 25) {
               distinctId: p.distinct_id,
               event: 'flixbuddy:opened',
               properties: enrichEventProperties(flixbuddyUrl, {
+                conversation_id: flixbuddyConversationId,
+                profile_id: flixbuddyProfileId,
                 plan: p.plan,
                 state: p.state,
                 feature_flag_variant: getFeatureFlag(p, 'FloatingHedgehog_Widget_Visibility_UXUI_Test'),
@@ -425,6 +429,10 @@ async function simulateReturningUserJourney(personas, count = 25) {
               distinctId: p.distinct_id,
               event: 'flixbuddy:message_sent',
               properties: enrichEventProperties(flixbuddyUrl, {
+                conversation_id: flixbuddyConversationId,
+                profile_id: flixbuddyProfileId,
+                message_number: 1,
+                message_length: 'What should I watch tonight?'.length,
                 plan: p.plan,
                 $browser: p.browser || 'Chrome',
                 $device_type: p.device_type || 'Desktop'

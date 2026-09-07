@@ -73,15 +73,18 @@ function returnProbForAge(ageWeeks) {
       continue
     }
 
+    const messageText = 'What should I watch tonight?'
     const props = {
       experiment_variant: persona.variant,
+      profile_id: `profile-${persona.id}`,
+      conversation_id: `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       is_synthetic: true,
       synthetic_source: 'flixbuddy-returning-users',
       returning_week: age,
     }
 
     posthog.capture({ distinctId: persona.id, event: 'flixbuddy:opened',       properties: props })
-    posthog.capture({ distinctId: persona.id, event: 'flixbuddy:message_sent', properties: { ...props, message_text: 'What should I watch tonight?' } })
+    posthog.capture({ distinctId: persona.id, event: 'flixbuddy:message_sent', properties: { ...props, message_text: messageText, message_length: messageText.length, message_number: 1 } })
 
     sent++
 
