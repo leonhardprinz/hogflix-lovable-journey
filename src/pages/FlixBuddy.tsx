@@ -182,6 +182,7 @@ const FlixBuddy = () => {
 
         // Track conversation start with experiment variant
         posthog.capture('flixbuddy:opened', {
+          conversation_id: conversation.id,
           initial_query: initialQuery,
           profile_id: selectedProfile.id,
           experiment_variant: welcomeVariant || 'control'
