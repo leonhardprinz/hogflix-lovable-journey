@@ -25,7 +25,7 @@ const CONFIG = {
 
 const genAI = new GoogleGenerativeAI(CONFIG.geminiKey || '');
 // Use Flash for speed/cost, Pro as implicit fallback in logic if needed
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
 
 let MOUSE_STATE = { x: 0, y: 0 };
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));

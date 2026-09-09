@@ -71,6 +71,7 @@ async function getJourneyDecision(persona, currentPage, availableLinks, visitedP
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-synthetic-secret': process.env.SYNTHETIC_FN_SECRET || '',
       },
       body: JSON.stringify({
         persona,

@@ -29,7 +29,7 @@ jobs:
       - name: Run Phase 4 Analysis
         env:
           APP_URL: https://hogflix-project.vercel.app
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SYNTHETIC_FN_SECRET: ${{ secrets.SYNTHETIC_FN_SECRET }}
           DEBUG: true
         run: node scripts/synthetic/phase4-ai-behaviors.js
 

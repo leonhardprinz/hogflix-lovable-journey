@@ -83,6 +83,7 @@ async function analyzePageWithAI(pageName, pageUrl, pageHtml, existingBehaviors 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-synthetic-secret': process.env.SYNTHETIC_FN_SECRET || '',
       },
       body: JSON.stringify({
         pageUrl,
@@ -122,6 +123,7 @@ async function generateBehaviors(analysis, pageName, pageUrl, personaType = 'gen
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-synthetic-secret': process.env.SYNTHETIC_FN_SECRET || '',
       },
       body: JSON.stringify({
         analysis,

@@ -101,9 +101,9 @@ Response:`;
 
     // Model fallback chain: newest → most capable
     const MODELS = [
-      'gemini-3.0-flash',    // Primary: latest, fastest
-      'gemini-2.5-flash',    // Fallback 1: proven, fast
-      'gemini-2.5-pro',      // Fallback 2: most capable
+      'gemini-3.6-flash',      // Primary: latest, fastest
+      'gemini-3.5-flash',      // Fallback 1
+      'gemini-3.1-flash-lite', // Fallback 2: lighter, higher rate limit
     ];
 
     // Make API call to Gemini with fallback

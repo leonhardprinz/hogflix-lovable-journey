@@ -101,6 +101,30 @@ const MODEL_CONFIGS: Record<string, ModelConfig> = {
     inputPricePer1M: 0.10,
     outputPricePer1M: 0.40,
   },
+  'gemini-3.6-flash': {
+    id: 'gemini-3.6-flash',
+    label: 'Gemini 3.6 Flash',
+    provider: 'google',
+    apiModel: 'gemini-3.6-flash',
+    inputPricePer1M: 0.10,
+    outputPricePer1M: 0.40,
+  },
+  'gemini-3.5-flash': {
+    id: 'gemini-3.5-flash',
+    label: 'Gemini 3.5 Flash',
+    provider: 'google',
+    apiModel: 'gemini-3.5-flash',
+    inputPricePer1M: 0.10,
+    outputPricePer1M: 0.40,
+  },
+  'gemini-3.1-flash-lite': {
+    id: 'gemini-3.1-flash-lite',
+    label: 'Gemini 3.1 Flash Lite',
+    provider: 'google',
+    apiModel: 'gemini-3.1-flash-lite',
+    inputPricePer1M: 0.05,
+    outputPricePer1M: 0.20,
+  },
   'mistral-small-latest': {
     id: 'mistral-small-latest',
     label: 'Mistral Small',
@@ -128,7 +152,7 @@ const MODEL_CONFIGS: Record<string, ModelConfig> = {
 };
 
 // Auto mode: fallback chain
-const AUTO_FALLBACK_CHAIN = ['gemini-3.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'];
+const AUTO_FALLBACK_CHAIN = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
 
 // ─── PROVIDER CALL FUNCTIONS ─────────────────────────────────────────────────
 
@@ -415,7 +439,7 @@ FlixBuddy:`;
     const totalLatency = Date.now() - startTime;
 
     // Calculate cost
-    const config = MODEL_CONFIGS[modelUsed] || MODEL_CONFIGS['gemini-2.0-flash'];
+    const config = MODEL_CONFIGS[modelUsed] || MODEL_CONFIGS['gemini-3.6-flash'];
     const inputCost = (tokenUsage.input / 1_000_000) * config.inputPricePer1M;
     const outputCost = (tokenUsage.output / 1_000_000) * config.outputPricePer1M;
     const totalCost = inputCost + outputCost;

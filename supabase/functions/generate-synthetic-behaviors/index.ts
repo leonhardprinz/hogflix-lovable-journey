@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-synthetic-secret',
 };
 
 interface GenerateRequest {
@@ -70,6 +70,16 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Shared-secret gate: these functions are deployed with verify_jwt=false and
+  // spend Gemini quota, so anonymous callers must be rejected.
+  const expectedSecret = Deno.env.get('SYNTHETIC_FN_SECRET');
+  if (!expectedSecret || req.headers.get('x-synthetic-secret') !== expectedSecret) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const { analysis, pageName, pageUrl, personaType = 'general' }: GenerateRequest = await req.json();
 
@@ -84,9 +94,9 @@ serve(async (req) => {
     const prompt = buildBehaviorPrompt(analysis, pageName, pageUrl, personaType);
 
     const MODEL_PRIORITY = [
-      'gemini-3.0-flash',
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-3.1-flash-lite',
     ];
 
     const { response, modelUsed } = await callGeminiWithRetry(
