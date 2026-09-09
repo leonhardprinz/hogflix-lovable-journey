@@ -4,13 +4,14 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { usePostHog, useFeatureFlagVariantKey } from 'posthog-js/react';
 import { useThumbSurvey } from 'posthog-js/react/surveys';
 import { supabase } from '@/integrations/supabase/client';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { useProfile } from '@/contexts/ProfileContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Send, Bot, User, Play, Plus, ArrowLeft, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Play, Plus, ArrowLeft, ThumbsUp, ThumbsDown, Sparkles, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { formatDuration } from '@/lib/formatDuration';
@@ -83,6 +84,10 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  // Set on an assistant bubble that reports a failed turn.
+  isError?: boolean;
+  // The user prompt to resend when the reader taps Retry.
+  retryPrompt?: string;
 }
 
 interface Video {
@@ -253,17 +258,21 @@ const FlixBuddy = () => {
   }, [messages, conversationId, recommendedVideos, selectedProfile, posthog]);
 
   // Send message function
-  const sendMessage = async (message: string) => {
+  const sendMessage = async (message: string, options?: { isRetry?: boolean }) => {
     if (!message.trim() || !conversationId || !selectedProfile) return;
 
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: message,
-      timestamp: new Date()
-    };
+    // On a retry the user's message is already in the transcript, so only
+    // append a new bubble for a fresh send.
+    if (!options?.isRetry) {
+      const userMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: message,
+        timestamp: new Date()
+      };
 
-    setMessages(prev => [...prev, userMessage]);
+      setMessages(prev => [...prev, userMessage]);
+    }
     setInputMessage('');
     setIsLoading(true);
 
@@ -381,13 +390,28 @@ const FlixBuddy = () => {
 
     } catch (error: any) {
       console.error('Error sending message:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Detailed error:', errorMessage);
 
-      // Check if it's a rate limit error
-      const isRateLimit = error?.status === 429 ||
-        error?.message?.includes('rate limit') ||
-        error?.message?.includes('429');
+      // supabase-js throws a FunctionsHttpError for a non-2xx response and
+      // keeps the real detail in the response body, not on the thrown object.
+      // Read the body so the actual message and rate-limit flag survive.
+      let errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      let isRateLimit = false;
+
+      if (error instanceof FunctionsHttpError) {
+        isRateLimit = error.context.status === 429;
+        try {
+          const body = await error.context.json();
+          if (body?.error) errorMessage = body.error;
+          if (body?.isRateLimit) isRateLimit = true;
+        } catch {
+          // Body was not JSON; keep the transport message and status check.
+        }
+      } else {
+        isRateLimit = error?.status === 429 ||
+          error?.message?.includes('rate limit') ||
+          error?.message?.includes('429');
+      }
+      console.error('Detailed error:', errorMessage);
 
       // Track LLM generation error (PostHog LLM Analytics)
       try {
@@ -404,20 +428,30 @@ const FlixBuddy = () => {
         console.error('PostHog tracking error:', e);
       }
 
-      // Show user-friendly error message
-      if (isRateLimit) {
-        toast({
-          title: "FlixBuddy is Busy",
-          description: "FlixBuddy is experiencing high demand right now. Please wait a moment and try again.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "FlixBuddy Error",
-          description: `Failed to get response: ${errorMessage}. Please try again.`,
-          variant: "destructive",
-        });
-      }
+      const rateLimitMessage = "FlixBuddy is experiencing high demand right now. Please wait a moment and try again.";
+
+      // Show the failed turn in the transcript with a retry, so the user is
+      // not left with an unanswered message and a dead-end conversation.
+      const failedTurn: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: isRateLimit
+          ? rateLimitMessage
+          : `Sorry, I couldn't get a response: ${errorMessage}`,
+        timestamp: new Date(),
+        isError: true,
+        retryPrompt: message,
+      };
+      setMessages(prev => [...prev, failedTurn]);
+
+      // Also surface the failure as a toast.
+      toast({
+        title: isRateLimit ? "FlixBuddy is Busy" : "FlixBuddy Error",
+        description: isRateLimit
+          ? rateLimitMessage
+          : `Failed to get response: ${errorMessage}. Please try again.`,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -458,6 +492,12 @@ const FlixBuddy = () => {
 
   const handleSend = () => {
     sendMessage(inputMessage);
+  };
+
+  // Remove the failed-turn bubble and resend the original prompt.
+  const handleRetry = (prompt: string, errorId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== errorId));
+    sendMessage(prompt, { isRetry: true });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -576,15 +616,30 @@ const FlixBuddy = () => {
                     <div className="flex flex-col space-y-1">
                       <div className={`rounded-lg p-3 ${message.role === 'user'
                         ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground'
+                        : message.isError
+                          ? 'bg-destructive/10 text-destructive border border-destructive/30'
+                          : 'bg-secondary text-secondary-foreground'
                         }`}>
                         <div className={`whitespace-pre-wrap text-sm ${import.meta.env.VITE_REDACT_LLM_CONTENT === 'true' ? 'sensitive' : ''}`}>{message.content}</div>
                         <div className={`text-xs mt-1 opacity-70`}>
                           {message.timestamp.toLocaleTimeString()}
                         </div>
                       </div>
-                      {/* Feedback buttons for assistant messages (skip welcome message) */}
-                      {message.role === 'assistant' && message.id !== 'welcome' && conversationId && (
+                      {/* Retry the failed turn */}
+                      {message.isError && message.retryPrompt && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRetry(message.retryPrompt!, message.id)}
+                          disabled={isLoading}
+                          className="h-7 px-2 text-xs w-fit"
+                        >
+                          <RefreshCw className="h-3 w-3 mr-1.5" />
+                          Retry
+                        </Button>
+                      )}
+                      {/* Feedback buttons for assistant messages (skip welcome and error messages) */}
+                      {message.role === 'assistant' && message.id !== 'welcome' && !message.isError && conversationId && (
                         <ThumbFeedback
                           traceId={`${conversationId}-${message.id}`}
                           conversationId={conversationId}
