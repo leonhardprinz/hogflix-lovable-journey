@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
+import { useToast } from "@/hooks/use-toast";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -50,7 +51,15 @@ const queryClient = new QueryClient();
 const AppContent = () => {
   const location = useLocation();
   const posthog = usePostHog();
+  const { dismiss } = useToast();
   const hideFooter = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/flixbuddy' || location.pathname === '/timeleft-pricing' || location.pathname === '/partner-verify';
+
+  // Clear any open toast when the route changes, so an error raised on one
+  // page cannot follow the user onto the next and look like it broke too.
+  useEffect(() => {
+    dismiss();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // On mount: if the user is returning from a third-party handoff
   // (Digilocker / VKYC / Stripe / any cross-domain redirect),
