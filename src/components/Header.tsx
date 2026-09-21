@@ -28,7 +28,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail, Menu, Headphones, Heart, Upload, Shield } from 'lucide-react';
+import { User, ChevronDown, LogOut, Search, Play, Info, CreditCard, Sparkles, Check, Users, Mail, Menu, Headphones, Heart, Upload, Shield, LineChart } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { formatDuration } from '@/lib/formatDuration';
 import { slog, throwSearchError, landmarkProps } from '@/lib/demoErrors';
@@ -311,6 +311,14 @@ const Header = () => {
                     <Sparkles className="h-5 w-5" />
                     <span>FlixBuddy</span>
                   </Link>
+                  <Link
+                    to="/finance"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center space-x-3 text-text-primary hover:text-white font-manrope font-medium transition-colors py-2 px-4 hover:bg-white/10 rounded-md"
+                  >
+                    <LineChart className="h-5 w-5" />
+                    <span>Finance</span>
+                  </Link>
                   {(role === 'admin' || role === 'moderator') && (
                     <Link
                       to="/admin"
@@ -380,6 +388,12 @@ const Header = () => {
                     className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
                   >
                     FlixBuddy
+                  </Link>
+                  <Link
+                    to="/finance"
+                    className="text-text-primary hover:text-white font-manrope font-medium transition-colors"
+                  >
+                    Finance
                   </Link>
                   {(role === 'admin' || role === 'moderator') && (
                     <Link

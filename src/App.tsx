@@ -38,6 +38,7 @@ import Terms from "./pages/Terms";
 import FAQ from "./pages/FAQ";
 import Help from "./pages/Help";
 import PartnerVerify from "./pages/PartnerVerify";
+import Finance from "./pages/Finance";
 import GetStarted from "./pages/GetStarted";
 import FormsIndex from "./pages/FormsIndex";
 import ProductForm from "./pages/ProductForm";
@@ -140,6 +141,7 @@ const AppContent = () => {
           <Route path="/dev" element={<DevLinks />} />
           <Route path="/dev/identity-test" element={<IdentityTest />} />
           <Route path="/partner-verify" element={<PartnerVerify />} />
+          <Route path="/finance" element={<Finance />} />
           <Route path="/forms" element={<FormsIndex />} />
           <Route path="/forms/done" element={<FormDone />} />
           <Route path="/forms/:product" element={<ProductForm />} />
