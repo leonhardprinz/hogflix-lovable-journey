@@ -238,23 +238,23 @@
       const [[s]] = await Promise.all([run('revenue_summary', { revenue_source_label: '' }).catch(() => [{}])]);
       const fresh = (x) => ({ 900: '15 min', 1800: '30 min', 3600: '1 hour', 21600: '6 hours', 43200: '12 hours', 86400: '1 day', 604800: '7 days' }[x] || x + ' s');
       el.innerHTML = `
-        <div class="flow">
-          <div><div class="n">1 &middot; SOURCES</div><h4>Billing, spend, product</h4><p>Stripe and other sources sync into the PostHog data warehouse on a schedule. Product events are already there.</p></div>
-          <div><div class="n">2 &middot; MODELS</div><h4>Saved SQL views</h4><p>Cleaning and business rules are written once, in SQL, next to the data. This is where "what counts as MRR" is decided.</p></div>
-          <div><div class="n">3 &middot; ENDPOINTS</div><h4>Named, versioned APIs</h4><p>Each view or query becomes a stable URL with its own freshness, version history, execution log and OpenAPI spec.</p></div>
-          <div><div class="n">4 &middot; SURFACES</div><h4>Anything you like</h4><p>This app, a wall screen, a sheet, an investor portal on your own domain with your own login.</p></div>
+        ${card(null, 'Why do this in PostHog', '', `<ul class="why"><li><b>Your product events are already here.</b> Anywhere else you would export them first and keep that pipeline running.</li><li><b>You write SQL and get a URL.</b> Auth, caching, versions and call logs come with it, so nobody builds or hosts an API.</li><li><b>The page stays yours.</b> Your domain, your login, your design.</li></ul><p class="note" style="font-size:13px">If every number you need already sits in a warehouse with a BI tool on top, you do not need this for pure finance figures. It earns its place when a figure needs product data, or when you want your own page without building the API behind it.</p>`)}
+        <div class="flow" style="margin-top:14px">
+          <div><div class="n">1 &middot; SOURCES</div><h4>Billing, spend, product</h4><p>Stripe and friends sync in on a schedule. Product events are already there.</p></div>
+          <div><div class="n">2 &middot; MODELS</div><h4>Saved SQL</h4><p>What counts as MRR is decided here, once.</p></div>
+          <div><div class="n">3 &middot; ENDPOINTS</div><h4>A URL per query</h4><p>With its own freshness, versions and call log.</p></div>
+          <div><div class="n">4 &middot; SURFACES</div><h4>Anything you like</h4><p>This app, a wall screen, a sheet, an investor link.</p></div>
         </div>
         ${card(null, 'Endpoints behind this app', catalog.source === 'live' ? 'Read live from the PostHog API a moment ago' : 'From the last saved snapshot', `<div class="scroll"><table><thead><tr><th>Endpoint</th><th>Freshness</th><th>Version</th><th>Materialisation</th><th>Last call, this session</th><th></th></tr></thead><tbody>
           ${catalog.items.map((e) => { const m = meta[e.name]; return `<tr><td><span style="font-family:var(--mono);font-size:12.5px">${esc(e.name)}</span><div class="card-s" style="white-space:normal;max-width:520px">${esc(e.description || '')}</div></td><td>${fresh(e.data_freshness_seconds)}</td><td>v${e.current_version}</td><td>${e.is_materialized ? '<span class="pill ok">on</span>' : e.materialization?.can_materialize ? '<span class="pill">eligible</span>' : '<span class="pill warn">direct only</span>'}</td><td>${m ? (m.source === 'live' ? m.latency_ms + ' ms' : 'snapshot') : 'not yet'}</td><td><a href="${esc(e.ui_url)}" target="_blank" rel="noopener">Open in PostHog</a></td></tr>`; }).join('')}
         </tbody></table></div>`, '" style="margin-top:14px')}
         <div class="grid g2" style="margin-top:14px">
-          ${card(null, 'What this app is allowed to see', '', `<ul style="margin:0;padding-left:18px;color:var(--ink-2)"><li>The API key stays on the server. The browser never receives it.</li><li>A key for an app like this needs one scope: <span class="pill">endpoint:read</span>. With only that scope it can call endpoints, and cannot query raw events, persons or recordings.</li><li>The server only forwards calls to a fixed list of endpoint names.</li><li>Callers pass variable values, never SQL.</li></ul>`)}
+          ${card(null, 'What this app is allowed to see', '', `<ul style="margin:0;padding-left:18px;color:var(--ink-2)"><li>The API key stays on the server, the browser never gets it.</li><li>The key needs one scope, <span class="pill">endpoint:read</span>. It can call endpoints, not read raw events or persons.</li><li>Only a fixed list of endpoints can be called, and callers send values, never SQL.</li></ul>`)}
           ${card('stripe', 'A real warehouse source: Stripe', 'Sandbox account, so the figures are small on purpose', `<div class="grid g4">${[['Active subscriptions', num(s.active_subscriptions)], ['Revenue', moneyFull(s.total_revenue)], ['Paying customers', num(s.paying_customers)], ['Revenue per customer', s.avg_revenue_per_customer == null ? '-' : '$' + Number(s.avg_revenue_per_customer).toFixed(2)]].map(([l, v]) => `<div><div class="card-s">${l}</div><div style="font-size:20px;font-weight:650;margin-top:2px">${v}</div></div>`).join('')}</div>`)}
         </div>
-        <div class="callout" style="margin-top:14px"><b>What is real in this demo:</b> the PostHog project, the eight endpoints, every API call and its latency, the Stripe warehouse source and the payment failure events. <b>What is synthetic:</b> the billing ledger behind the MRR figures, loaded as ${num(24631)} events so the numbers are large enough to be interesting. With a real billing source, steps 3 and 4 do not change.</div>`;
+        <div class="callout" style="margin-top:14px"><b>Real:</b> the PostHog project, the endpoints, every call and its latency, the Stripe source, the payment failure events. <b>Made up:</b> the billing ledger behind the MRR figures (${num(24631)} events). With a real billing source, steps 3 and 4 stay the same.</div>`;
     },
   };
-  INFO.mom = { ...INFO.mrrWaterfall, title: 'Month over month', what: 'Two endpoints side by side: fin_mrr_monthly for revenue rows, fin_customer_churn_monthly for subscriber rows. The comparison itself is just three columns of the same response.', why: 'The monthly close conversation: what changed, against last month and against last year, without anyone assembling it.' };
 
   // ---------- info drawer
   function openInfo(key) {
@@ -264,16 +264,15 @@
     $('#drawerBody').innerHTML = `
       <h2>${esc(i.title)}</h2><div class="ep">POST /endpoints/${esc(i.endpoint)}/run</div>
       <div>${m ? `<span class="pill ${m.source === 'live' ? 'ok' : 'warn'}">${m.source === 'live' ? 'live call' : 'snapshot'}</span>` : ''}${m?.latency_ms ? `<span class="pill">${m.latency_ms} ms</span>` : ''}${e.current_version ? `<span class="pill">version ${e.current_version}</span>` : ''}${fresh ? `<span class="pill">fresh within ${fresh}</span>` : ''}${e.is_materialized ? '<span class="pill ok">materialised</span>' : e.materialization?.can_materialize ? '<span class="pill">can be materialised</span>' : ''}</div>
-      <h3>What this is</h3><p>${esc(i.what)}</p>
-      <h3>Why it matters</h3><p>${esc(i.why)}</p>
-      <h3>Why an endpoint, not an export</h3><ul>${i.better.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
+      <h3>Why via PostHog</h3><p class="lead">${esc(i.posthog)}</p>
+      <h3>What it shows</h3><p>${esc(i.what)}</p>
       ${AUDIENCE.show ? `<h3>For ${esc(AUDIENCE.name)}</h3><div class="you"><p style="margin:0">${esc(i.you)}</p></div>` : ''}
       <h3>The call</h3><pre>curl -X POST \\
   "${esc(m?.run_url || e.run_url || '')}" \\
   -H "Authorization: Bearer $POSTHOG_API_KEY" \\
   -H "Content-Type: application/json"${vars ? ` \\\n  -d '${esc(JSON.stringify({ variables: vars }))}'` : ''}</pre>
-      <h3>The definition</h3>${e.sql ? `<details open><summary>SQL saved in PostHog. Nothing else computes this figure.</summary><pre>${esc(e.sql)}</pre></details>` : '<p>SQL not available in snapshot mode.</p>'}
-      ${e.ui_url ? `<p style="margin-top:14px"><a href="${esc(e.ui_url)}" target="_blank" rel="noopener">Open this endpoint in PostHog</a> to see its versions, execution log and configuration.</p>` : ''}`;
+      <h3>The SQL</h3>${e.sql ? `<details><summary>Saved in PostHog. Nothing else computes this figure.</summary><pre>${esc(e.sql)}</pre></details>` : '<p>SQL not available in snapshot mode.</p>'}
+      ${e.ui_url ? `<p style="margin-top:14px"><a href="${esc(e.ui_url)}" target="_blank" rel="noopener">Open in PostHog</a> for versions and call logs.</p>` : ''}`;
     $('#drawer').classList.add('open'); $('#drawer').setAttribute('aria-hidden', 'false');
   }
   const closeInfo = () => { $('#drawer').classList.remove('open'); $('#drawer').setAttribute('aria-hidden', 'true'); };
