@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import Header from "@/components/Header";
 
 /**
@@ -9,14 +9,16 @@ import Header from "@/components/Header";
  * Endpoint via /api/finance. It ships its own light theme and global styles, so it is mounted in
  * an iframe rather than inlined: nothing leaks into the HogFlix Tailwind theme and vice versa.
  *
- * Optional: /finance?for=Acme labels the "For ..." box in the info panels for a given audience.
+ * Optional: /finance#cohorts deep-links a tab, /finance?for=Acme labels the "For ..." box in the info panels for a given audience.
  */
 const Finance = () => {
   const [params] = useSearchParams();
+  const { hash } = useLocation();
   const src = useMemo(() => {
     const audience = params.get("for");
-    return `/finance-app/index.html${audience ? `?for=${encodeURIComponent(audience)}` : ""}`;
-  }, [params]);
+    // Forward the hash so /finance#mrr opens that tab inside the app.
+    return `/finance-app/index.html${audience ? `?for=${encodeURIComponent(audience)}` : ""}${hash}`;
+  }, [params, hash]);
 
   return (
     <div className="h-screen bg-background-dark flex flex-col">
