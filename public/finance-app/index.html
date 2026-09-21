@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HogFlix Finance</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="nav">
+    <div class="brand">
+      <div class="brand-mark">H</div>
+      <div><div class="brand-name">HogFlix Finance</div><div class="brand-sub">Company reporting</div></div>
+    </div>
+    <nav id="tabs"></nav>
+    <div class="nav-foot">
+      <div class="mode" id="mode"><span class="dot"></span><span id="modeText">connecting</span></div>
+      <div class="nav-note">Every figure on this page is one API call to a PostHog Endpoint. No figure is computed in this app.</div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="top">
+      <div>
+        <h1 id="viewTitle"></h1>
+        <p class="lede" id="viewLede"></p>
+      </div>
+      <div class="controls">
+        <label class="switch" title="Show where each figure comes from"><input type="checkbox" id="explain" checked><span>Explain mode</span></label>
+        <button class="btn" id="tv" title="Wall-screen layout">TV mode</button>
+        <button class="btn" id="refresh">Refresh</button>
+      </div>
+    </header>
+    <section id="view" class="view"></section>
+  </main>
+
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <button class="drawer-close" id="drawerClose" aria-label="Close">&times;</button>
+    <div id="drawerBody"></div>
+  </aside>
+  <div class="tip" id="tip"></div>
+</div>
+<script src="charts.js"></script>
+<script src="content.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
