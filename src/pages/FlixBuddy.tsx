@@ -193,9 +193,11 @@ const FlixBuddy = () => {
           $feature_flag_response: welcomeVariant || 'control'
         });
 
-        // If there's an initial query, send it automatically
+        // If there's an initial query, send it automatically. Pass the new id
+        // explicitly since the conversationId state hasn't propagated into the
+        // sendMessage closure yet.
         if (initialQuery) {
-          await sendMessage(initialQuery);
+          await sendMessage(initialQuery, conversation.id);
         } else {
           // Add welcome message based on experiment variant
           const welcomeMessage: ChatMessage = {
@@ -252,9 +254,25 @@ const FlixBuddy = () => {
     };
   }, [messages, conversationId, recommendedVideos, selectedProfile, posthog]);
 
-  // Send message function
-  const sendMessage = async (message: string) => {
-    if (!message.trim() || !conversationId || !selectedProfile) return;
+  // Send message function.
+  // `overrideConversationId` lets the init effect send the initial query with
+  // the freshly-created id, since the `conversationId` state hasn't propagated
+  // into this closure yet at that point.
+  const sendMessage = async (message: string, overrideConversationId?: string) => {
+    if (!message.trim()) return;
+
+    const activeConversationId = overrideConversationId ?? conversationId;
+
+    // Conversation is created asynchronously on mount. If a user types and
+    // sends before it resolves, give visible feedback instead of a silent
+    // no-op (which reads as a dead/broken send).
+    if (!activeConversationId || !selectedProfile) {
+      toast({
+        title: "FlixBuddy is getting ready",
+        description: "Give me a second to start the conversation, then try again.",
+      });
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -269,7 +287,7 @@ const FlixBuddy = () => {
 
     // Track message sent with experiment variant
     posthog.capture('flixbuddy:message_sent', {
-      conversation_id: conversationId,
+      conversation_id: activeConversationId,
       message_length: message.length,
       message_number: messages.filter(m => m.role === 'user').length + 1,
       profile_id: selectedProfile.id,
@@ -280,7 +298,7 @@ const FlixBuddy = () => {
       const { data, error } = await supabase.functions.invoke('flixbuddy-chat', {
         body: {
           message,
-          conversationId,
+          conversationId: activeConversationId,
           userId: (await supabase.auth.getUser()).data.user?.id,
           profileId: selectedProfile.id,
           model: selectedModel,
@@ -330,8 +348,8 @@ const FlixBuddy = () => {
             $ai_output_cost_usd: data.metadata?.cost?.output || 0,
             $ai_total_cost_usd: data.metadata?.cost?.total || 0,
             $ai_latency: data.metadata?.latency || 0,
-            $ai_conversation_id: conversationId,
-            $ai_trace_id: conversationId,
+            $ai_conversation_id: activeConversationId,
+            $ai_trace_id: activeConversationId,
             profile_id: selectedProfile.id
           });
         } catch (e) {
@@ -343,7 +361,7 @@ const FlixBuddy = () => {
           traceSentRef.current = true;
           try {
             posthog.capture('$ai_trace', {
-              $ai_trace_id: conversationId,
+              $ai_trace_id: activeConversationId,
               $ai_trace_name: 'flixbuddy_chat_completion',
               $ai_provider: data.metadata?.provider || 'google',
               $ai_model: data.metadata?.model || 'gemini-2.0-flash',
@@ -370,8 +388,8 @@ const FlixBuddy = () => {
             $ai_output_cost_usd: data.metadata?.cost?.output || 0,
             $ai_total_cost_usd: data.metadata?.cost?.total || 0,
             $ai_latency: data.metadata?.latency || 0,
-            $ai_conversation_id: conversationId,
-            $ai_trace_id: conversationId,
+            $ai_conversation_id: activeConversationId,
+            $ai_trace_id: activeConversationId,
             profile_id: selectedProfile.id
           });
         } catch (e) {
@@ -396,8 +414,8 @@ const FlixBuddy = () => {
           $ai_is_rate_limit: isRateLimit,
           $ai_provider: selectedModel.startsWith('mistral') ? 'mistral' : 'google',
           $ai_model: selectedModel === 'auto' ? 'gemini-2.0-flash' : selectedModel,
-          $ai_conversation_id: conversationId,
-          $ai_trace_id: conversationId,
+          $ai_conversation_id: activeConversationId,
+          $ai_trace_id: activeConversationId,
           profile_id: selectedProfile.id
         });
       } catch (e) {
@@ -641,13 +659,13 @@ const FlixBuddy = () => {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Ask FlixBuddy for movie recommendations..."
-                  disabled={isLoading}
+                  placeholder={conversationId ? "Ask FlixBuddy for movie recommendations..." : "FlixBuddy is getting ready..."}
+                  disabled={isLoading || !conversationId}
                   className={`flex-1 ${import.meta.env.VITE_REDACT_LLM_CONTENT === 'true' ? 'sensitive' : ''}`}
                 />
                 <Button
                   onClick={handleSend}
-                  disabled={!inputMessage.trim() || isLoading}
+                  disabled={!inputMessage.trim() || isLoading || !conversationId}
                   size="sm"
                 >
                   <Send className="h-4 w-4" />
