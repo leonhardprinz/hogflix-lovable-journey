@@ -275,11 +275,11 @@ function buildTrace({ distinctId, timestamp, traceId, sessionId, traceName, firs
             $ai_session_id: sessionId,
             $ai_trace_name: traceName,
             $ai_latency: totalLatency,
-            // Must be a JSON object with a `messages` array so the backend can parse it
-            // with orjson.loads() and the frontend can read inputState.messages
-            $ai_input_state: { messages: [{ role: 'user', content: redactText(firstUserMsg) }] },
+            // Plain message arrays: the trace viewer's normalizer renders arrays of
+            // {role, content} as a conversation; a {messages: [...]} wrapper falls back to raw JSON.
+            $ai_input_state: [{ role: 'user', content: redactText(firstUserMsg) }],
             $ai_output_state: lastAssistantMsg
-                ? { messages: [{ role: 'assistant', content: redactText(lastAssistantMsg) }] }
+                ? [{ role: 'assistant', content: redactText(lastAssistantMsg) }]
                 : null,
             $ai_is_error: isError,
             ...(REDACT_MODE ? { $ai_content_redacted: true } : {}),
