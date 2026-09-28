@@ -44,6 +44,8 @@ const VideoPlayer = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sessionId] = useState(() => crypto.randomUUID());
   const lastSaveTime = useRef(0);
+  const lastProgressPing = useRef(0);
+  const startedFiredRef = useRef(false);
   const [resumeMessage, setResumeMessage] = useState<string | null>(null);
   const [showStartOverButton, setShowStartOverButton] = useState(false);
   const [categoryName, setCategoryName] = useState<string>('Unknown');
@@ -74,6 +76,23 @@ const VideoPlayer = () => {
       if (now - lastSaveTime.current >= 10000 && currentTimeValue >= 3 && duration > 0) {
         saveProgress(video.id, currentTimeValue, duration, sessionId);
         lastSaveTime.current = now;
+      }
+
+      // Mid-playback heartbeat — a steady stream of progress events while frames
+      // advance. When playback stalls the stream stops, so a stuck player is
+      // visible in analytics instead of silent.
+      if (now - lastProgressPing.current >= 15000 && currentTimeValue > 0 && duration > 0) {
+        lastProgressPing.current = now;
+        posthog.capture('video:playback_progress', {
+          video_id: video.id,
+          content_id: video.id,
+          category: categoryName,
+          position_seconds: Math.round(currentTimeValue),
+          duration_seconds: Math.round(duration),
+          percent: Math.round(progressPercentage),
+          profile_id: selectedProfile.id,
+          session_id: sessionId
+        });
       }
 
       // Track milestone progress
@@ -151,19 +170,6 @@ const VideoPlayer = () => {
 
   useEffect(() => {
     const initializePlayer = async () => {
-      // Check authentication
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session?.user) {
-        navigate('/login');
-        return;
-      }
-
-      if (!selectedProfile) {
-        navigate('/profiles');
-        return;
-      }
-
       if (!videoId) {
         setError('No video ID provided');
         setLoading(false);
@@ -171,6 +177,20 @@ const VideoPlayer = () => {
       }
 
       try {
+        // Check authentication — kept inside the try so a rejected lookup
+        // lands in catch and clears the loading spinner.
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session?.user) {
+          navigate('/login');
+          return;
+        }
+
+        if (!selectedProfile) {
+          navigate('/profiles');
+          return;
+        }
+
         slog('AUTH', 'info', `Session verified — user: ${session.user.email}`);
         slog('PLAYER', 'info', `Initializing player for video ${videoId}`);
 
@@ -298,15 +318,8 @@ const VideoPlayer = () => {
           source_section_variant: sectionPriorityVariant
         });
 
-        // Video started event for A/B test tracking
-        posthog.capture('video:started', {
-          content_id: videoId,
-          category: fetchedCategoryName,
-          source_section: sourceSection,
-          has_resume_point: !!(progressData && progressData.progress_seconds > 0),
-          profile_id: selectedProfile?.id,
-          session_id: sessionId
-        });
+        // Note: `video:started` now fires on real playback (handlePlaybackStarted),
+        // not here at init, so a player that never plays produces no start event.
 
         // Update user properties - query for total videos watched count
         setTimeout(async () => {
@@ -329,6 +342,17 @@ const VideoPlayer = () => {
     initializePlayer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, selectedProfile, navigate]);
+
+  // Loading watchdog — never leave the spinner up forever. If initialization
+  // has not finished after 15s, stop loading and show a failure state.
+  useEffect(() => {
+    if (!loading) return;
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      setError((prev) => prev ?? 'Video is taking too long to load');
+    }, 15000);
+    return () => clearTimeout(timeout);
+  }, [loading]);
 
   const loadRatingData = async () => {
     if (!videoId) return;
@@ -359,6 +383,66 @@ const VideoPlayer = () => {
     slog('PLAYER', 'info', `Video ready — buffered and playable`);
     slog('CDN', 'info', `Streaming active — bitrate: auto, segments cached: 3`);
     slog('API', 'info', `GET /api/stream/heartbeat — 200 OK`);
+  };
+
+  // Fire `video:started` on real playback — once per session — so the event
+  // reflects frames actually rendering, not player initialization.
+  const handlePlaybackStarted = () => {
+    if (startedFiredRef.current) return;
+    startedFiredRef.current = true;
+
+    const sourceSection = sessionStorage.getItem('video_source_section') || 'unknown';
+    slog('PLAYER', 'info', `Playback started — video ${videoId}`);
+    posthog.capture('video:started', {
+      content_id: videoId,
+      category: categoryName,
+      source_section: sourceSection,
+      has_resume_point: !!(initialProgressRef.current && initialProgressRef.current.progress_seconds > 0),
+      profile_id: selectedProfile?.id,
+      session_id: sessionId
+    });
+  };
+
+  // Report a stall so a buffering player is visible in analytics.
+  const handlePlaybackStalled = () => {
+    slog('PLAYER', 'warn', `Playback stalled — video ${videoId}`);
+    posthog.capture('video:playback_stalled', {
+      video_id: videoId,
+      content_id: videoId,
+      category: categoryName,
+      current_time_s: Math.round(currentTime),
+      profile_id: selectedProfile?.id,
+      session_id: sessionId
+    });
+  };
+
+  // Report a fatal playback failure so it reaches analytics and Error Tracking
+  // instead of only the browser console.
+  const handlePlaybackError = (message: string) => {
+    slog('PLAYER', 'error', `Playback failed — ${message}`);
+    posthog.capture('video:playback_error', {
+      video_id: videoId,
+      content_id: videoId,
+      category: categoryName,
+      message,
+      current_time_s: Math.round(currentTime),
+      profile_id: selectedProfile?.id,
+      session_id: sessionId
+    });
+    posthog.capture('$exception', {
+      $exception_list: [
+        {
+          type: 'MediaPlaybackError',
+          value: message,
+          mechanism: { handled: true, synthetic: false },
+        },
+      ],
+      $exception_message: message,
+      $exception_type: 'MediaPlaybackError',
+      video_id: videoId,
+      video_title: video?.title,
+      error_source: 'media_playback',
+    });
   };
 
   // Handle start over button
@@ -553,6 +637,9 @@ const VideoPlayer = () => {
                 onPiPToggle={handlePiPToggle}
                 onTimeUpdate={handleTimeUpdate}
                 onReady={handleVideoReady}
+                onPlaybackStarted={handlePlaybackStarted}
+                onStalled={handlePlaybackStalled}
+                onError={handlePlaybackError}
                 autoplay={false}
               />
             ) : (
