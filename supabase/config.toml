@@ -6,8 +6,10 @@ verify_jwt = true
 [functions.ai-search]
 verify_jwt = true
 
+# Gateway JWT check rejects user tokens signed with the project's new JWT signing keys
+# (401s in the app since 9 Sep). The migration runbook deploys with --no-verify-jwt too.
 [functions.flixbuddy-chat]
-verify_jwt = true
+verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false

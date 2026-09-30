@@ -4,7 +4,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 import { log } from '../_shared/posthog-logger.ts';
 import { redactAIContent } from '../_shared/pii-redactor.ts';
 
-const REDACT_LLM_CONTENT = Deno.env.get('REDACT_LLM_CONTENT') === 'true';
+// Redaction is on unless explicitly disabled: prompts and replies are scrubbed before they reach PostHog.
+const REDACT_LLM_CONTENT = Deno.env.get('REDACT_LLM_CONTENT') !== 'false';
+const BUILD = 'openai-2026-10-01';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -62,13 +64,37 @@ async function capturePostHogEvent(apiKey: string, event: string, distinctId: st
 interface ModelConfig {
   id: string;
   label: string;
-  provider: 'google' | 'mistral';
+  provider: 'openai' | 'google' | 'mistral';
   apiModel: string;
   inputPricePer1M: number;
   outputPricePer1M: number;
 }
 
 const MODEL_CONFIGS: Record<string, ModelConfig> = {
+  'gpt-4.1-mini': {
+    id: 'gpt-4.1-mini',
+    label: 'GPT-4.1 mini',
+    provider: 'openai',
+    apiModel: 'gpt-4.1-mini',
+    inputPricePer1M: 0.40,
+    outputPricePer1M: 1.60,
+  },
+  'gpt-4o-mini': {
+    id: 'gpt-4o-mini',
+    label: 'GPT-4o mini',
+    provider: 'openai',
+    apiModel: 'gpt-4o-mini',
+    inputPricePer1M: 0.15,
+    outputPricePer1M: 0.60,
+  },
+  'gpt-4.1': {
+    id: 'gpt-4.1',
+    label: 'GPT-4.1',
+    provider: 'openai',
+    apiModel: 'gpt-4.1',
+    inputPricePer1M: 2.00,
+    outputPricePer1M: 8.00,
+  },
   'gemini-2.0-flash': {
     id: 'gemini-2.0-flash',
     label: 'Gemini 2.0 Flash',
@@ -151,8 +177,11 @@ const MODEL_CONFIGS: Record<string, ModelConfig> = {
   },
 };
 
-// Auto mode: fallback chain
+// Auto mode: OpenAI when OPENAI_API_KEY is set, otherwise the Gemini chain
+const OPENAI_FALLBACK_CHAIN = ['gpt-4.1-mini', 'gpt-4o-mini'];
 const AUTO_FALLBACK_CHAIN = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+
+type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 // ─── PROVIDER CALL FUNCTIONS ─────────────────────────────────────────────────
 
@@ -164,7 +193,7 @@ async function callGemini(apiKey: string, model: string, prompt: string): Promis
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 1024 },
+        generationConfig: { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 4096 },
       }),
     }
   );
@@ -182,6 +211,18 @@ function parseGeminiResponse(data: any): { text: string; tokens: { input: number
       total: usage.totalTokenCount || 0,
     },
   };
+}
+
+async function callOpenAI(apiKey: string, model: string, messages: ChatMessage[]): Promise<{ response: Response; modelUsed: string }> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 1024 }),
+  });
+  return { response, modelUsed: model };
 }
 
 async function callMistral(apiKey: string, model: string, prompt: string): Promise<{ response: Response; modelUsed: string }> {
@@ -236,6 +277,7 @@ serve(async (req) => {
       function_name: 'flixbuddy-chat'
     });
 
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const MISTRAL_API_KEY = Deno.env.get('MISTRAL_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -331,6 +373,19 @@ User: ${message}
 
 FlixBuddy:`;
 
+    // Same context as a proper chat transcript, for OpenAI (and for the PostHog trace)
+    const chatMessages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: `${systemPrompt}\n\nAVAILABLE CONTENT:\n${videoContext}\n\nUSER CONTEXT:\n- User has ${watchlistIds.length} items in watchlist\n- User has rated ${Object.keys(userRatings).length} videos\n- Current profile: ${profileId}`,
+      },
+      ...((messages || []).map((m: { role: string; content: string }) => ({
+        role: (m.role === 'user' ? 'user' : 'assistant') as ChatMessage['role'],
+        content: m.content,
+      }))),
+      { role: 'user', content: message },
+    ];
+
     // ─── CALL THE SELECTED MODEL ─────────────────────────────────────────────
 
     const aiStartTime = Date.now();
@@ -351,7 +406,12 @@ FlixBuddy:`;
 
       let apiResponse: Response;
 
-      if (selectedConfig.provider === 'mistral') {
+      if (selectedConfig.provider === 'openai') {
+        if (!OPENAI_API_KEY) throw new Error('OpenAI API key not configured');
+        const result = await callOpenAI(OPENAI_API_KEY, selectedConfig.apiModel, chatMessages);
+        apiResponse = result.response;
+        modelUsed = result.modelUsed;
+      } else if (selectedConfig.provider === 'mistral') {
         if (!MISTRAL_API_KEY) throw new Error('Mistral API key not configured');
         const result = await callMistral(MISTRAL_API_KEY, selectedConfig.apiModel, fullPrompt);
         apiResponse = result.response;
@@ -378,14 +438,37 @@ FlixBuddy:`;
       }
 
       const data = await apiResponse.json();
-      const parsed = selectedConfig.provider === 'mistral'
+      const parsed = selectedConfig.provider !== 'google'
         ? parseMistralResponse(data)
         : parseGeminiResponse(data);
 
       responseText = parsed.text;
       tokenUsage = parsed.tokens;
 
-    } else {
+    }
+
+    let openaiDone = false;
+    if (!selectedConfig && OPENAI_API_KEY) {
+      // ── AUTO MODE: OpenAI chain (falls through to Gemini if every model fails) ──
+      for (const model of OPENAI_FALLBACK_CHAIN) {
+        const result = await callOpenAI(OPENAI_API_KEY, model, chatMessages);
+        if (result.response.ok) {
+          const parsed = parseMistralResponse(await result.response.json());
+          responseText = parsed.text;
+          tokenUsage = parsed.tokens;
+          modelUsed = model;
+          providerUsed = 'openai';
+          httpStatus = result.response.status;
+          openaiDone = true;
+          break;
+        }
+        const errText = (await result.response.text()).substring(0, 200);
+        console.warn(`OpenAI ${model} failed (${result.response.status}): ${errText}`);
+        await log.error('FlixBuddy OpenAI model failed', { model, status: result.response.status, error: errText, function_name: 'flixbuddy-chat' });
+      }
+    }
+
+    if (!selectedConfig && !openaiDone) {
       // ── AUTO MODE: Gemini fallback chain ──
       console.log('Auto mode: trying Gemini fallback chain:', AUTO_FALLBACK_CHAIN);
       providerUsed = 'google';
@@ -462,12 +545,12 @@ FlixBuddy:`;
     });
 
     // Capture PostHog AI generation (with optional PII redaction)
-    const aiInput = REDACT_LLM_CONTENT
-      ? redactAIContent([{ role: 'system', content: systemPrompt }, { role: 'user', content: message }])
-      : [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }];
-    const aiOutput = REDACT_LLM_CONTENT
-      ? redactAIContent([{ role: 'assistant', content: responseText }])
-      : [{ role: 'assistant', content: responseText }];
+    const traceInput = [{ role: 'system', content: systemPrompt }, ...chatMessages.slice(1)];
+    // Redact prompt and reply together so a name the user gave is also masked in the reply
+    const conversation = [...traceInput, { role: 'assistant', content: responseText }];
+    const scrubbed = (REDACT_LLM_CONTENT ? redactAIContent(conversation) : conversation) as Array<{ role: string; content: string }>;
+    const aiInput = scrubbed.slice(0, -1);
+    const aiOutput = scrubbed.slice(-1);
 
     await capturePostHogEvent(
       POSTHOG_API_KEY || '',
@@ -480,6 +563,8 @@ FlixBuddy:`;
         $ai_output_choices: aiOutput,
         $ai_input_tokens: tokenUsage.input,
         $ai_output_tokens: tokenUsage.output,
+        $ai_input_cost_usd: inputCost,
+        $ai_output_cost_usd: outputCost,
         $ai_total_cost_usd: totalCost,
         $ai_latency: aiLatency / 1000,
         $ai_trace_id: conversationId,
@@ -487,6 +572,8 @@ FlixBuddy:`;
         $ai_is_error: false,
         $ai_prompt_name: promptKey,
         profile_id: profileId,
+        hogflix_feature: 'FlixBuddy',
+        flixbuddy_build: BUILD,
         ...(posthogSessionId ? { $session_id: posthogSessionId } : {}),
         ...(REDACT_LLM_CONTENT ? { $ai_content_redacted: true } : {}),
       }
@@ -510,6 +597,8 @@ FlixBuddy:`;
         cost: { input: inputCost, output: outputCost, total: totalCost },
         model: modelUsed,
         provider: providerUsed,
+        build: BUILD,
+        redacted: REDACT_LLM_CONTENT,
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

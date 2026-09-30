@@ -315,12 +315,12 @@ const FlixBuddy = () => {
       // Track LLM generation (PostHog LLM Analytics) - with cost data
       // When REDACT_LLM mode is on, server-side capture is the sole source
       // (content is scrubbed there before sending to PostHog)
-      const REDACT_LLM = import.meta.env.VITE_REDACT_LLM_CONTENT === 'true';
+      const REDACT_LLM = import.meta.env.VITE_REDACT_LLM_CONTENT !== 'false';
       if (!REDACT_LLM) {
         try {
           posthog.capture('$ai_generation', {
-            $ai_provider: data.metadata?.provider || 'google',
-            $ai_model: data.metadata?.model || 'gemini-2.0-flash',
+            $ai_provider: data.metadata?.provider || 'openai',
+            $ai_model: data.metadata?.model || 'gpt-4.1-mini',
             $ai_input: [{ role: 'system', content: FLIXBUDDY_SYSTEM_PROMPT }, { role: 'user', content: message }],
             $ai_output_choices: [{ role: 'assistant', content: data.message }],
             $ai_input_tokens: data.metadata?.tokens?.input || 0,
@@ -345,8 +345,8 @@ const FlixBuddy = () => {
             posthog.capture('$ai_trace', {
               $ai_trace_id: conversationId,
               $ai_trace_name: 'flixbuddy_chat_completion',
-              $ai_provider: data.metadata?.provider || 'google',
-              $ai_model: data.metadata?.model || 'gemini-2.0-flash',
+              $ai_provider: data.metadata?.provider || 'openai',
+              $ai_model: data.metadata?.model || 'gpt-4.1-mini',
               $ai_latency: data.metadata?.latency || 0,
               $ai_input_state: { messages: [{ role: 'system', content: FLIXBUDDY_SYSTEM_PROMPT }, { role: 'user', content: message }] },
               $ai_output_state: { messages: [{ role: 'assistant', content: data.message }] },
@@ -360,8 +360,8 @@ const FlixBuddy = () => {
         // Track LLM generation complete (PostHog LLM Analytics)
         try {
           posthog.capture('$ai_generation_complete', {
-            $ai_provider: data.metadata?.provider || 'google',
-            $ai_model: data.metadata?.model || 'gemini-2.0-flash',
+            $ai_provider: data.metadata?.provider || 'openai',
+            $ai_model: data.metadata?.model || 'gpt-4.1-mini',
             $ai_output_choices: [{ role: 'assistant', content: data.message }],
             $ai_input_tokens: data.metadata?.tokens?.input || 0,
             $ai_output_tokens: data.metadata?.tokens?.output || 0,
@@ -394,8 +394,8 @@ const FlixBuddy = () => {
         posthog.capture('$ai_generation_error', {
           $ai_error: errorMessage,
           $ai_is_rate_limit: isRateLimit,
-          $ai_provider: selectedModel.startsWith('mistral') ? 'mistral' : 'google',
-          $ai_model: selectedModel === 'auto' ? 'gemini-2.0-flash' : selectedModel,
+          $ai_provider: selectedModel.startsWith('mistral') ? 'mistral' : selectedModel.startsWith('gemini') ? 'google' : 'openai',
+          $ai_model: selectedModel === 'auto' ? 'gpt-4.1-mini' : selectedModel,
           $ai_conversation_id: conversationId,
           $ai_trace_id: conversationId,
           profile_id: selectedProfile.id
@@ -530,6 +530,12 @@ const FlixBuddy = () => {
                 <SelectGroup>
                   <SelectLabel>Auto</SelectLabel>
                   <SelectItem value="auto">✨ Auto</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>OpenAI</SelectLabel>
+                  <SelectItem value="gpt-4.1-mini">GPT-4.1 mini</SelectItem>
+                  <SelectItem value="gpt-4o-mini">GPT-4o mini</SelectItem>
+                  <SelectItem value="gpt-4.1">GPT-4.1</SelectItem>
                 </SelectGroup>
                 <SelectGroup>
                   <SelectLabel>Google</SelectLabel>

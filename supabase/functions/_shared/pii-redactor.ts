@@ -17,9 +17,11 @@ export interface RedactorOptions {
   redactPhones?: boolean;
   stripUrlParams?: boolean;
   placeholder?: string;
+  /** Collects every name that was redacted, so a conversation can mask the same names everywhere. */
+  seenNames?: Set<string>;
 }
 
-const DEFAULT_OPTIONS: Required<RedactorOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<RedactorOptions, 'seenNames'>> = {
   redactNames: true,
   redactEmails: true,
   redactPhones: true,
@@ -53,10 +55,19 @@ const SAFE_WORDS = new Set([
 /**
  * Check if a capitalized word sequence is likely a safe (non-name) phrase.
  */
+// Hogflix catalog titles are hedgehog puns ("Prickly Blinders", "Hulk Hog"). Any word
+// containing one of these stems marks the phrase as a title, not a person.
+const CATALOG_STEM = /hog|hedge|spine|prickl|quill|burrow|flix/i;
+
+function isSafeWord(word: string): boolean {
+  return SAFE_WORDS.has(word) || CATALOG_STEM.test(word);
+}
+
 function isSafePhrase(phrase: string): boolean {
   const words = phrase.split(/\s+/);
-  // If the first word is a known safe word, skip redaction
-  if (SAFE_WORDS.has(words[0])) return true;
+  // If the first word is a known safe word, or any word is a catalog word, skip redaction
+  if (isSafeWord(words[0])) return true;
+  if (words.some(w => CATALOG_STEM.test(w))) return true;
   // If ALL words are safe, skip
   if (words.every(w => SAFE_WORDS.has(w))) return true;
   return false;
@@ -67,6 +78,7 @@ function isSafePhrase(phrase: string): boolean {
  */
 export function redactPII(text: string, options?: RedactorOptions): string {
   const opts = { ...DEFAULT_OPTIONS, ...options };
+  const remember = (name: string) => { if (opts.seenNames) name.split(/[\s-]+/).filter(w => w.length >= 3).forEach(w => opts.seenNames!.add(w)); };
   let result = text;
 
   // 1. Emails (high precision, run first)
@@ -87,6 +99,8 @@ export function redactPII(text: string, options?: RedactorOptions): string {
         return digits.length >= 7 ? opts.placeholder : match;
       }
     );
+    // A country code split off by the match above leaves a stray '+' in front
+    result = result.split('+' + opts.placeholder).join(opts.placeholder);
     // Standalone long number sequences (bank accounts, IDs, etc — 6+ digits)
     result = result.replace(/\b\d{6,}\b/g, opts.placeholder);
   }
@@ -121,29 +135,52 @@ export function redactPII(text: string, options?: RedactorOptions): string {
 
   // 5. Person names
   if (opts.redactNames) {
-    // 5a. "my name is X", "I am X", "I'm X" — catches single first names in context
-    result = result.replace(
-      /(?:(?:my\s+name\s+is|I\s+am|I'm|call\s+me|this\s+is)\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
-      (match, name) => match.replace(name, opts.placeholder)
-    );
+    const P = opts.placeholder;
+    // Trigger phrases match any case, but the name itself must be Capitalized.
+    // (A case-insensitive name pattern turns "I'm looking" into "I'm [REDACTED]".)
+    const NAME = '([A-Z][a-z]+(?:[ -][A-Z][a-z]+)?)';
+    const redactName = (match: string, name: string) => {
+      if (isSafePhrase(name)) return match;
+      remember(name);
+      return match.replace(name, P);
+    };
 
-    // 5b. "my husband/wife/friend/colleague/kid/son/daughter X"
-    result = result.replace(
-      /(?:my\s+(?:husband|wife|partner|friend|colleague|kid|child|son|daughter|brother|sister|mom|dad|mother|father)\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
-      (match, name) => match.replace(name, opts.placeholder)
-    );
+    // Protect markdown bold (**Title**) and quoted titles: recommendations live there.
+    const kept: string[] = [];
+    result = result.replace(/\*\*[^*\n]+\*\*|"[^"\n]{2,80}"/g, (m) => { kept.push(m); return `\u0000${kept.length - 1}\u0000`; });
+
+    // 5a. "my name is X", "I am X", "I'm X", "call me X", "this is X"
+    result = result.replace(new RegExp(`(?:[Mm]y\\s+[Nn]ame\\s+[Ii]s|I\\s+am|I'm|[Cc]all\\s+me|[Tt]his\\s+[Ii]s)\\s+${NAME}`, 'g'), redactName);
+
+    // 5b. "my husband/wife/friend/... X"
+    result = result.replace(new RegExp(`[Mm]y\\s+(?:husband|wife|partner|boyfriend|girlfriend|friend|colleague|boss|kid|child|son|daughter|brother|sister|mom|mum|dad|mother|father|grandma|grandpa)\\s+${NAME}`, 'g'), redactName);
 
     // 5c. Title prefixes (high confidence — always redact)
-    result = result.replace(
-      /\b(?:Mr|Mrs|Ms|Miss|Dr|Prof|Judge|Atty|Attorney|Sen|Gov|Rep)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g,
-      opts.placeholder
-    );
+    result = result.replace(/\b(?:Mr|Mrs|Ms|Miss|Dr|Prof|Judge|Atty|Attorney|Sen|Gov|Rep)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g, P);
 
-    // 5d. Capitalized word sequences (2-4 words) — likely names
-    result = result.replace(
-      /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b/g,
-      (match) => isSafePhrase(match) ? match : opts.placeholder
-    );
+    // 5d. Greetings and people-verbs: "Hi Anna", "Thanks, Priya", "with Maria", "tell Sam"
+    result = result.replace(new RegExp(`\\b(?:[Hh]i|[Hh]ey|[Hh]ello|[Dd]ear|[Tt]hanks|[Tt]hank\\s+you|[Bb]ye|[Ww]ith|[Tt]ell|[Aa]sk|[Ii]nvite|[Mm]eet),?\\s+([A-Z][a-z]+)\\b(?!\\s+[A-Z])`, 'g'), redactName);
+
+    // 5e. Runs of 2-3 Capitalized words ("John Smith"). A run that starts a sentence
+    //     loses its first word ("Contact John Smith" -> "Contact [REDACTED]").
+    result = result.replace(/(^|[.!?:\n]\s*|[^A-Za-z\s]?\s*)?\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4})\b/g, (match, lead, run, offset, full) => {
+      const before = full.slice(0, offset + (lead ? lead.length : 0));
+      const sentenceStart = /(^|[.!?\n]\s*|\u0000\s*)$/.test(before);
+      let words = run.split(/\s+/);
+      let prefix = '';
+      if (sentenceStart) { prefix = words[0] + (words.length > 1 ? ' ' : ''); words = words.slice(1); }
+      if (words.length < 2 || words.length > 3) return match;
+      const phrase = words.join(' ');
+      if (isSafePhrase(phrase) || words.some(isSafeWord)) return match;
+      remember(phrase);
+      return (lead || '') + prefix + P;
+    });
+
+    // 5f. Names joined to an already-redacted name: "[REDACTED] and Michael", "[REDACTED], Jonas"
+    const joined = new RegExp(`(${P.replace(/[[\]]/g, '\\$&')}\\s*(?:,|and|&|or|und)\\s+)([A-Z][a-z]+)\\b`, 'g');
+    for (let i = 0; i < 3; i++) result = result.replace(joined, (m, head, name) => { if (isSafeWord(name)) return m; remember(name); return head + P; });
+
+    result = result.replace(/\u0000(\d+)\u0000/g, (_m, i) => kept[Number(i)]);
   }
 
   return result;
@@ -161,8 +198,19 @@ export function redactAIContent(
     return redactPII(content, options);
   }
 
-  return content.map(msg => ({
+  // Pass 1: redact each message and remember every name found anywhere in the conversation.
+  const seenNames = options?.seenNames ?? new Set<string>();
+  const first = content.map(msg => ({ ...msg, content: redactPII(msg.content, { ...options, seenNames }) }));
+  if (seenNames.size === 0) return first;
+
+  // Pass 2: a name the user gave once ("my husband Michael") is masked wherever it reappears,
+  // e.g. in the assistant's reply ("you and Michael"). Bold titles are left alone.
+  const placeholder = options?.placeholder ?? DEFAULT_OPTIONS.placeholder;
+  const names = [...seenNames].filter(n => !isSafeWord(n)).map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (names.length === 0) return first;
+  const re = new RegExp(`\\b(?:${names.join('|')})\\b`, 'g');
+  return first.map(msg => ({
     ...msg,
-    content: redactPII(msg.content, options),
+    content: msg.content.split(/(\*\*[^*\n]+\*\*)/).map(part => (part.startsWith('**') ? part : part.replace(re, placeholder))).join(''),
   }));
 }
