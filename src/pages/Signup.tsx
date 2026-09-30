@@ -135,6 +135,11 @@ const Signup = () => {
           ...(age_group && { age_group }),
         });
         
+        posthog.capture('email:captured', {
+          source: 'signup',
+          marketing_opt_in: marketingOptIn
+        });
+
         posthog.capture('signup:completed', { 
           signup_method: 'email',
           selected_plan: selectedPlan,
@@ -149,11 +154,6 @@ const Signup = () => {
           $set: { email: data.user.email }
         });
         
-        posthog.capture('email:captured', {
-          source: 'signup',
-          marketing_opt_in: marketingOptIn
-        });
-
         // Save marketing preference to profiles table
         await supabase
           .from('profiles')
