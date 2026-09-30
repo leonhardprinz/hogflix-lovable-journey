@@ -221,14 +221,21 @@ async function videoState(page: Page): Promise<VideoState | null> {
 async function startPlayback(page: Page): Promise<number | null> {
   const video = page.locator('video').first();
   await video.waitFor({ state: 'attached', timeout: 20000 });
-  for (let attempt = 0; attempt < 4; attempt++) {
-    await delay(2500);
+  // The player autoplays, and a click on the video toggles play/pause, so only
+  // click when it is actually paused; while it is buffering, just wait.
+  let clicked = false;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await delay(2000);
     const s = await videoState(page);
     if (s && !s.paused && s.t > 0.5 && Number.isFinite(s.d) && s.d > 0) return s.d;
+    if (!s || !s.paused) continue;
     const box = await video.boundingBox();
-    if (box) {
+    if (!clicked && box) {
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 25 });
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      clicked = true;
+    } else {
+      await page.evaluate(() => document.querySelector('video')?.play()?.catch(() => {}));
     }
   }
   const s = await videoState(page);
