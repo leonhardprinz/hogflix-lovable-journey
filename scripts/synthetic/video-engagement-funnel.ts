@@ -249,6 +249,17 @@ async function startPlayback(page: Page): Promise<number | null> {
  */
 async function watchTo(page: Page, duration: number, stopAt: number) {
   const checkpoints = [0.26, 0.51, 0.76, 0.965].filter((c) => c <= stopAt);
+  // Trailers are short (~25–40s), so a viewer who should bail early can drift
+  // past the next milestone while "lingering". Watch until the stop point, then pause.
+  const pauseAt = async (fraction: number) => {
+    const deadline = Date.now() + 25000;
+    while (Date.now() < deadline) {
+      const s = await videoState(page);
+      if (!s || s.ended || s.t >= fraction * duration) break;
+      await delay(400);
+    }
+    await page.evaluate(() => document.querySelector('video')?.pause());
+  };
   for (const c of checkpoints) {
     const s = await videoState(page);
     if (!s) return;
@@ -270,7 +281,7 @@ async function watchTo(page: Page, duration: number, stopAt: number) {
       await page.mouse.move(400 + Math.random() * 300, 300 + Math.random() * 150, { steps: 12 });
     }
   }
-  // Linger at the stopping point, then leave the way a person would.
+  // Stop at the chosen point, linger, then leave the way a person would.
   const finalTarget = stopAt * duration;
   const s = await videoState(page);
   if (s && !s.ended && finalTarget - s.t > 12 && stopAt < 0.99) {
@@ -279,6 +290,7 @@ async function watchTo(page: Page, duration: number, stopAt: number) {
       if (v) v.currentTime = to;
     }, finalTarget - 4);
   }
+  if (stopAt < 0.99) await pauseAt(stopAt);
   await delay(between(3000, 6000));
   if (stopAt >= 0.99) {
     // let it run out so the ended handler fires too
