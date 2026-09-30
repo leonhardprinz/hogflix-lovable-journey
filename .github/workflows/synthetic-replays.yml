@@ -38,3 +38,26 @@ jobs:
           APP_URL: 'https://hogflix-project.vercel.app'
           PERSONA_COUNT: '8'
           ABANDON_RATE: '0.45'
+
+  # Viewers who actually watch. The player streams H.264 HLS, which Playwright's
+  # bundled Chromium can't decode, so this job drives the runner's Google Chrome
+  # (channel: 'chrome'). Feeds the "started -> 25/50/75% -> completed" funnel,
+  # with a session recording behind every drop-off.
+  video-viewers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm install
+      - run: google-chrome --version || npx playwright install chrome
+
+      - name: Run video engagement viewers
+        run: npx tsx scripts/synthetic/video-engagement-funnel.ts
+        env:
+          APP_URL: 'https://hogflix-project.vercel.app'
+          VIEWER_COUNT: '10'
