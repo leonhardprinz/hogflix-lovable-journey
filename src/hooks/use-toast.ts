@@ -6,7 +6,10 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+// Delay between a toast closing and its removal from state. Just long enough
+// to cover the exit animation; the old 1_000_000ms value left dismissed
+// toasts lingering in memory for ~16 minutes.
+const TOAST_REMOVE_DELAY = 1000
 
 type ToasterToast = ToastProps & {
   id: string
