@@ -565,7 +565,7 @@ async function journeyRageClickUltimate(page: Page) {
         // Track rage click start
         await page.evaluate(() => {
             if ((window as any).posthog) {
-                (window as any).posthog.capture('rage_click_started', {
+                (window as any).posthog.capture('rage_click:started', {
                     button: 'ultimate_plan',
                     page: '/pricing'
                 });
@@ -588,7 +588,7 @@ async function journeyRageClickUltimate(page: Page) {
                 // Track each click
                 await page.evaluate((clickNum) => {
                     if ((window as any).posthog) {
-                        (window as any).posthog.capture('rage_click_attempt', {
+                        (window as any).posthog.capture('rage_click:attempt', {
                             button: 'ultimate_plan',
                             click_number: clickNum
                         });
@@ -609,7 +609,7 @@ async function journeyRageClickUltimate(page: Page) {
             // Track abandonment
             await page.evaluate((total) => {
                 if ((window as any).posthog) {
-                    (window as any).posthog.capture('rage_click_abandoned', {
+                    (window as any).posthog.capture('rage_click:abandoned', {
                         button: 'ultimate_plan',
                         total_clicks: total
                     });

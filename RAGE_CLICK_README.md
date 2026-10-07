@@ -18,7 +18,7 @@ The rage click logic is built into the existing `generate-replays.ts` script whi
 1. **`scripts/generate-replays.ts`** ✅
    - Added `journeyRageClickUltimate()` function with realistic rage click patterns
    - Increased pricing journey probability from 25% to 35%
-   - Enhanced with PostHog event tracking (`rage_click_started`, `rage_click_attempt`, `rage_click_abandoned`)
+   - Enhanced with PostHog event tracking (`rage_click:started`, `rage_click:attempt`, `rage_click:abandoned`)
    - Improved video playback reliability and mouse movement realism
 
 ## Usage
@@ -55,9 +55,9 @@ npx tsx scripts/generate-replays.ts
 - **PostHog tracking**: Custom events for demo visibility
 
 ### PostHog Events Generated
-- `rage_click_started` - When rage clicking begins
-- `rage_click_attempt` - Each individual click (includes `click_number` property)
-- `rage_click_abandoned` - When user gives up (includes `total_clicks`)
+- `rage_click:started` - When rage clicking begins
+- `rage_click:attempt` - Each individual click (includes `click_number` property)
+- `rage_click:abandoned` - When user gives up (includes `total_clicks`)
 
 All events include `is_synthetic: true` and `button: 'ultimate_plan'` properties.
 
@@ -65,7 +65,7 @@ All events include `is_synthetic: true` and `button: 'ultimate_plan'` properties
 
 ### Filter Session Replays
 ```
-event = "rage_click_started" OR
+event = "rage_click:started" OR
 properties.$current_url contains "/pricing"
 ```
 
@@ -73,15 +73,15 @@ properties.$current_url contains "/pricing"
 Create a dashboard called "Session Replays - Rage Clicks" with:
 
 1. **Rage Click Volume**
-   - Event: `rage_click_attempt`
+   - Event: `rage_click:attempt`
    - Chart: Time series (count)
 
 2. **Affected Users**  
-   - Event: `rage_click_started`
+   - Event: `rage_click:started`
    - Chart: Unique users
 
 3. **Session Recordings**
-   - Filter: Sessions containing `$rageclick` event or `rage_click_started`
+   - Filter: Sessions containing `$rageclick` event or `rage_click:started`
    - Shows actual video replays
 
 ## Expected Results
