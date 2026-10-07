@@ -218,7 +218,6 @@ const Browse = () => {
 
       posthog.capture('page:viewed_browse', {
         profile_id: selectedProfile.id,
-        profile_name: selectedProfile.display_name || selectedProfile.email,
       });
 
       // Fetch categories and videos

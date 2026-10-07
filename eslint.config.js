@@ -24,6 +24,15 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
       "@typescript-eslint/no-unused-vars": "off",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.property.name='capture'] Property[key.name='profile_name'] MemberExpression[property.name='email']",
+          message:
+            "Do not send an email in profile_name. Use profile_id to identify the profile.",
+        },
+      ],
     },
   }
 );
