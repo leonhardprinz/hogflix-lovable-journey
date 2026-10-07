@@ -103,7 +103,7 @@ if (typeof window !== 'undefined') {
             if (typeof autocapture.startIfEnabled === 'function') {
               autocapture.startIfEnabled();
               console.log('✅ Autocapture FORCE STARTED');
-              posthog.capture('autocapture_forced_start', { reason: 'flags_timeout' });
+              posthog.capture('autocapture:forced_start', { reason: 'flags_timeout' });
             }
           } else if (autocapture?._initialized) {
             console.log('✅ Autocapture already initialized normally');
