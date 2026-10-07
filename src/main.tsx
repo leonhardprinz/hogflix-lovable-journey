@@ -7,6 +7,30 @@ import { PostHogProvider } from 'posthog-js/react'
 // Initialize PostHog BEFORE creating the provider
 // This creates window.posthog which the Playwright script needs
 if (typeof window !== 'undefined') {
+  // Experiments that the app renders in code (e.g. pricing_layout_experiment_v2 in
+  // Pricing.tsx) come back from /api/web_experiments with no `transforms` on their
+  // variants. posthog-js calls `transforms.forEach` on each flag reload, so it throws
+  // and stops the remaining onFeatureFlags callbacks. Default missing transforms to [].
+  const webExperiments = posthog.experiments
+  if (webExperiments) {
+    const getWebExperiments: typeof webExperiments.getWebExperiments =
+      webExperiments.getWebExperiments.bind(webExperiments)
+    webExperiments.getWebExperiments = (callback, forceReload, previewing) =>
+      getWebExperiments(
+        (experiments) => {
+          experiments.forEach(({ variants }) => {
+            if (!variants) return
+            Object.values(variants).forEach((variant) => {
+              variant.transforms ??= []
+            })
+          })
+          callback(experiments)
+        },
+        forceReload,
+        previewing
+      )
+  }
+
   posthog.init(
     import.meta.env.VITE_POSTHOG_KEY || 'phc_lyblwxejUR7pNow3wE9WgaBMrNs2zgqq4rumaFwInPh',
     {
