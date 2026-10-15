@@ -1,0 +1,53 @@
+name: AI agent traces (redacted)
+
+# Multi-agent Help Desk traces for the AI observability demo, redacted with
+# Presidio + GLiNER before capture. Runs here so the demo project keeps getting
+# fresh traces when no laptop is on.
+
+on:
+  schedule:
+    - cron: '20 */2 * * *'   # every 2 hours
+  workflow_dispatch:
+    inputs:
+      trace_count:
+        description: 'Conversations to generate'
+        required: false
+        default: '12'
+
+concurrency:
+  group: aio-agent-traces
+  cancel-in-progress: false
+
+jobs:
+  traces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: .github/workflows/aio-agent-traces.yml
+
+      - name: Cache GLiNER model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-gliner-multi-pii-v1
+
+      - name: Install redactor
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install "presidio-analyzer>=2.2.364" "presidio-anonymizer>=2.2.364" "gliner>=0.2.22" "spacy>=3.8" protobuf sentencepiece
+          pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+
+      - name: Generate and send traces
+        env:
+          PH_PROJECT_API_KEY: ${{ secrets.PH_PROJECT_API_KEY }}
+          PH_HOST: ${{ secrets.PH_HOST }}
+          SPACY_MODEL: en_core_web_sm
+          TRACE_COUNT: ${{ github.event.inputs.trace_count || '12' }}
+          WINDOW_MINUTES: '120'
+        run: python scripts/aio-agent-traces/generate_agent_traces.py

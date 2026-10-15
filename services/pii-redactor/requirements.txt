@@ -1,0 +1,12 @@
+presidio-analyzer>=2.2.364
+presidio-anonymizer>=2.2.364
+gliner>=0.2.22
+spacy>=3.8
+en_core_web_lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl
+protobuf
+sentencepiece
+tiktoken
+fastapi
+uvicorn
+pytest
+httpx
