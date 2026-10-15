@@ -2,10 +2,11 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 import { log } from '../_shared/posthog-logger.ts';
-import { redactAIContent } from '../_shared/pii-redactor.ts';
+import { redactAIContentRemote } from '../_shared/pii-redactor.ts';
 
 // Redaction is on unless explicitly disabled: prompts and replies are scrubbed before they reach PostHog.
 const REDACT_LLM_CONTENT = Deno.env.get('REDACT_LLM_CONTENT') !== 'false';
+const PII_REDACTION_URL = Deno.env.get('PII_REDACTION_URL'); // Presidio + GLiNER service, see services/pii-redactor
 const BUILD = 'openai-2026-10-01';
 
 const corsHeaders = {
@@ -544,11 +545,21 @@ FlixBuddy:`;
       cost_usd_micro: Math.round(totalCost * 1_000_000)
     });
 
-    // Capture PostHog AI generation (with optional PII redaction)
+    // Capture PostHog AI generation (with optional PII redaction).
+    // Redaction happens here, before the event leaves the backend: service first
+    // (Presidio + GLiNER), regex fallback if the service is unreachable. Prompt and
+    // reply go through together so a name the user gave is also masked in the reply.
     const traceInput = [{ role: 'system', content: systemPrompt }, ...chatMessages.slice(1)];
-    // Redact prompt and reply together so a name the user gave is also masked in the reply
     const conversation = [...traceInput, { role: 'assistant', content: responseText }];
-    const scrubbed = (REDACT_LLM_CONTENT ? redactAIContent(conversation) : conversation) as Array<{ role: string; content: string }>;
+    let scrubbed = conversation as Array<{ role: string; content: string }>;
+    let redactionEngine: string | undefined;
+    let redactedEntityCount = 0;
+    if (REDACT_LLM_CONTENT) {
+      const res = await redactAIContentRemote(conversation, PII_REDACTION_URL);
+      scrubbed = res.messages;
+      redactionEngine = res.engine;
+      redactedEntityCount = res.entities?.length || 0;
+    }
     const aiInput = scrubbed.slice(0, -1);
     const aiOutput = scrubbed.slice(-1);
 
@@ -575,7 +586,7 @@ FlixBuddy:`;
         hogflix_feature: 'FlixBuddy',
         flixbuddy_build: BUILD,
         ...(posthogSessionId ? { $session_id: posthogSessionId } : {}),
-        ...(REDACT_LLM_CONTENT ? { $ai_content_redacted: true } : {}),
+        ...(REDACT_LLM_CONTENT ? { $ai_content_redacted: true, $ai_redaction_engine: redactionEngine, $ai_redacted_entity_count: redactedEntityCount } : {}),
       }
     );
 

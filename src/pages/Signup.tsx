@@ -29,23 +29,45 @@ const Signup = () => {
   const posthog = usePostHog();
   const { toast } = useToast();
 
-  // Identity stitching for QR cross-device flow: if a previous anonymous
-  // distinct_id was carried through the QR URL (?ph_did=...), alias this
-  // device's anon id to it so the experiment exposure (on the desktop)
-  // and the conversion (on this device) attribute to the same person.
+  // ─────────────────────────────────────────────────────────────────────
+  // CROSS-DEVICE IDENTITY STITCHING (the QR handoff)
+  //
+  // Scenario: an anonymous visitor lands on /get-started on their desktop.
+  //   - posthog-js assigns them a random cookie-based distinct_id (call it
+  //     "anon-desktop-A"). Our `signup_method_test` experiment buckets
+  //     them into a variant against that ID.
+  //   - They get the `qr` variant: the page renders a QR code whose URL
+  //     embeds anon-desktop-A as `?ph_did=anon-desktop-A`.
+  //   - They scan the QR on their phone. The phone opens /signup as a
+  //     fresh visitor with a *new* anonymous distinct_id (anon-phone-B).
+  //
+  // Without stitching, the experiment exposure (anon-desktop-A) and the
+  // conversion (anon-phone-B → email after signup) belong to two different
+  // anonymous people. Attribution is broken.
+  //
+  // The fix: as soon as we see `?ph_did=...` on /signup, call
+  // posthog.alias(anon-desktop-A). The server merges anon-phone-B into
+  // anon-desktop-A's Person, so the variant assignment + exposure history
+  // travel with them through signup.
+  //
+  // This is the same pattern a QR-to-app campaign needs: the QR codes deep-link to
+  // the mobile app via Apps Flyer; the app's anonymous id must be aliased
+  // to the desktop anonymous id (carried in Apps Flyer's deferred deep-link
+  // payload) so card-application conversions attribute back to web exposure.
+  // ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!posthog) return;
-    const phDid = searchParams.get('ph_did');
+    const originalAnonId = searchParams.get('ph_did');
     const fromQr = searchParams.get('from') === 'qr';
-    if (phDid && fromQr) {
+    if (originalAnonId && fromQr) {
       try {
-        // alias() tells PostHog: "the current distinct_id and the given id are
-        // the same person". The server merges the records and preserves the
-        // flag/experiment exposure from the original desktop session.
-        posthog.alias(phDid);
+        // alias() declares "the current distinct_id and this other id are
+        // the same person". Server merges the records and preserves the
+        // flag/experiment assignment from the original desktop session.
+        posthog.alias(originalAnonId);
         posthog.capture('qr_handoff_received', {
-          from_distinct_id: phDid,
-          to_distinct_id: posthog.get_distinct_id?.(),
+          original_anonymous_id: originalAnonId,
+          this_device_anonymous_id: posthog.get_distinct_id?.(),
         });
       } catch {
         // alias is best-effort; failing here shouldn't block signup.

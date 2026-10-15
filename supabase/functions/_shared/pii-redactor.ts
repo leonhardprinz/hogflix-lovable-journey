@@ -214,3 +214,44 @@ export function redactAIContent(
     content: msg.content.split(/(\*\*[^*\n]+\*\*)/).map(part => (part.startsWith('**') ? part : part.replace(re, placeholder))).join(''),
   }));
 }
+
+/**
+ * Remote redaction via the Presidio + GLiNER service in services/pii-redactor.
+ * Set PII_REDACTION_URL on the function to use it. On any failure or timeout
+ * it falls back to the regex scrubber above, so an outage of the service never
+ * leaks raw text and never blocks the chat.
+ */
+export interface RemoteRedactionResult {
+  messages: Array<{ role: string; content: string }>;
+  engine: string;              // e.g. "presidio+gliner:gliner_multi_pii-v1" or "regex-fallback"
+  entities?: Array<{ text: string; type: string; score: number; message_index: number }>;
+  ms?: number;
+}
+
+export async function redactAIContentRemote(
+  messages: Array<{ role: string; content: string }>,
+  serviceUrl: string | undefined,
+  timeoutMs = 1500
+): Promise<RemoteRedactionResult> {
+  if (!serviceUrl) {
+    return { messages: redactAIContent(messages) as Array<{ role: string; content: string }>, engine: 'regex-fallback' };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${serviceUrl.replace(/\/$/, '')}/redact`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`redaction service ${res.status}`);
+    const data = await res.json();
+    return { messages: data.messages, engine: data.engine, entities: data.entities, ms: data.ms };
+  } catch (err) {
+    console.warn('PII redaction service unavailable, using regex fallback:', (err as Error).message);
+    return { messages: redactAIContent(messages) as Array<{ role: string; content: string }>, engine: 'regex-fallback' };
+  } finally {
+    clearTimeout(timer);
+  }
+}

@@ -41,9 +41,6 @@ export const PopularCarousel = () => {
   }, []);
 
   const handleVideoClick = (video: Video, position: number) => {
-    const sectionPriorityVariant = posthog.getFeatureFlag('Popular_vs_Trending_Priority_Algo_Test');
-
-    // Store source section for video player tracking
     sessionStorage.setItem('video_source_section', 'popular');
 
     posthog.capture('section:clicked', {
@@ -52,7 +49,6 @@ export const PopularCarousel = () => {
       video_title: video.title,
       position_in_carousel: position,
       popularity_score: video.popularity_score,
-      variant: sectionPriorityVariant || 'popular-first',
       timestamp: new Date().toISOString()
     });
   };

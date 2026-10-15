@@ -5,7 +5,7 @@
  *   - `form`: traditional email sign-up form inline
  *   - `qr`:   QR code that deep-links to /signup?from=qr&ph_did=<distinct_id>
  *
- * Mirrors TBC's card-application CTA experiment (QR-to-app vs form-fill).
+ * Mirrors a bank's card-application CTA experiment (QR-to-app vs form-fill).
  * Demonstrates the cross-device identity-stitching pattern via the ph_did
  * query param carried through the QR URL.
  */
@@ -43,13 +43,24 @@ const GetStarted = () => {
     });
   }, [posthog, variant]);
 
-  // Build the QR target URL carrying the current anonymous distinct_id
-  // so the phone-side signup can stitch back to the desktop-side exposure.
+  // Build the QR target URL.
+  //
+  // We bake the *current device's anonymous distinct_id* into the URL as
+  // ?ph_did=<id>. When the user scans on their phone, /signup reads the
+  // param and calls posthog.alias() to merge the phone's fresh distinct_id
+  // into this desktop one. That preserves the experiment exposure +
+  // variant assignment across devices — without it, the phone signup
+  // would look like a brand-new visitor and the QR variant's conversions
+  // would never attribute back to the desktop exposure.
+  //
+  // In a production setup pointing at a real mobile app, this same id
+  // would ride in Apps Flyer's deferred deep-link payload instead of a
+  // URL param — same pattern a QR-to-app campaign needs.
   useEffect(() => {
     if (!posthog) return;
-    const did = posthog.get_distinct_id?.();
-    if (!did) return;
-    const target = `${window.location.origin}/signup?from=qr&ph_did=${encodeURIComponent(did)}`;
+    const desktopAnonId = posthog.get_distinct_id?.();
+    if (!desktopAnonId) return;
+    const target = `${window.location.origin}/signup?from=qr&ph_did=${encodeURIComponent(desktopAnonId)}`;
     setQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(target)}`);
   }, [posthog]);
 

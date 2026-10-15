@@ -12,8 +12,104 @@ if (typeof window !== 'undefined') {
     {
       api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
       ui_host: 'https://eu.posthog.com',
+
+      // ─────────────────────────────────────────────────────────────────────
+      // ⚡ COST + VOLUME CONTROL — the "configure-it" patterns to walk through
+      //    on an anonymous-marketing-site call. Each one trades event
+      //    fidelity for ingestion cost. Pick the ones that fit your traffic shape.
+      // ─────────────────────────────────────────────────────────────────────
+
+      // ─────────────────────────────────────────────────────────────
+      // 1. person_profiles — controls when PostHog creates a Person row.
+      //
+      //   Modes:
+      //     'always'           default. Every distinct_id (incl. anon
+      //                        cookies) gets a Person row. Person-property
+      //                        writes work for everyone. Most expensive.
+      //     'identified_only'  no Person row until posthog.identify() runs.
+      //                        Anonymous traffic still emits $pageview /
+      //                        $autocapture / etc. — those events are
+      //                        captured and counted. They just don't have
+      //                        a Person, so $set / $set_once are no-ops
+      //                        and you can't filter insights by person
+      //                        properties for anonymous visitors.
+      //     'never'            no Person rows, ever.
+      //
+      //   What this means for THIS marketing site:
+      //     - 90%+ of /, /pricing, /get-started traffic is anonymous and
+      //       never signs up. No reason to pay for a Person row each.
+      //     - Web Analytics still works: visitor / session counts use
+      //       distinct_id, not person_id.
+      //     - The experiment still works: flag evaluation buckets by
+      //       distinct_id. No Person needed.
+      //     - When a user signs up, posthog.identify(email) creates the
+      //       Person and back-fills it with the anonymous events via
+      //       $anon_distinct_id merge — so funnels and experiments stay
+      //       intact across the anon→identified boundary.
+      //
+      //   This is exactly the lever for a bank's marketing site:
+      //   it is anonymous-heavy; flipping this to
+      //   'identified_only' keeps storage cost proportional to actual
+      //   customers, not curious visitors.
+      // ─────────────────────────────────────────────────────────────
       person_profiles: 'identified_only',
+
+      // Wide-open autocapture for this demo. In a cost-conscious deployment
+      // you'd pass an object here instead — see DEMO BLOCK below for the
+      // patterns to walk through with customers.
       autocapture: true,
+
+      // ───────────────────────────────────────────────────────────────
+      // 📚 DEMO TALKING POINTS — autocapture volume control patterns.
+      //    These are illustrative; uncomment to actually enforce them.
+      //
+      //    autocapture: {
+      //      // (a) Only capture click / submit / change. Drops hover/focus/scroll noise.
+      //      dom_event_allowlist: ['click', 'submit', 'change'],
+      //
+      //      // (b) Only treat these element tags as click targets — no <div> click spam.
+      //      element_allowlist: ['a', 'button', 'input', 'select', 'textarea', 'label'],
+      //
+      //      // (c) The single most effective lever on a marketing site —
+      //      //     allow autocapture only on elements matching these selectors.
+      //      //     Tag your primary CTAs and nothing else gets through.
+      //      css_selector_allowlist: [
+      //        '[data-attr]',
+      //        'button.cta-primary',
+      //        'a.nav-link',
+      //        'form button[type="submit"]',
+      //      ],
+      //
+      //      // (d) Only autocapture on specific URLs — typically the
+      //      //     marketing surface, while the in-app routes use explicit
+      //      //     `posthog.capture(...)` calls only.
+      //      url_allowlist: [
+      //        'https://hogflix-project.vercel.app/',
+      //        'https://hogflix-project.vercel.app/pricing',
+      //        'https://hogflix-project.vercel.app/get-started',
+      //      ],
+      //    }
+      //
+      // (e) `ph-no-capture` CSS class is honored automatically — no SDK
+      //     change needed. Designers/content editors can toggle from markup:
+      //
+      //       <div class="ph-no-capture"><button>Sensitive CTA</button></div>
+      //
+      // (f) Feature-flag-gated autocapture — disable remotely without a deploy:
+      //
+      //       posthog.onFeatureFlags((flags) => {
+      //         if (flags.includes('autocapture_off')) {
+      //           posthog.config.autocapture = false
+      //         }
+      //       })
+      //
+      // (g) Nuclear option — "Filter Out" CDP Transformation in the PostHog
+      //     UI (Settings → Data pipelines → Transformations). Drops events at
+      //     ingestion based on event properties. Useful when you can't kill
+      //     traffic at the SDK (shipped mobile clients, third-party iframes).
+      //
+      // ───────────────────────────────────────────────────────────────
+
       capture_pageview: true,
       capture_pageleave: true,
       capture_performance: {
@@ -22,6 +118,7 @@ if (typeof window !== 'undefined') {
       },
       capture_exceptions: true,
       disable_web_experiments: false,
+
       debug: import.meta.env.DEV, // Enable debug logging in dev
       
       // Enable session recording (session replay)

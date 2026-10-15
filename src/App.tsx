@@ -29,6 +29,8 @@ import Pricing from "./pages/Pricing";
 import TimeleftPricing from "./pages/TimeleftPricing";
 import DevLinks from "./pages/DevLinks";
 import IdentityTest from "./pages/IdentityTest";
+import FlagQaTest from "./pages/FlagQaTest";
+import DynamicOnboardingDemo from "./pages/DynamicOnboardingDemo";
 import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import NewsletterPreferences from "./pages/NewsletterPreferences";
@@ -140,6 +142,8 @@ const AppContent = () => {
           <Route path="/help" element={<Help />} />
           <Route path="/dev" element={<DevLinks />} />
           <Route path="/dev/identity-test" element={<IdentityTest />} />
+          <Route path="/dev/flag-qa-test" element={<FlagQaTest />} />
+          <Route path="/demo/dynamic-onboarding" element={<DynamicOnboardingDemo />} />
           <Route path="/partner-verify" element={<PartnerVerify />} />
           <Route path="/finance" element={<Finance />} />
           <Route path="/forms" element={<FormsIndex />} />

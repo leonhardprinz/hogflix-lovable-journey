@@ -129,8 +129,9 @@ const SECOND_PATHS = ['/', '/pricing', '/signup', '/login', '/faq', '/help', '/a
 // Variant-specific conversion rates so the experiment shows a clear-ish result
 // in demo-time volumes. Control (form) is more familiar so it converts higher;
 // QR has cross-device friction so it converts lower — matches Ako's hypothesis.
-const CONVERT_RATE_CONTROL = 0.18
-const CONVERT_RATE_QR = 0.10
+// Wide spread chosen deliberately so a winner emerges within a few hundred exposures.
+const CONVERT_RATE_CONTROL = 0.32
+const CONVERT_RATE_QR = 0.08
 
 function pickOne(arr) { return arr[Math.floor(Math.random() * arr.length)] }
 function weightedPick(pool) {
@@ -312,16 +313,23 @@ async function main() {
   let nextIdx = 1
   let completed = 0
 
-  async function worker() {
+  async function worker(workerId) {
     while (!stopping && nextIdx <= COUNT) {
       const myIdx = nextIdx++
-      await runOneSession(browser, myIdx)
-      completed++
+      try {
+        await runOneSession(browser, myIdx)
+        completed++
+      } catch (err) {
+        console.error(`  [w${workerId}] session ${myIdx} crashed: ${err.message?.slice(0, 200)}`)
+      }
+      // small jitter between sessions so we don't hammer the host and so the
+      // loop doesn't burn one CPU at full tilt for hours.
+      await new Promise(r => setTimeout(r, 800 + Math.random() * 1200))
     }
   }
 
-  const workers = Array.from({ length: WORKERS }, () => worker())
-  await Promise.all(workers)
+  const workers = Array.from({ length: WORKERS }, (_, i) => worker(i + 1))
+  await Promise.allSettled(workers)
 
   await browser.close()
   console.log(`\nfinished. completed ${completed} sessions.`)

@@ -32,6 +32,9 @@ const Pricing = () => {
 
   const ultimateButtonRef = useRef<HTMLButtonElement>(null);
   const pageLoadTime = useRef(Date.now());
+  const hasTrackedLayout = useRef(false);
+  const layoutVariantRef = useRef<string | null>(null);
+  const subscriptionRef = useRef(subscription);
 
   // Rage click detection for Ultimate button
   useRageClickDetection(ultimateButtonRef, {
@@ -39,6 +42,10 @@ const Pricing = () => {
     timeWindow: 2000,
     elementSelector: 'button.ultimate-subscribe-button'
   });
+
+  // Keep refs in sync
+  useEffect(() => { subscriptionRef.current = subscription; }, [subscription]);
+  useEffect(() => { layoutVariantRef.current = layoutVariant; }, [layoutVariant]);
 
   useEffect(() => {
     document.title = "Pricing – HogFlix";
@@ -49,39 +56,29 @@ const Pricing = () => {
       posthog?.capture('pricing:time_on_page', {
         duration_ms: timeOnPage,
         duration_seconds: Math.round(timeOnPage / 1000),
-        layout: layoutVariant || 'card'
+        layout: layoutVariantRef.current || 'card'
       });
     };
-  }, [posthog, layoutVariant]);
+  }, [posthog]);
 
   useEffect(() => {
-    // Load feature flag variants
     posthog?.onFeatureFlags(() => {
-      // CTA experiment
       const ctaExperimentVariant = posthog.getFeatureFlag('pricing_upgrade_cta_experiment');
-      if (ctaExperimentVariant && typeof ctaExperimentVariant === 'string') {
-        setCtaVariant(ctaExperimentVariant);
-      }
+      if (typeof ctaExperimentVariant === 'string') setCtaVariant(ctaExperimentVariant);
 
-      // Layout experiment
       const pricingLayoutVariant = posthog.getFeatureFlag('pricing_layout_experiment_v2');
       const variant = pricingLayoutVariant === 'horizontal' ? 'horizontal' : 'control';
       setLayoutVariant(variant);
 
-      // Track experiment assignment
-      posthog?.capture('experiment:pricing_layout_assigned', {
-        variant: variant,
-        user_plan: subscription?.plan_name || 'none',
-        timestamp: new Date().toISOString()
-      });
-
-      // Track layout viewed
-      posthog?.capture('pricing:layout_viewed', {
-        layout: variant === 'horizontal' ? 'table' : 'card',
-        user_plan: subscription?.plan_name || 'none'
-      });
+      if (!hasTrackedLayout.current) {
+        hasTrackedLayout.current = true;
+        posthog?.capture('pricing:viewed', {
+          layout: variant === 'horizontal' ? 'table' : 'card',
+          user_plan: subscriptionRef.current?.plan_name || 'none',
+        });
+      }
     });
-  }, [posthog, subscription]);
+  }, [posthog]);
 
   const getCtaTextByVariant = (planName: string, price: string, variant: string): string => {
     // Basic plan always has same CTA

@@ -113,12 +113,22 @@ const FlixBuddy = () => {
 
   const initialQuery = searchParams.get('q');
 
-  // Feature flag for welcome message experiment
+  // ─── A/B EXPERIMENT WIRING — STEP 1 OF 2 ────────────────────────────────
+  // `useFeatureFlagVariantKey` returns this user's assigned variant for the
+  // multivariate feature flag that powers the experiment. PostHog handles all
+  // of the bucketing, cookie persistence and cross-platform stickiness under
+  // the hood — the component just reads the variant key and re-renders when
+  // the flag value loads.
+  //
+  // Possible return values: 'control' | 'personalized' | 'suggested-prompts' | undefined
+  // `undefined` = the flag has not loaded yet on first render (fall back to control).
   const welcomeVariant = useFeatureFlagVariantKey('flixbuddy_welcome_experiment') as string | undefined;
-  // Feature flag for prompt A/B test
-  const promptVariant = useFeatureFlagVariantKey('flixbuddy-prompt-experiment') as string | undefined;
 
-  // Get welcome message based on experiment variant
+  // ─── A/B EXPERIMENT WIRING — STEP 2 OF 2 ────────────────────────────────
+  // Map each variant key to its UX change. Clean separation: the experiment
+  // owns "which bucket the user is in"; the product code owns "what that
+  // bucket actually shows." Add a new variant in PostHog → add a `case`
+  // here → ship. The control branch is always the `default`.
   const getWelcomeMessage = (): string => {
     switch (welcomeVariant) {
       case 'personalized':
@@ -180,14 +190,21 @@ const FlixBuddy = () => {
 
         setConversationId(conversation.id);
 
-        // Track conversation start with experiment variant
+        // Custom business event for funnel building. Carries the variant as
+        // a property so any downstream insight can break down by variant
+        // without joining tables.
         posthog.capture('flixbuddy:opened', {
           initial_query: initialQuery,
           profile_id: selectedProfile.id,
           experiment_variant: welcomeVariant || 'control'
         });
 
-        // Track feature flag exposure for experiment
+        // ─── EXPOSURE EVENT ────────────────────────────────────────────────
+        // This is the event PostHog counts to populate experiment results.
+        // We fire it explicitly here at the moment the user actually SEES
+        // the variant (rather than relying on auto-exposure at flag-eval
+        // time) so the denominator only includes users who reached this
+        // screen. Without this event, users are bucketed but not counted.
         posthog.capture('$feature_flag_called', {
           $feature_flag: 'flixbuddy_welcome_experiment',
           $feature_flag_response: welcomeVariant || 'control'
@@ -284,7 +301,6 @@ const FlixBuddy = () => {
           userId: (await supabase.auth.getUser()).data.user?.id,
           profileId: selectedProfile.id,
           model: selectedModel,
-          promptVariant: promptVariant || 'control',
           posthogSessionId: posthog.get_session_id?.() || undefined,
           posthogDistinctId: posthog.get_distinct_id?.() || undefined,
         }

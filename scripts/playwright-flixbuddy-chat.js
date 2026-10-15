@@ -149,7 +149,10 @@ async function runFlixBuddySession(user, sessionIndex) {
         await delay(5000) // Wait for FlixBuddy to initialize and welcome message
 
         // 5. Have a conversation
-        const prompts = pick(CHAT_PROMPTS)
+        // FLIXBUDDY_PROMPT_INDEX pins the conversation, so the PII-heavy one can be
+        // generated on demand instead of waiting for the random draw to land on it.
+        const pinned = process.env.FLIXBUDDY_PROMPT_INDEX
+        const prompts = pinned ? CHAT_PROMPTS[Number(pinned)] : pick(CHAT_PROMPTS)
         log(`💬 Starting conversation (${prompts.length} messages)`)
 
         for (let i = 0; i < prompts.length; i++) {

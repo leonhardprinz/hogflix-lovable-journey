@@ -94,6 +94,75 @@ Consider adding these analytics events to track player variant performance:
 
 ---
 
+### 4. `dynamic-onboarding`
+**Type:** Multivariate flag with JSON payloads  
+**Purpose:** Powers the Dynamic Onboarding demo at `/demo/dynamic-onboarding` - the onboarding welcome screen is rendered entirely from the flag's JSON payload, selected by person properties written from in-app behavior
+
+#### How to Create in PostHog (project 85924, EU):
+1. Go to Feature Flags in your PostHog dashboard
+2. Click "New Feature Flag"
+3. **Key:** `dynamic-onboarding`
+4. **Name:** Dynamic Onboarding Experience
+5. **Description:** Selects the onboarding welcome screen (headline, subline, CTA, content-row order) based on the person's computed onboarding segment and engagement score
+6. **Flag Type:** Multiple variants (Multivariate)
+7. **Variants:** `family` / `casual` / `cinephile` (rollout split does not matter - release conditions force the variant per segment)
+8. **Release conditions** (each condition set forces one variant, order matters - most specific first):
+   - **Set 1 → variant `family`:** person property `onboarding_segment` = `family`
+   - **Set 2 → variant `cinephile`:** person property `onboarding_segment` = `cinephile` AND `engagement_score` ≥ `60`
+   - **Set 3 → variant `casual`:** everyone else (100% of remaining users)
+   - The `engagement_score` condition on Set 2 is the demo's talking point: a cinephile with low engagement falls through to `casual`, showing that conditions can combine segment AND score
+9. **JSON payloads** (Variants tab → payload per variant):
+
+`family`:
+```json
+{
+  "headline": "Movie night, sorted for the whole family",
+  "subline": "Kid-safe picks up front, parental controls on by default.",
+  "cta": "Set up Kids profiles",
+  "rows": ["Kids & Family", "Animated Favorites", "Watch Together", "Popular"]
+}
+```
+
+`cinephile`:
+```json
+{
+  "headline": "For people who read the credits",
+  "subline": "Documentaries, director's cuts and festival winners first.",
+  "cta": "Build my watchlist",
+  "rows": ["Award-Winning Documentaries", "Critically Acclaimed", "Hidden Gems", "New Releases"]
+}
+```
+
+`casual`:
+```json
+{
+  "headline": "Something great is always on",
+  "subline": "Jump straight into what everyone's watching right now.",
+  "cta": "Play top pick",
+  "rows": ["Trending Now", "Popular", "Quick Watches"]
+}
+```
+
+#### Person Properties Written by the Demo:
+- `onboarding_segment` - `family` | `cinephile` | `casual`, computed client-side from interest picks (kids → family, else documentaries → cinephile, else casual)
+- `engagement_score` - 0–100, computed as `interests × 20 + (binge intent ? 40 : 0)`, capped at 100
+
+Written via `posthog.setPersonProperties()` followed by `posthog.reloadFeatureFlags()` - posthog-js sends the `$set` alongside the /flags request, so the flag usually re-evaluates against the fresh values on that same refresh (the page shows the measured round-trip in ms).
+
+#### Analytics Events Tracked:
+- `onboarding_interest_selected` - Each interest button click (includes `interest`, `selected`, `total_selected`)
+- `onboarding_binge_intent_toggled` - The "I watch daily" toggle (includes `binge_intent`)
+- `onboarding_signal_written` - When the computed signal is written (includes `onboarding_segment`, `engagement_score`, `interests`, `binge_intent`)
+
+#### Testing Strategy:
+- With the flag off (or payload missing), the page renders a clearly-labeled "Static default" welcome screen - keep it off at first in the demo to show the contrast
+- **Success Metrics (if run as a real experiment):**
+  - Onboarding completion rate per variant
+  - Time to first play from the welcome screen
+  - D1/D7 retention per onboarding segment
+
+---
+
 ## Analytics Event Naming Convention
 
 All feature flag-related events follow this pattern:

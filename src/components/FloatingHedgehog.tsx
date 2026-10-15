@@ -1,7 +1,7 @@
 // Floating Hedgehog Widget for Global FlixBuddy Access
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { usePostHog, useFeatureFlagVariantKey } from 'posthog-js/react';
+import { usePostHog } from 'posthog-js/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Bot, MessageCircle } from 'lucide-react';
@@ -13,67 +13,35 @@ const FloatingHedgehog = () => {
   const location = useLocation();
   const posthog = usePostHog();
   const { user } = useAuth();
-  
-  // Use React hook instead of callback - fires once when flags load
-  const flagVariant = useFeatureFlagVariantKey('FloatingHedgehog_Widget_Visibility_UXUI_Test') as string | undefined;
-  
-  // Track impressions to prevent duplicates
+
   const hasTrackedImpression = useRef<string | null>(null);
 
-  // Only show for logged-in users
   if (!user) {
     return null;
   }
 
-  // Don't show on FlixBuddy page
   if (location.pathname === '/flixbuddy') {
     return null;
   }
 
-  // Determine visibility based on flag variant
-  const variant = flagVariant || 'control';
-  let shouldShow = false;
-  
-  if (variant === 'show_all') {
-    shouldShow = true;
-  } else if (variant === 'show_on_pages') {
-    const allowedPages = ['/', '/browse', '/mylist'];
-    shouldShow = allowedPages.includes(location.pathname);
-  } else if (variant === 'hide_all') {
-    shouldShow = false;
-  } else {
-    // Control/default: show on all pages
-    shouldShow = true;
-  }
-
-  // Fire impression event once per page (not on every render/flag reload)
-  if (shouldShow && hasTrackedImpression.current !== location.pathname) {
+  if (hasTrackedImpression.current !== location.pathname) {
     hasTrackedImpression.current = location.pathname;
     posthog.capture('floatinghedgehog:impression', {
-      variant,
       current_page: location.pathname,
       timestamp: new Date().toISOString()
     });
-  }
-
-  if (!shouldShow) {
-    return null;
   }
 
   const handleClick = () => {
     setIsClicked(true);
-    
-    // Track widget click with feature flag context
+
     posthog.capture('flixbuddy:clicked', {
-      variant: flagVariant,
       current_page: location.pathname,
       timestamp: new Date().toISOString()
     });
 
-    // Navigate to FlixBuddy
     navigate('/flixbuddy');
-    
-    // Reset click state after navigation
+
     setTimeout(() => setIsClicked(false), 200);
   };
 

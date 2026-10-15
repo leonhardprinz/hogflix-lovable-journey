@@ -22,6 +22,9 @@ const DevLinks = () => {
         { path: '/terms', name: 'Terms of Service', public: true },
         { path: '/faq', name: 'FAQ', public: true },
         { path: '/help', name: 'Help', public: true },
+        { path: '/dev/identity-test', name: 'Identity Merge Test', public: true },
+        { path: '/dev/flag-qa-test', name: 'Flag QA / Variant Override Test', public: true },
+        { path: '/demo/dynamic-onboarding', name: 'Dynamic Onboarding Demo', public: true },
     ];
 
     return (

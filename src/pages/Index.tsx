@@ -6,7 +6,7 @@ import { useAnimateOnce } from '@/hooks/useAnimateOnce';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import ContentPreviewCarousel from '@/components/ContentPreviewCarousel';
-import { Play, Star, Users, BarChart3, Eye, Zap } from 'lucide-react';
+import { Play, Star, Users, BarChart3, Eye, Zap, CreditCard, ArrowRight } from 'lucide-react';
 import posthog from 'posthog-js';
 const Index = () => {
   const navigate = useNavigate();
