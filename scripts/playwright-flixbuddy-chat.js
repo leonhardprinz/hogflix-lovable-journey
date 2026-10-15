@@ -175,9 +175,10 @@ async function runFlixBuddySession(user, sessionIndex) {
             }
             await delay(800)
 
-            // Send message
-            const sendBtn = page.locator('button:has(svg)').last() // Send button with icon
-            await sendBtn.click()
+            // Send with Enter on the input. "Last button with an icon" stopped being the
+            // send button once replies render their own icon buttons, so turns 2 and 3
+            // were never sent.
+            await input.press('Enter')
 
             // Wait for response (FlixBuddy needs time to call the LLM)
             log('   ⏳ Waiting for FlixBuddy response...')
