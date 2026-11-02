@@ -1,0 +1,9 @@
+{
+  "name": "hogflix-offline-evals-demo",
+  "private": true,
+  "type": "module",
+  "description": "Scores-only offline evals: the judge runs locally, only scores reach PostHog",
+  "dependencies": {
+    "@posthog/ai": "^8.18.1"
+  }
+}
