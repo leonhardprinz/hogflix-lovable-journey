@@ -89,18 +89,21 @@ function addWeeks(dateStr, n) {
 }
 
 function sendFlixBuddySession(distinctId, variant, device, timestamp) {
+  const ts = new Date(timestamp)
+  const messageText = 'What should I watch tonight?'
   const commonProps = {
     experiment_variant: variant,
+    profile_id: `profile-${distinctId}`,
+    conversation_id: `conv-${ts.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
     $device_type: device.type,
     $browser: device.browser,
     $os: device.os,
     is_synthetic: true,
     synthetic_source: 'flixbuddy-backfill',
   }
-  const ts = new Date(timestamp)
 
   posthog.capture({ distinctId, event: 'flixbuddy:opened',        timestamp: ts, properties: { ...commonProps } })
-  posthog.capture({ distinctId, event: 'flixbuddy:message_sent',  timestamp: ts, properties: { ...commonProps, message_text: 'What should I watch tonight?' } })
+  posthog.capture({ distinctId, event: 'flixbuddy:message_sent',  timestamp: ts, properties: { ...commonProps, message_text: messageText, message_length: messageText.length, message_number: 1 } })
 }
 
 // State tracking for idempotency

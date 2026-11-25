@@ -194,6 +194,7 @@ const FlixBuddy = () => {
         // a property so any downstream insight can break down by variant
         // without joining tables.
         posthog.capture('flixbuddy:opened', {
+          conversation_id: conversation.id,
           initial_query: initialQuery,
           profile_id: selectedProfile.id,
           experiment_variant: welcomeVariant || 'control'
