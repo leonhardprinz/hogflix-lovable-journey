@@ -470,7 +470,7 @@ const Pricing = () => {
   if (layoutVariant === 'horizontal') {
     return (
       <>
-        <PricingTableLayout onPlanSelect={handlePlanSelect} loading={loading} />
+        <PricingTableLayout onPlanSelect={handlePlanSelect} loading={loading} getButtonText={getButtonText} />
         <RetentionOfferModal
           open={showRetentionModal}
           onOpenChange={setShowRetentionModal}
