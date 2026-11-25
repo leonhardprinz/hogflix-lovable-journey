@@ -114,7 +114,7 @@ const Profiles = () => {
     // PostHog analytics
     posthog.capture('profile:selected', {
       profile_id: profile.id,
-      profile_name: profile.display_name || profile.email
+      profile_name: profile.display_name
     });
 
     // Redirect to browse
