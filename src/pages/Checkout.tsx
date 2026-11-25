@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { usePostHog } from 'posthog-js/react';
+import { usePostHog, useFeatureFlagEnabled } from 'posthog-js/react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -9,11 +9,13 @@ import { Check, CreditCard, Loader2, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { initiateHandoff } from '@/lib/posthog-handoff';
+import { HogPayButton } from '@/components/checkout/HogPayButton';
 
 const Checkout = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const posthog = usePostHog();
+  const hogPayEnabled = useFeatureFlagEnabled('hogpay-wallet');
   const { toast } = useToast();
   
   const [plan, setPlan] = useState<string>('');
@@ -337,6 +339,18 @@ const Checkout = () => {
               <p className="text-sm text-muted-foreground mb-6">
                 All payment methods are simulated for demonstration purposes
               </p>
+
+              {hogPayEnabled && (
+                <div className="mb-6">
+                  <HogPayButton
+                    plan={plan}
+                    amount={planDetails?.price_monthly}
+                    disabled={processing}
+                    onApproved={() => handlePaymentMethod('hogpay')}
+                  />
+                  <p className="text-xs text-center text-muted-foreground mt-2">or choose another way to pay</p>
+                </div>
+              )}
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {paymentMethods.map((method) => (
