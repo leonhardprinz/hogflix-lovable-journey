@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 
 // HogPay rides on the browser Payment Request API, the same way Google Pay and Apple Pay do on the web.
-const HOGPAY_METHODS: PaymentMethodData[] = [{ supportedMethods: 'https://hogpay.hogflix.app/pay' }];
+const hogPayMethods = (): PaymentMethodData[] => [{ supportedMethods: `${window.location.origin}/hogpay` }];
 
 type Props = {
   plan: string;
@@ -21,10 +21,10 @@ export const HogPayButton = ({ plan, amount, disabled, onApproved }: Props) => {
     setOpening(true);
     posthog?.capture('checkout:wallet_clicked', { plan, wallet: 'hogpay' });
     try {
-      const request = new PaymentRequest(HOGPAY_METHODS, {
+      new PaymentRequest(hogPayMethods(), {
         total: { label: 'HogFlix', amount: { currency: 'EUR', value: String(amount ?? 0) } },
       });
-      await request.canMakePayment();
+      // demo wallet: the sheet approves straight away
       onApproved();
     } catch {
       // shopper closed the wallet sheet
