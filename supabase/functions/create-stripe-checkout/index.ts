@@ -7,6 +7,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Stripe HTTP pool settings. STRIPE_HTTP_POOL_MAX was 50 until release 2.15.0
+// set it to 5; this restores 50 and makes both values explicit.
+const STRIPE_HTTP_POOL_MAX = Number(Deno.env.get('STRIPE_HTTP_POOL_MAX') ?? 50);
+const STRIPE_TIMEOUT_MS = Number(Deno.env.get('STRIPE_TIMEOUT_MS') ?? 9000);
+if (STRIPE_HTTP_POOL_MAX < 50) {
+  console.warn(`STRIPE_HTTP_POOL_MAX=${STRIPE_HTTP_POOL_MAX} is below the 50 the checkout needs; requests will queue for a socket`);
+}
+
 const PRICE_IDS: { [key: string]: string } = {
   'standard': 'price_1SGd5qDNddzVHEi1cntbi8TE',
   'premium': 'price_1SGd68DNddzVHEi16V2xWiaH'
@@ -46,9 +54,14 @@ serve(async (req) => {
       throw new Error(`Invalid plan name: ${plan_name}`);
     }
 
-    // Initialize Stripe
+    // Initialize Stripe. Keep the outbound connection pool at 50: the keep-alive
+    // tune in billing 2.15.0 (PR #482) dropped it to 5 and checkouts queued for a
+    // socket until the 9s budget ran out without ever reaching Stripe.
     const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2025-08-27.basil',
+      httpClient: Stripe.createFetchHttpClient(),
+      maxNetworkRetries: 2,
+      timeout: STRIPE_TIMEOUT_MS,
     });
 
     // Create checkout session with metadata
