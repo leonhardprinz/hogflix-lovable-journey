@@ -4,11 +4,18 @@ interface UseVideoPlayerOptions {
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onPlay?: () => void;
   onPause?: () => void;
+  // Fires when the media element actually starts rendering frames.
+  onPlaying?: () => void;
+  // Fires when playback pauses to buffer or the media stops loading.
+  onWaiting?: () => void;
+  onStalled?: () => void;
+  // Fires when the media element or a play() call fails.
+  onError?: (message: string) => void;
   autoplay?: boolean;
 }
 
 export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
-  const { onTimeUpdate, onPlay, onPause, autoplay = true } = options;
+  const { onTimeUpdate, onPlay, onPause, onPlaying, onWaiting, onStalled, onError, autoplay = true } = options;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -25,12 +32,19 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
           console.log('▶️ Video playing');
         }
       } catch (error) {
+        setIsPlaying(false);
+        // Autoplay policy rejections are expected — the user can still press play.
+        // Any other rejection means the media genuinely could not start.
+        const name = (error as Error)?.name;
+        if (name !== 'NotAllowedError' && name !== 'AbortError') {
+          onError?.((error as Error)?.message || 'Playback could not start');
+        }
         if (import.meta.env.DEV) {
           console.log('⚠️ Play failed:', error);
         }
       }
     }
-  }, [onPlay]);
+  }, [onPlay, onError]);
 
   const pause = useCallback(() => {
     if (videoRef.current) {
@@ -170,6 +184,28 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
     onPause?.();
   }, [onPause]);
 
+  const handlePlaying = useCallback(() => {
+    setIsPlaying(true);
+    onPlaying?.();
+  }, [onPlaying]);
+
+  const handleWaiting = useCallback(() => {
+    onWaiting?.();
+  }, [onWaiting]);
+
+  const handleStalled = useCallback(() => {
+    onStalled?.();
+  }, [onStalled]);
+
+  const handleError = useCallback(() => {
+    setIsPlaying(false);
+    const mediaError = videoRef.current?.error;
+    const message = mediaError
+      ? `Media error ${mediaError.code}: ${mediaError.message || 'the video failed to load'}`
+      : 'The video failed to load';
+    onError?.(message);
+  }, [onError]);
+
   // Video event handlers to attach to the video element
   const videoProps = {
     ref: videoRef,
@@ -177,6 +213,10 @@ export const useVideoPlayer = (options: UseVideoPlayerOptions = {}) => {
     onTimeUpdate: handleTimeUpdateInternal,
     onPlay: handlePlay,
     onPause: handlePause,
+    onPlaying: handlePlaying,
+    onWaiting: handleWaiting,
+    onStalled: handleStalled,
+    onError: handleError,
   };
 
   return {
