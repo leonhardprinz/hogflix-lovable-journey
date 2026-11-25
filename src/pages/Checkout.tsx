@@ -341,15 +341,12 @@ const Checkout = () => {
               </p>
 
               {hogPayEnabled && (
-                <div className="mb-6">
-                  <HogPayButton
-                    plan={plan}
-                    amount={planDetails?.price_monthly}
-                    disabled={processing}
-                    onApproved={() => handlePaymentMethod('hogpay')}
-                  />
-                  <p className="text-xs text-center text-muted-foreground mt-2">or choose another way to pay</p>
-                </div>
+                <HogPayButton
+                  plan={plan}
+                  amount={planDetails?.price_monthly}
+                  disabled={processing}
+                  onApproved={() => handlePaymentMethod('hogpay')}
+                />
               )}
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
